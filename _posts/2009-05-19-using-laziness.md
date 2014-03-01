@@ -7,18 +7,18 @@ permalink: using-laziness
 
 As I do a lot of forms development, I end up writing something like this a lot:
 
-<pre class="prettyprint lang-vb">
+{% highlight vbnet %}
 Try
     pnlSomething.SuspendLayout()
     '...
 Finally
     pnlSomething.ResumeLayout()
 End Try
-</pre>
+{% endhighlight %}
 
 Now as I am lazy, I thought I could make a class to do this for me:
 
-<pre class="prettyprint lang-vb">
+{% highlight vbnet %}
 Public Class Layout
     Implements IDisposable
 
@@ -35,11 +35,11 @@ Public Class Layout
     End Sub
 
 End Class
-</pre>
+{% endhighlight %}
 
 It is used like this:
 
-<pre class="prettyprint lang-vb">
+{% highlight vbnet %}
 Using l As New Layout(FlowLayoutPanel1)
 
     For I As Integer = 0 To 500
@@ -50,6 +50,6 @@ Using l As New Layout(FlowLayoutPanel1)
     Next
 
 End Using
-</pre>
+{% endhighlight %}
 
 I suppose I haven't saved any typing, but I think it looks better...whether I will actually use it is another matter.  I might see if it's possible to extend it to do other things.  On the other hand I might not bother ;\
