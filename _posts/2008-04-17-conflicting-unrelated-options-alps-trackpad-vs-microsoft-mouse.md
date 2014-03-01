@@ -5,7 +5,7 @@ Tags: bug
 permalink: conflicting-unrelated-options-alps-trackpad-vs-microsoft-mouse
 ---
 
-Usability.  It's one of those things that everyone wants, you know, stuff that 'just works'.  It's nice when companies (or corporations) go out of their way to make things 'just work'.  It's a shame Sony (and others, but I have a Sony, so it's their fault for this exercise) decided to make things harder for me.
+Usability.  It's one of those things that everyone wants, you know, stuff that 'just works'.  It's nice when companies go out of their way to make things 'just work'.  It's a shame Sony (and others, but I have a Sony, so it's their fault for this exercise) decided to make things harder for me.
 
 Allow me to explain.  I have a Sony Vaio (VGN-FE21M), which has an Alps touch pad, which like all touch pad has tapping enabled by default, and that I switch off straight away.  I also have a Microsoft Intellimouse 4, which has smooth scrolling, and scroll acceleration.
 
@@ -15,7 +15,8 @@ I tried the Vista drivers for both mice; I tried the XP drivers for both.  I eve
 
 Eventually I discovered the 'latest' drivers from Sony, IBM, Fujitsu and Siemens were not as new as they could be.  The Dell drivers which I (eventually) found were newer, and although not designed for my laptop worked a charm.  I now have a tap free track pad, and smooth scrolling.
 
-If anyone else is having this problem, here  is a link to the Dell drivers: 
-"32 Bit Vista":http://support.us.dell.com/support/downloads/download.aspx?c=us&l=en&s=gen&releaseid=R140031&formatcnt=1&libid=0&fileid=187207
-"64 Bit Vista":http://support.us.dell.com/support/downloads/download.aspx?c=us&l=en&s=gen&releaseid=R140029&formatcnt=1&libid=0&fileid=187206
+If anyone else is having this problem, here  is a link to the Dell drivers: [32 Bit Vista][32-bit], [64 Bit Vista][64-bit].
 
+
+[32-bit]: http://support.us.dell.com/support/downloads/download.aspx?c=us&l=en&s=gen&releaseid=R140031&formatcnt=1&libid=0&fileid=187207
+[64-bit]: http://support.us.dell.com/support/downloads/download.aspx?c=us&l=en&s=gen&releaseid=R140029&formatcnt=1&libid=0&fileid=187206
