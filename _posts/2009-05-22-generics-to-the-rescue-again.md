@@ -39,7 +39,7 @@ Private Sub OnFilterStart(ByVal sender As Object, ByVal e As EventArgs)
 End Sub
 '...</pre>
 
-Further optimisation let me do the fiollowing, as the sender is always @Me@ :
+Further optimisation let me do the fiollowing, as the sender is always `Me` :
 
 <pre class="prettyprint lang-vb">Private Sub OnFilterStart(ByVal e As EventArgs)
     If _parent.InvokeRequired Then

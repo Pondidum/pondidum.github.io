@@ -11,7 +11,7 @@ The main point for readability comes from the fact that I work a lot (in my spar
 
 For instance in my current project, I deal a lot with rotation, so I am using [Polar Coordinate System][1] which specifies an angle and a length.  However as a windows form uses the Raster Coordinate System/Offset [Cartesian][2] (e.g. 0, 0 is in the Top Left), I end up converting from Polar to Cartesian to Raster.
 
-When I was writing the functions to do this for me, I ended up naming them things like @Point F RasterFromCartesian(PointF pt);@ which helped a lot as when used in code I end up with something like this:
+When I was writing the functions to do this for me, I ended up naming them things like `Point F RasterFromCartesian(PointF pt);` which helped a lot as when used in code I end up with something like this:
 
     PointF locationRaster = RasterFromCartesian(CartesianFromPolar(angle, length));
 
