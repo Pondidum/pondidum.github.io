@@ -21,7 +21,7 @@ Control.SetStyle(ControlStyles.FixedHeight, true);
 
 Which if you read the documentation for ControlStyles.FixedHeight (it's on the intellitype, so there's no reason for not doing so) it says the following:
 
-â€œIf true, the control has a fixed height when auto-scaled. For example, if a layout operation attempts to rescale the control to accommodate a new Font, the control's Height remains unchanged.â€
+â€œIf true, the control has a fixed height when auto-scaled. For example, if a layout operation attempts to rescale the control to accommodate a new Font, the control's Height remains unchanged.â€
 
 So another solution was needed.  In the end, I and a fellow developer found that overriding the controls MaximumHeight and MinimumHeight was the way to do it:
 

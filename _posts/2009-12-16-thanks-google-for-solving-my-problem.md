@@ -9,7 +9,7 @@ Following on from [yesterday's][1] post about separation on concerns and where t
 
 I must say the [Quince][2] website is a good repository of UI Design Patterns, as is [Welie][3].  I couldn't find anything like what I was after, which I guess means I shouldn't be doing it this way?
 
-After a while a brainwave struck me: "Gmail lets you select things, how does it do it?â€  One click on the Gmail icon and I'm presented with this:
+After a while a brainwave struck me: "Gmail lets you select things, how does it do it?â€  One click on the Gmail icon and I'm presented with this:
 
 ![Gmail Selection][4]
 
