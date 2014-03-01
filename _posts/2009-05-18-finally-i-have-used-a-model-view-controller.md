@@ -5,20 +5,20 @@ Tags: design, code
 permalink: finally-i-have-used-a-model-view-controller
 ---
 
-Today I actually managed to use a Model View Controller in an application.  I have been looking for an opportunity to use one fore a while, and have been reading a lot about them (Jeremy Miller's "Build Your Own CAB Series":http://codebetter.com/blogs/jeremy.miller/archive/2007/07/25/the-build-your-own-cab-series-table-of-contents.aspx has been a very good guide).
+Today I actually managed to use a Model View Controller in an application.  I have been looking for an opportunity to use one fore a while, and have been reading a lot about them (Jeremy Miller's [Build Your Own CAB Series][build-your-own-cab] has been a very good guide).
 
-The type of MVC I like most (so far) is the "Passive View":http://martinfowler.com/eaaDev/PassiveScreen.html type, where the View does almost nothing, and has no link to the Model:
+The type of MVC I like most (so far) is the [Passive View][fowler-passive-view] type, where the View does almost nothing, and has no link to the Model:
 
-!http://www.stormbase.net/images/81.png ("Passive View" Model View Presenter)!
-??Image Source:?? "Microsoft":http://msdn.microsoft.com/en-us/library/cc304760.aspx
+!["Passive View" Model View Presenter](/images/passive-view.png)<br />
+Image Source: [Microsoft][ms-passive-view]
 
-There are two main ways of wiring your View to the Presenter/Controller: Events and Interfaces.  The advantage of using an Interface is that they are easier to test (using "Rhino Mocks":http://ayende.com/projects/rhino-mocks.aspx), but as work does not do unit testing (I'm working on it!), that didn't matter too much.  I used events in this case simply because I prefer them.
+There are two main ways of wiring your View to the Presenter/Controller: Events and Interfaces.  The advantage of using an Interface is that they are easier to test (using [Rhino Mocks][rhino-mocks]), but as work does not do unit testing (I'm working on it!), that didn't matter too much.  I used events in this case simply because I prefer them.
 
 As we already have a data layer, and I was just designing a form to expose some functionality I didn't really use a Model either (unless a DAL counts, and I'm not sure it does).
 
 In the end my Controller and Form looked something like this (much snipped, but you get the idea):
 
-==<pre class="prettyprint lang-vb">==
+{% highlight vbnet %}
  Public Class SearchController
 
     Private _control As ISynchronizeInvoke
@@ -54,18 +54,23 @@ In the end my Controller and Form looked something like this (much snipped, but 
 End Class
 
 Public Class frmSearch
-    
+
     Private _controller as new SearchController(Me)
 
     Private Sub btnSearch_Click(ByVal sender As System.Object, ByVal e As System.EventArgs)
         _controller.SetPhrase(txtInput.Text.Trim)
     End Sub
 
-    Private Sub controller_SearchStarted(ByVal sender As Object, ByVal e As SearchEventArgs) 
+    Private Sub controller_SearchStarted(ByVal sender As Object, ByVal e As SearchEventArgs)
         '...
     End Sub
     '...
 End Class
-</pre>
+{% endhighlight %}
 
 Hopefully I will get the opportunity to use MVC/MVP more completely in the future.
+
+[build-your-own-cab]: http://codebetter.com/blogs/jeremy.miller/archive/2007/07/25/the-build-your-own-cab-series-table-of-contents.aspx
+[fowler-passive-view]: http://martinfowler.com/eaaDev/PassiveScreen.html
+[rhino-mocks]: http://hibernatingrhinos.com/oss/rhino-mocks
+[ms-passive-view]: http://msdn.microsoft.com/en-us/library/cc304760.aspx
