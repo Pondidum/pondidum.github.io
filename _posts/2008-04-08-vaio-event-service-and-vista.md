@@ -13,4 +13,4 @@ When I installed all the Vaio stuff on XP, it all worked fine, as it did in Vist
 
 To solve this problem, I installed the XP version of the Event Service (Version 2.3.00.08110) instead of the Vista version (Version 3.0.00.13110), which solved the problem, and worked 100%.
 
-Now while I am please it works, it begs the question; â€œif it aint broke, why â€˜fix' it?â€.  So anyone who's hot keys don't work in Vista, or do work, but slow Vista down (more), just install the XP Versions!
+Now while I am please it works, it begs the question; if it aint broke, why 'fix' it?.  So anyone who's hot keys don't work in Vista, or do work, but slow Vista down (more), just install the XP Versions!
