@@ -7,7 +7,7 @@ permalink: flow-layout-panel-and-scroll-wheel-problem
 
 I came across a problem while writing an application for my parents today.  If you have a FlowLayoutPanel on your form, and have many items in it, causing it to overflow and require scroll bars, you are unable to scroll the control's content using the mouse wheel.
 
-This is somewhat trying in todayâ€™s applications, as nearly everyone has a mouse with a scroll wheel, or a track pad on their laptop with a scroll area.
+This is somewhat trying in today's applications, as nearly everyone has a mouse with a scroll wheel, or a track pad on their laptop with a scroll area.
 
 I came across the solution to the problem at Scott Waldron's "blog":http://www.thewayofcoding.com/2008/02/c-net-programming-tip-flowlayoutpanel.html, where he adds code to the Flow Layout Panel's MouseEnter Event that focuses the Flow Layout Panel, and thus allows it to be scrolled with the wheel.  Many thanks to him for finding the solution and blogging about it.
 

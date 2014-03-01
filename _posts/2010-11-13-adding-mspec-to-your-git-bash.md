@@ -19,7 +19,7 @@ To do this, you need to write a Shell Script with the following contents:
 
 Save it as `mspec` (no extension), and you can place it in one of two places:
 
-* Your Home Directory: `C:\Users\<name>\`, useful if itâ€™s just for you
+* Your Home Directory: `C:\Users\<name>\`, useful if it's just for you
 * The Git Bin Directory: `C:\Program Files\Git\bin`, for if you want all users to be able to run the script
 
 Restart your git bash, and you can now use the command `mspec` to run all your specifications.

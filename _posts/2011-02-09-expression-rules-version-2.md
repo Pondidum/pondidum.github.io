@@ -5,7 +5,7 @@ Tags: design, code, net
 permalink: expression-rules-version-2
 ---
 
-Recently I have written a rules engine for a very large menu system in an application I work on.  Many of the rules apply many items, so I didnâ€™t wish to have to express the same rule many times.  To avoid this, the rule engine DSL was born:
+Recently I have written a rules engine for a very large menu system in an application I work on.  Many of the rules apply many items, so I didn't wish to have to express the same rule many times.  To avoid this, the rule engine DSL was born:
 
 	Concerns.When(item => /* rule of some sort */)
 			.AppliesToAll()

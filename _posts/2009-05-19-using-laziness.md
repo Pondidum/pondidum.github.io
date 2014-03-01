@@ -52,4 +52,4 @@ Using l As New Layout(FlowLayoutPanel1)
 End Using
 </pre>
 
-I suppose I havenâ€™t saved any typing, but I think it looks better...whether I will actually use it is another matter.  I might see if itâ€™s possible to extend it to do other things.  On the other hand I might not bother ;\
+I suppose I haven't saved any typing, but I think it looks better...whether I will actually use it is another matter.  I might see if it's possible to extend it to do other things.  On the other hand I might not bother ;\

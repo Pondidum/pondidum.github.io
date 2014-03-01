@@ -23,7 +23,7 @@ Which at a glance looks like this:
 	Variable Assignment
 	Variable Assignment
 	
-One person suggested that if someone had to do multiline the condition they could at least indent it.  Thatâ€™s not much good either though:
+One person suggested that if someone had to do multiline the condition they could at least indent it.  That's not much good either though:
 
 	If String.IsNullOrEmpty(_selectedGUID) OrElse _
 		_selectedGUID = FeeAgreement.GetDefaultContractAgreementGuid OrElse _
@@ -64,7 +64,7 @@ So, Why not just do it as suggested in Code Complete, which fits on my screen an
 
 	End If
 
-I donâ€™t know who wrote the above original code, and I donâ€™t much care either.  
+I don't know who wrote the above original code, and I don't much care either.  
 I do however think that the people who like the original style are clinically insane...and I work with at least one like this!
 
-Some unit tests wouldnâ€™t go amiss either.  Well, tests of any kind would be a good start...
+Some unit tests wouldn't go amiss either.  Well, tests of any kind would be a good start...

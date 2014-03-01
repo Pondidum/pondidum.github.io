@@ -5,7 +5,7 @@ Tags: code, net
 permalink: using-visual-studio-s-regex-find-and-replace
 ---
 
-The Visual Studio Find and Replace dialog is often overlooked, and when parts of it are looked at (Regex searching) it often gets a bad rep.  Sure it doesnâ€™t implement all of the Regex syntax (non greedy search springs to mind), but thatâ€™s not to say it isn't useful.  
+The Visual Studio Find and Replace dialog is often overlooked, and when parts of it are looked at (Regex searching) it often gets a bad rep.  Sure it doesn't implement all of the Regex syntax (non greedy search springs to mind), but that's not to say it isn't useful.  
 
 For instance, I was working on some code that involved a Model View Presenter type style, but used Subroutines (void methods) rather than WriteOnly properties for brevity (in C# you can do a Set only property in 1 line, VB it takes 5).  As the View is doing nothing other than assigning labels from these "Setters" who cares how many lines it takes?
 
@@ -96,7 +96,7 @@ You could do this with one expression, although I have found its far less hassle
 		
 	End Class
 	
-Now the main reason for this change was the presenter code, which doesnâ€™t sit right with me.  At a glance, am I expecting something to be calculated or what?
+Now the main reason for this change was the presenter code, which doesn't sit right with me.  At a glance, am I expecting something to be calculated or what?
 
 	Public Sub Display(ByVal processHistory As ICVProcessHistory)
 		_view.FileID(processHistory.FileID)	

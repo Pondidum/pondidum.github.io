@@ -5,7 +5,7 @@ Tags: design, code, controls, net
 permalink: creating-non-resizable-controls
 ---
 
-A control I was recently developing required being non-resizable when on the form.  When the application is running, this would be easy enough, just set its @AutoSize@ property to False, and donâ€™t dock the control.
+A control I was recently developing required being non-resizable when on the form.  When the application is running, this would be easy enough, just set its @AutoSize@ property to False, and don't dock the control.
 
 However, this leaves the problem of resizing in the designer.  You could override the resize event of the control, but for "reasons outlined earlier":http://www.stormbase.net/index.php?id=32, such as flickering, I decided against this.
 

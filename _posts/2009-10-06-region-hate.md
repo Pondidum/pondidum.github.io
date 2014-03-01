@@ -44,11 +44,11 @@ I however find regions useful, especially when writing objects (see what I did t
       Method1(){/* */}
     }
 
-This way I am hiding standard boiler plate code, and everything that actually matters is visible.  If you donâ€™t like hiding properties that have a lot of code in them, then your problem may be the fact that you have lots of code in the properties.  Something like [PostSharp][4] could allow you to inject all your properties with the common code such as `PropertyChanging(sender, e)`, `PropertyChanged(sender, e)`.
+This way I am hiding standard boiler plate code, and everything that actually matters is visible.  If you don't like hiding properties that have a lot of code in them, then your problem may be the fact that you have lots of code in the properties.  Something like [PostSharp][4] could allow you to inject all your properties with the common code such as `PropertyChanging(sender, e)`, `PropertyChanged(sender, e)`.
 
-If you need lots of specific code in a property, then it is surely under unit test?  If it isn't, why not? And if it is, does it matter that you canâ€™t see the property without clicking the little + sign?
+If you need lots of specific code in a property, then it is surely under unit test?  If it isn't, why not? And if it is, does it matter that you can't see the property without clicking the little + sign?
 
-One other slight point: with my method of `#region` usage, if you donâ€™t like regions, you have one click to expand it (or if you donâ€™t like clicking, `Ctrl+M, Ctrl+M` in VS will expand/collapse whatever is at the cursor position), so it really is not that difficult to cope with.
+One other slight point: with my method of `#region` usage, if you don't like regions, you have one click to expand it (or if you don't like clicking, `Ctrl+M, Ctrl+M` in VS will expand/collapse whatever is at the cursor position), so it really is not that difficult to cope with.
 
 Like all technologies, use it when it makes sense.  No Regions can be just as bad as many Regions.
 

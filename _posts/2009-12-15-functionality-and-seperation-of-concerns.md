@@ -81,6 +81,6 @@ However it has been requested that I add a 'Select All/None' checkbox to the for
  - 25%/50%/75% of rows are checked, what does the master checkbox look like?
  - Some rows are checked.  What happens when the checkbox is clicked?
 
-So many questions for such a simple looking feature.  With so many possibilities for it maybe it should go into the presenter/interface?  At least itâ€™s testable then.  Maybe a separate controller for it as itâ€™s not really anything to do with the *purpose* of the form?
+So many questions for such a simple looking feature.  With so many possibilities for it maybe it should go into the presenter/interface?  At least it's testable then.  Maybe a separate controller for it as it's not really anything to do with the *purpose* of the form?
 
 If anyone knows of answers to this I would be very interested to hear them.

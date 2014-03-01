@@ -27,7 +27,7 @@ My only gripe with the Var keyword is that it is being overused. Horribly.  Ever
 
 	for (Var i = 0; i < 10; ++i) {/*...*/}
 	
-In that code snippet there is *one* place where Var is used well.  Donâ€™t declare strings as Var, itâ€™s a string. Donâ€™t declare int as Var, not only is it not necessary, it hasnâ€™t saved you any typing, they are both 3 characters long.
+In that code snippet there is *one* place where Var is used well.  Don't declare strings as Var, it's a string. Don't declare int as Var, not only is it not necessary, it hasn't saved you any typing, they are both 3 characters long.
 
 The other point (one I seem to keep coming back to) is code readability:
 

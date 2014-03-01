@@ -60,7 +60,7 @@ Which is all very well and good - but nowadays, everyone (well nearly everyone) 
     var p3 = PersonManager.GetPerson();
     var p4 = PersonManager.GetPerson().WaitForFreshResults();
 
-Uh oh.  Thatâ€™s not a person you have in that variable, itâ€™s a PersonOptions.  The compiler does help with this, as none of your `Person` methods will be present, and the PersonOptions class does provide a Person object as a Read Only Property, so the code can be modified to use that:
+Uh oh.  That's not a person you have in that variable, it's a PersonOptions.  The compiler does help with this, as none of your `Person` methods will be present, and the PersonOptions class does provide a Person object as a Read Only Property, so the code can be modified to use that:
 
     var p5 = PersonManager.GetPerson().WaitForFreshResults().Person;
 

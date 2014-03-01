@@ -16,7 +16,7 @@ I have been working on a project recently that involves a lot of work with Flags
 	HasAll(Of T as Structure)(self as T, values() as Int) as Boolean
 	HasAny(Of T as Structure)(self as T, values() as Int) as Boolean
 
-Now the last 3 methods I am happy with - they are self explanatory and do whatâ€™s expected.  The first four however I am less convinced by.  
+Now the last 3 methods I am happy with - they are self explanatory and do what's expected.  The first four however I am less convinced by.  
 
 My main problem is how I wrote some code:
 

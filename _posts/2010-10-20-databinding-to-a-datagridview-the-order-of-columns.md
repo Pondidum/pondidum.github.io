@@ -23,7 +23,7 @@ This exposes something interesting about how the DataGridView picks column order
 
 When the piece of software was deployed (in house software, to be used by about 10 people), one user requested the order of the columns be changed.  She didn't like the fact that the order was this for her: `Note, ID, CreateDate, Creator`.
 
-After checking my copy of the software and several other usersâ€™ copies, it turned out the order was only different on her machine.  She could login to another machine and it would be fine.  At the time I never got to the bottom of why it was setting the wrong order, but fixed it by manually specifying the column order after binding.
+After checking my copy of the software and several other users' copies, it turned out the order was only different on her machine.  She could login to another machine and it would be fine.  At the time I never got to the bottom of why it was setting the wrong order, but fixed it by manually specifying the column order after binding.
 
 Yesterday however I was reading an article by [Abhishek Sur on the Hidden Facts of C# Structures in terms of MSIL][1] and noticed this piece of information:
 

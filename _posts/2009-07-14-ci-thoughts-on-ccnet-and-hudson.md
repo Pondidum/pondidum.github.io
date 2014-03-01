@@ -11,7 +11,7 @@ However, I do find that the config files get rather messy.  I have tried many th
 
 I have also been reading a lot of good things about [Hudson][3] which while being a Java aimed CI Server, can be used with MSBuild through Nant, or plugins to let you use MSBuild directly (a nice guide is at [redsolo's blog]).  While I also have not had the time to have a proper play with it, I must say it does look very good.  
 
-It may still have messy configs (I donâ€™t know yet, havenâ€™t really looked), but as everything is done through a nice web interface rather than a CLI, who cares?  I was very impressed with how quick it was to get running too: `java -DHUDSON_HOME=data -jar hudson.war`. It uncompressed itself, and got going straight away. No messing with installers. Very nice.
+It may still have messy configs (I don't know yet, haven't really looked), but as everything is done through a nice web interface rather than a CLI, who cares?  I was very impressed with how quick it was to get running too: `java -DHUDSON_HOME=data -jar hudson.war`. It uncompressed itself, and got going straight away. No messing with installers. Very nice.
 
 The only thing I dislike so far is the background picture in the web interface.  So I deleted it.  Other than that (very) minor niggle, I think I like Hudson a lot, and look forward to playing around with it in the future.
 

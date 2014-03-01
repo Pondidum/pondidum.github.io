@@ -8,9 +8,9 @@ permalink: the-reading-list
 I have been meaning to write my own version of Jeff Atwood's "Reading List":http://www.codinghorror.com/blog/archives/000020.html for a while now, and have finally managed to find some time to write about the books I have read.
 
 "Code Complete 2":http://www.amazon.co.uk/Code-Complete-Practical-Handbook-Construction/dp/0735619670/ref=sr_1_1?ie=UTF8&s=books&qid=1244194043&sr=8-1
-I found this book quite tough reading. It wasnâ€™t that it had nothing of use in it - far from it, it just was fairly heavy going.  There are many things that can be learnt from this to help with the whole process of development, from how to name variables and functions to what the useful methods of development planning are.  Highly recommended.
+I found this book quite tough reading. It wasn't that it had nothing of use in it - far from it, it just was fairly heavy going.  There are many things that can be learnt from this to help with the whole process of development, from how to name variables and functions to what the useful methods of development planning are.  Highly recommended.
 
-"Donâ€™t Make Me Think":http://www.amazon.co.uk/Dont-Make-Me-Think-Usability/dp/0321344758/ref=pd_sim_b_20
+"Don't Make Me Think":http://www.amazon.co.uk/Dont-Make-Me-Think-Usability/dp/0321344758/ref=pd_sim_b_20
 This book by comparison was very easy to read.  It is fairly short (around four hours is plenty to read it) and is crammed with useful succinct information on design.  It is focused at web development, but 90% of the information applies to forms development too.  Highly Recommended.
 
 "Head First Design Patterns":http://www.amazon.co.uk/Head-First-Design-Patterns-Freeman/dp/0596007124/ref=pd_sim_b_3

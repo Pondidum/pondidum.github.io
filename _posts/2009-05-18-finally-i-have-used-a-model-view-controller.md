@@ -12,9 +12,9 @@ The type of MVC I like most (so far) is the "Passive View":http://martinfowler.c
 !http://www.stormbase.net/images/81.png ("Passive View" Model View Presenter)!
 ??Image Source:?? "Microsoft":http://msdn.microsoft.com/en-us/library/cc304760.aspx
 
-There are two main ways of wiring your View to the Presenter/Controller: Events and Interfaces.  The advantage of using an Interface is that they are easier to test (using "Rhino Mocks":http://ayende.com/projects/rhino-mocks.aspx), but as work does not do unit testing (Iâ€™m working on it!), that didnâ€™t matter too much.  I used events in this case simply because I prefer them.
+There are two main ways of wiring your View to the Presenter/Controller: Events and Interfaces.  The advantage of using an Interface is that they are easier to test (using "Rhino Mocks":http://ayende.com/projects/rhino-mocks.aspx), but as work does not do unit testing (I'm working on it!), that didn't matter too much.  I used events in this case simply because I prefer them.
 
-As we already have a data layer, and I was just designing a form to expose some functionality I didnâ€™t really use a Model either (unless a DAL counts, and Iâ€™m not sure it does).
+As we already have a data layer, and I was just designing a form to expose some functionality I didn't really use a Model either (unless a DAL counts, and I'm not sure it does).
 
 In the end my Controller and Form looked something like this (much snipped, but you get the idea):
 

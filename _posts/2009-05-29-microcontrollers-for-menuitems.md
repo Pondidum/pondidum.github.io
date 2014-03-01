@@ -165,7 +165,7 @@ Public NotInheritable Class CommandState(Of T)
 End Class
 </pre>
 
-Finally we have the Manager class which stitches the whole lot together with a health dollop of Fluent Interfaces.  We have a unique list of Commands (as I wrote this in VS2005, I just had to make a unique List class, rather than use a dictionary of CommmandItem and Null) and a sub class which provides the Fluent Interface to the manager. (IDisposeable parts have been trimmed out for brevity, itâ€™s just contains a loop that disposes all child objects).
+Finally we have the Manager class which stitches the whole lot together with a health dollop of Fluent Interfaces.  We have a unique list of Commands (as I wrote this in VS2005, I just had to make a unique List class, rather than use a dictionary of CommmandItem and Null) and a sub class which provides the Fluent Interface to the manager. (IDisposeable parts have been trimmed out for brevity, it's just contains a loop that disposes all child objects).
 
 <pre class="prettyprint lang-vb">
 Public NotInheritable Class Manager(Of T)
