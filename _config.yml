@@ -1,0 +1,5 @@
+name: Andy Dote
+description: Andy Dote's blog
+url: http://andydote.co.uk
+markdown: redcarpet
+pygments: true

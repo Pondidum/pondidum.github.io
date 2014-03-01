@@ -1,0 +1,137 @@
+* {
+  padding: 0px;
+  margin: 0px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Verdana, "Lucida Grande", Tahoma, Helvetica, sans-serif;
+  color: #000;
+  background-color: #fff;
+}
+
+blockquote, h2, p, li {
+  padding-right: 10px;
+  padding-left: 10px;
+  font-size: 0.9em;
+  line-height: 1.6em;
+}
+
+blockquote {
+  margin-right: 40px;
+  margin-left: 40px;
+  border-style: solid;
+  border-width: 1px;
+  border-color: #999;
+  background-color:  #eee;
+}
+
+h1, h2 {
+  margin: 2em 0 0.7em 0;
+  padding: 0 10px;
+  font-weight: normal;
+  font-size: 1.5em;
+  font-family: Georgia, Times, serif;
+}
+
+h2 {
+  font: 1.3em Georgia, Times, serif;
+}
+
+p {
+  margin-bottom: 1em;
+  margin-top: 1em;
+}
+
+/* sidebar
+-----------------------------------------------*/
+
+#sidebar {
+  padding-top: 50px;
+  width: 150px;
+  margin-left: 5px;
+  float: right;
+}
+
+#sidebar p {
+  font-size: 0.8em;
+  line-height: 1.5em;
+}
+
+#sidebar a {
+  text-decoration: none;
+}
+
+#sidebar ul {
+  list-style-type: none;
+  margin-left: 0px;
+  padding-left: 0px;
+}
+
+/* links
+----------------------------------------------- */
+
+a {
+  text-decoration: underline;
+  color: #c00;
+}
+
+a img {
+  text-decoration: none;
+}
+
+h1 a, h2 a, h3 a {
+  text-decoration: none;
+}
+
+
+#site-name a {
+  text-decoration: none;
+}
+
+/* layout
+----------------------------------------------- */
+
+#accessibility {
+  position: absolute;
+  top: -10000px;
+}
+
+#container {
+  margin: 10px auto;
+  padding: 10px;
+  width: 960px;
+}
+
+#head {
+  text-align: center;
+}
+
+#site-name {
+  margin: 15px 0;
+  font: 3em Georgia, Times, serif;
+}
+
+#content {
+  margin: 0 155px 0 0;
+  padding-top: 30px;
+}
+
+.highlight {
+  border-left-style: solid;
+  border-left-width: 1px;
+  border-left-color: #999;
+  margin-left: 20px;
+  padding-left: 10px;
+}
+
+div.divider {
+  margin: 2em 0;
+  text-align: center;
+}
+
+ul {
+  list-style-type: none;
+  padding: 0;
+}
