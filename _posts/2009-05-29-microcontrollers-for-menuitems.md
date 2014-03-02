@@ -5,28 +5,32 @@ Tags: design, code, generics, controls, net
 permalink: microcontrollers-for-menuitems
 ---
 
-I have been working my way through Jeremy Miller's excellent "Build Your Own CAB Series":http://codebetter.com/blogs/jeremy.miller/archive/2007/07/25/the-build-your-own-cab-series-table-of-contents.aspx (which would be even better if he felt like finishing!) and was very interested by the article on controlling menus with "Microcontrollers":http://codebetter.com/blogs/jeremy.miller/pages/build-your-own-cab-14-managing-menu-state-with-microcontroller-s-command-s-a-layer-supertype-some-structuremap-pixie-dust-and-a-dollop-of-fluent-interface.aspx.
+I have been working my way through Jeremy Miller's excellent [Build Your Own CAB Series][jeremy-cab] (which would be even better if he felt like finishing!) and was very interested by the article on controlling menus with [Microcontrollers][jeremy-micro].
 
-After reading it and writing a version of it myself, I came to the conclusion that some parts of it seem to be wrong.  All of the permissioning is done based on the menu items which fire ICommands, and several menu items could use the same ICommand.  This means that you need to use the interface something like this:
+After reading it and writing a version of it myself, I came to the conclusion that some parts of it seem to be wrong.  All of the permissioning is done based on the menu items which fire `ICommands`, and several menu items could use the same `ICommand`.  This means that you need to use the interface something like this:
 
-pre(prettyprint lang-vb). 
+{% highlight vbnet %}
 MenuController.MenuItem(mnuFileNew).Executes(Commands.Open).IsAvailableToRoles("normal", "editor", "su");
 MenuController.MenuItem(tsbStandardNew).Executes(Commands.Open).IsAvailableToRoles("normal", "editor", "su");
+{% endhighlight %}
 
 Now to me this seems somewhat wrong, I would rather have something like this:
 
-pre(prettyprint lang-vb). 
+{% highlight vbnet %}
 MenuController.Command(new MenuCommands.New).IsAttachedTo(mnuFileNew, tsbStandardNew).IsAvailableToRoles("normal", "editor", "su");
+{% endhighlight %}
 
-So I decided to have a go at re-working it to my liking.  To start with we have the mandatory ICommand interface:
+So I decided to have a go at re-working it to my liking.  To start with we have the mandatory `ICommand` interface:
 
-pre(prettyprint lang-vb). 
+{% highlight vbnet %}
 Public Interface ICommand
     Sub Execute()
 End Interface
+{% endhighlight %}
 
-Then a class that manages the actual ICommand and its menuitem(s):
-<pre class="prettyprint lang-vb">
+Then a class that manages the actual `ICommand` and its menuitem(s):
+
+{% highlight vbnet %}
 Public NotInheritable Class CommandItem(Of T)
     Implements IDisposable      'used to remove handlers that we dont want to leave lying around
 
@@ -86,9 +90,9 @@ Public NotInheritable Class CommandItem(Of T)
     Public Function IsEnabled(ByVal state As CommandState(Of T)) As Boolean
 
         If _alwaysEnabled Then Return True
-        
+
         If Not state.IsEnabled(_id) Return False
-        
+
         For i As Integer = 0 To _roles.Count - 1
             If Thread.CurrentPrincipal.IsInRole(_roles(i)) Then Return True
         Next
@@ -131,13 +135,13 @@ Public NotInheritable Class CommandItem(Of T)
     End Sub
 
 End Class
-</pre>
+{% endhighlight %}
 
-As you can see, the Dispose Method is used to allow for handlers to be removed, otherwise the objects might be hanging around longer than they should be. We also have a list of menu items that this command controls, and a list of roles that the command is available to.
+As you can see, the `Dispose` Method is used to allow for handlers to be removed, otherwise the objects might be hanging around longer than they should be. We also have a list of menu items that this command controls, and a list of roles that the command is available to.
 
 Next we have the class that holds the state of each menu item, which is generic to allow the end user to use whatever they wish to identify each menu item:
 
-<pre class="prettyprint lang-vb">
+{% highlight vbnet %}
 Public NotInheritable Class CommandState(Of T)
 
     Private _enabledCommands As New List(Of T)
@@ -163,11 +167,11 @@ Public NotInheritable Class CommandState(Of T)
     End Function
 
 End Class
-</pre>
+{% endhighlight %}
 
-Finally we have the Manager class which stitches the whole lot together with a health dollop of Fluent Interfaces.  We have a unique list of Commands (as I wrote this in VS2005, I just had to make a unique List class, rather than use a dictionary of CommmandItem and Null) and a sub class which provides the Fluent Interface to the manager. (IDisposeable parts have been trimmed out for brevity, it's just contains a loop that disposes all child objects).
+Finally we have the Manager class which stitches the whole lot together with a health dollop of Fluent Interfaces.  We have a unique list of Commands (as I wrote this in VS2005, I just had to make a unique List class, rather than use a dictionary of `CommmandItem` and `Null`) and a sub class which provides the Fluent Interface to the manager. (`IDisposeable` parts have been trimmed out for brevity, it's just contains a loop that disposes all child objects).
 
-<pre class="prettyprint lang-vb">
+{% highlight vbnet %}
 Public NotInheritable Class Manager(Of T)
 
     Private _commands As New UniqueList(Of CommandItem(Of T))
@@ -226,11 +230,11 @@ Public NotInheritable Class Manager(Of T)
     End Class
 
 End Class
-</pre>
+{% endhighlight %}
 
 In my test application I have a file containing my menuCommands and an Enum used for identification:
 
-<pre class="prettyprint lang-vb">
+{% highlight vbnet %}
 Namespace MenuCommands
     Public Enum Commands
         [New]
@@ -248,13 +252,11 @@ Namespace MenuCommands
 
     End Class
 End Namespace
-</pre>
+{% endhighlight %}
 
 And in the main form I have this code.  The Thread Principle is used for the roles, and the actual roles could (should) be loaded from a database or anywhere other than hard coded constants of course.
 
-
-
-<pre class="prettyprint lang-vb">
+{% highlight vbnet %}
 Private _menuManager As New Manager(Of MenuCommands.Commands)
 Private _state As New CommandState(Of MenuCommands.Commands)
 
@@ -289,6 +291,10 @@ Private Sub Form1_Load(ByVal sender As System.Object, ByVal e As System.EventArg
     _menuManager.SetState(_state)
 
 End Sub
-</pre>
+{% endhighlight %}
 
 The state object is used to enable and disable menu items and could be wrapped in another object if it needed to be exposed further than the form.
+
+[jeremy-cab]: http://codebetter.com/blogs/jeremy.miller/archive/2007/07/25/the-build-your-own-cab-series-table-of-contents.aspx
+[jeremy-micro]: http://codebetter.com/blogs/jeremy.miller/pages/build-your-own-cab-14-managing-menu-state-with-microcontroller-s-command-s-a-layer-supertype-some-structuremap-pixie-dust-and-a-dollop-of-fluent-interface.aspx
+
