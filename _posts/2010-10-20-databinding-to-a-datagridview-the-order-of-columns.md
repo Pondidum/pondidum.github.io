@@ -7,17 +7,21 @@ permalink: databinding-to-a-datagridview-the-order-of-columns
 
 A while ago I was writing a small history grid in one of our applications at work.  It has a single `HistoryItem` object, which is fairly straightforward, something like this:
 
-	Class HistoryItem
-	{
-		public int ID { get{ return _id; } } 
-		public DateTime CreateDate { get { return _createDate; } }
-		public String Creator { get { return _creatorName; } }
-		public String Note { get { return _note; } }
-	}
+{% highlight c# %}
+Class HistoryItem
+{
+	public int ID { get{ return _id; } }
+	public DateTime CreateDate { get { return _createDate; } }
+	public String Creator { get { return _creatorName; } }
+	public String Note { get { return _note; } }
+}
+{% endhighlight %}
 
 This was populated into a `List<HistoryItem>` and bound to the `DataGridView` directly:
 
+{% highlight c# %}
 	dgvHistory.DataSource = ScreenEntity.History.ToList();
+{% endhighlight %}
 
 This exposes something interesting about how the DataGridView picks column order: It's not done by Alphabetical Order; it is done by Definition Order.  So the order in which the properties in the class are defined is the order that the grid view will display. Usually.
 
@@ -27,7 +31,7 @@ After checking my copy of the software and several other users' copies, it turne
 
 Yesterday however I was reading an article by [Abhishek Sur on the Hidden Facts of C# Structures in terms of MSIL][1] and noticed this piece of information:
 
-> DemoClass is declared as auto...Auto allows the loader to change the layout of the class which it sees fit. That means the order of the members will not be kept intact while the object is created. It is also going to ignore any layout information for the class mentioned explicitly. 
+> DemoClass is declared as auto...Auto allows the loader to change the layout of the class which it sees fit. That means the order of the members will not be kept intact while the object is created. It is also going to ignore any layout information for the class mentioned explicitly.
 
 Now while I am unable to reproduce this problem currently as I am not near work, I do wonder if the reason column orders were fine on most machines was because the CLR was keeping the properties in definition order, with the exception of one machine, where for whatever reason it was reordering the properties.
 
