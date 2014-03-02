@@ -131,7 +131,11 @@ div.divider {
   text-align: center;
 }
 
-ul {
+ul.posts {
   list-style-type: none;
   padding: 0;
+}
+
+ul {
+  margin-left: 2em;
 }
