@@ -122,7 +122,6 @@ h1 a, h2 a, h3 a {
   border-left-style: solid;
   border-left-width: 1px;
   border-left-color: #999;
-  margin-left: 20px;
   padding-left: 10px;
 }
 
@@ -136,6 +135,7 @@ ul.posts {
   padding: 0;
 }
 
-ul, ol {
-  margin-left: 2em;
+ul, ol, img, .highlight, blockquote {
+  margin-left: 3em;
+  margin-right: 3em;
 }
