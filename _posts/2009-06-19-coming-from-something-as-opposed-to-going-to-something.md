@@ -13,11 +13,15 @@ For instance in my current project, I deal a lot with rotation, so I am using [P
 
 When I was writing the functions to do this for me, I ended up naming them things like `Point F RasterFromCartesian(PointF pt);` which helped a lot as when used in code I end up with something like this:
 
-    PointF locationRaster = RasterFromCartesian(CartesianFromPolar(angle, length));
+{% highlight c# %}
+PointF locationRaster = RasterFromCartesian(CartesianFromPolar(angle, length));
+{% endhighlight %}
 
 Which keeps the keywords close together and may not seem like a huge advantage with the declaration line, but when later on in the code you see this:
 
-    locationRaster = CartesianDistance(currentCartesian, destinationCartesian);
+{% highlight c# %}
+locationRaster = CartesianDistance(currentCartesian, destinationCartesian);
+{% endhighlight %}
 
 You can see instantly that something is wrong, as the code is assigning a Cartesian straight to a Raster variable.  By having the word Raster on the end of my variable name and the resultant type on the beginning of my function, it is very easy to see what is happening at a glance.
 
