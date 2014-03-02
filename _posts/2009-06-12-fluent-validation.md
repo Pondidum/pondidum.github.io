@@ -5,15 +5,15 @@ Tags: design, code, net
 permalink: fluent-validation
 ---
 
-A few days a go i was going through my bookmarks, and came accross "this post":http://blog.getpaint.net/2008/12/06/a-fluent-approach-to-c-parameter-validation/ on the GetPaint.Net blog about using a fluent interface for parameter validation.
+A few days a go i was going through my bookmarks, and came accross [this post][fluent-validation] on the GetPaint.Net blog about using a fluent interface for parameter validation.
 
 After reading the article, I tried the code out at home, and was very impressed.  Not only does it read well, but also does not create any objects untill a piece of validation fails.  Very nice.
 
-However i wanted to use this at work, and this presented me with a problem.  Work only has VS2005, which means no extension methods, which are the crux of how this validation method works. 
+However i wanted to use this at work, and this presented me with a problem.  Work only has VS2005, which means no extension methods, which are the crux of how this validation method works.
 
 I spent a while trying to see if it was possible to keep the fluent interface and not instantiate any objects until something fails.  In the end i settled for this method which only creates one object.
 
-<pre class="prettyprint lang-vb">
+{% highlight vbnet %}
 Public Class Validate
 
     Public Shared Function Begin() As ValidationExpression
@@ -68,6 +68,8 @@ Public Class Validate
 
     End Class
 End Class
-</pre>
+{% endhighlight %}
 
-The rest of the code used is identical to Rick Brewster's Article, so "head over there":http://blog.getpaint.net/2008/12/06/a-fluent-approach-to-c-parameter-validation/ to see it in all its (well written) glory
+The rest of the code used is identical to Rick Brewster's Article, so [head over there][fluent-validation] to see it in all its (well written) glory.
+
+[fluent-validation]: http://blog.getpaint.net/2008/12/06/a-fluent-approach-to-c-parameter-validation/
