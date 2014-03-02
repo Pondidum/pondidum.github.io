@@ -7,61 +7,73 @@ permalink: expression-rules-version-2
 
 Recently I have written a rules engine for a very large menu system in an application I work on.  Many of the rules apply many items, so I didn't wish to have to express the same rule many times.  To avoid this, the rule engine DSL was born:
 
-	Concerns.When(item => /* rule of some sort */)
-			.AppliesToAll()
-			.Except(MenuItems.ToggleHidden, MenuItems.Refresh)
-		
+{% highlight c# %}
+Concerns.When(item => /* rule of some sort */)
+		.AppliesToAll()
+		.Except(MenuItems.ToggleHidden, MenuItems.Refresh)
+{% endhighlight %}
+
 And rules are rolled together, so a specific menu item must have all of its rules evaluating to true to be displayed.
 
 The problem arose when an item was displaying when it shouldn't (or vice versa).  Debugging with rules specified like this was a pain, and when I saw the article about [ExpressionRules][2] by [Daniel Wertheim][1], I thought it would help solve my problem.  He replaces Lambda conditions with a class and implicit operator, allowing code to be changed from something like this:
 
-	var bonusCustomers = _customers.Where(c =>
-			(c.NumOfYearsAsMember == 0 && c.CashSpent >= 3000) ||
-			(c.NumOfYearsAsMember > 0 && (c.CashSpent / c.NumOfYearsAsMember) >= 5000));
+{% highlight c# %}
+var bonusCustomers = _customers.Where(c =>
+		(c.NumOfYearsAsMember == 0 && c.CashSpent >= 3000) ||
+		(c.NumOfYearsAsMember > 0 && (c.CashSpent / c.NumOfYearsAsMember) >= 5000));
+{% endhighlight %}
 
 To something like this:
 
-	var bonusCustomers = _customers.Where(new IsBonusCustomer());
-	
+{% highlight c# %}
+var bonusCustomers = _customers.Where(new IsBonusCustomer());
+{% endhighlight %}
+
 He does this using a base class and then inheriting from it to create the rule:
 
-	public class IsBonusCustomer : ExpressionRule<Customer>, IIsBonusCustomer
+{% highlight c# %}
+public class IsBonusCustomer : ExpressionRule<Customer>, IIsBonusCustomer
+{
+	public IsBonusCustomer()
+		: base(c =>
+				(c.NumOfYearsAsMember == 0 && c.CashSpent >= 3000) ||
+				(c.NumOfYearsAsMember > 0 && (c.CashSpent / c.NumOfYearsAsMember) >= 5000))
 	{
-	    public IsBonusCustomer()
-	        : base(c =>
-	                (c.NumOfYearsAsMember == 0 && c.CashSpent >= 3000) ||
-	                (c.NumOfYearsAsMember > 0 && (c.CashSpent / c.NumOfYearsAsMember) >= 5000))
-	    {
-	    }
 	}
+}
+{% endhighlight %}
 
 I took his base class and modified it to this:
 
-	public abstract class ExpressionRule<T> where T : class
+{% highlight c# %}
+public abstract class ExpressionRule<T> where T : class
+{
+	protected abstract bool Rule(T item);
+
+	public static implicit operator Func<T, bool>(ExpressionRule<T> item)
 	{
-		protected abstract bool Rule(T item);
-
-		public static implicit operator Func<T, bool>(ExpressionRule<T> item)
-		{
-			return item.Rule;
-		}
-
-		public bool Evaluate(T item)
-		{
-			return Rule(item);
-		}
+		return item.Rule;
 	}
+
+	public bool Evaluate(T item)
+	{
+		return Rule(item);
+	}
+}
+{% endhighlight %}
 
 This means the IsBonusCustomer now becomes this:
 
-	public class IsBonusCustomer : ExpressionRule<Customer>
+{% highlight c# %}
+public class IsBonusCustomer : ExpressionRule<Customer>
+{
+	protected override bool Rule(Customer customer)
 	{
-		protected override bool Rule(Customer customer)
-		{
-			return (c.NumOfYearsAsMember == 0 && c.CashSpent >= 3000) ||
-	               (c.NumOfYearsAsMember > 0 && (c.CashSpent / c.NumOfYearsAsMember) >= 5000)
-		}
+		return (c.NumOfYearsAsMember == 0 && c.CashSpent >= 3000) ||
+			   (c.NumOfYearsAsMember > 0 && (c.CashSpent / c.NumOfYearsAsMember) >= 5000)
 	}
+}
+{% endhighlight %}
 
 Not only do we still have the readability of the first version, but a full function that can have logging added to it, and easier debugging.
 
