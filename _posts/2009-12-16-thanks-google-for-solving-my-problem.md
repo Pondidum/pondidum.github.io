@@ -17,7 +17,7 @@ Perfect.  So I went back to my sponsor and showed them a mock-up with this style
 
 The moral of the story?  If in doubt, copy Google.
 
-[1]: http://www.stormbase.net/functionality-and-seperation-of-concerns
+[1]: /functionality-and-seperation-of-concerns
 [2]: http://quince.infragistics.com
 [3]: http://www.welie.com
 [4]: /images/87.jpg
