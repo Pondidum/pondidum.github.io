@@ -9,59 +9,67 @@ I have covered a use of Narrowing/Implicit Operators before, but I was thinking 
 
 I gave it a go, and came up with this:
 
-    public class Person
-    {
-        public string Name { get; set; }
-        public int Age { get; set; }
+{% highlight c# %}
+public class Person
+{
+	public string Name { get; set; }
+	public int Age { get; set; }
 
-        public Person(string name, int age)
-        {
-            this.Name = name;
-            this.Age = age;
-        }
-    }
+	public Person(string name, int age)
+	{
+		this.Name = name;
+		this.Age = age;
+	}
+}
 
-    public class PersonManager
-    {
-        public static PersonOptions GetPerson()
-        {
-            return new PersonOptions(new Person("dave", 21));
-        }
-    }
+public class PersonManager
+{
+	public static PersonOptions GetPerson()
+	{
+		return new PersonOptions(new Person("dave", 21));
+	}
+}
 
-    public class PersonOptions
-    {
-        public Person Person { get; private set; }
+public class PersonOptions
+{
+	public Person Person { get; private set; }
 
-        public PersonOptions(Person person)
-        {
-            this.Person = person;
-        }
+	public PersonOptions(Person person)
+	{
+		this.Person = person;
+	}
 
-        public PersonOptions WaitForFreshResults()
-        {
-            //...
-            return this;
-        }
+	public PersonOptions WaitForFreshResults()
+	{
+		//...
+		return this;
+	}
 
-        public static implicit operator Person(PersonOptions options)
-        {
-            return options.Person;
-        }
-    }
-	
+	public static implicit operator Person(PersonOptions options)
+	{
+		return options.Person;
+	}
+}
+{% endhighlight %}
+
 Which can be used like so:
 
-    Person p1 = PersonManager.GetPerson();
-    Person p2 = PersonManager.GetPerson().WaitForFreshResults();
+{% highlight c# %}
+Person p1 = PersonManager.GetPerson();
+Person p2 = PersonManager.GetPerson().WaitForFreshResults();
+{% endhighlight %}
 
 Which is all very well and good - but nowadays, everyone (well nearly everyone) loves the `var` keyword, so what happens if it is used like this:
 
-    var p3 = PersonManager.GetPerson();
-    var p4 = PersonManager.GetPerson().WaitForFreshResults();
+{% highlight c# %}
+var p3 = PersonManager.GetPerson();
+var p4 = PersonManager.GetPerson().WaitForFreshResults();
+{% endhighlight %}
 
 Uh oh.  That's not a person you have in that variable, it's a PersonOptions.  The compiler does help with this, as none of your `Person` methods will be present, and the PersonOptions class does provide a Person object as a Read Only Property, so the code can be modified to use that:
 
-    var p5 = PersonManager.GetPerson().WaitForFreshResults().Person;
+{% highlight c# %}
+var p5 = PersonManager.GetPerson().WaitForFreshResults().Person;
+{% endhighlight %}
 
 I'm not entirely comfortable with using implicit conversions like this, especially with `var`, but it does work rather well, as long as you are careful.
