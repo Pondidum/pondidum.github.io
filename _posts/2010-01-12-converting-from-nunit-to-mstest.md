@@ -30,9 +30,9 @@ Well not quite.  While there is nothing in the GUI to suggest so, you need to mo
   - Assert.AreEqual(x, Is.EqualTo(y).IgnoreCase) ->  Assert.AreEqual(x, y, True)
 5. The 'hidden' part.  In your project file, locate `<PropertyGroup>` (not the one specifying debug|release settings), and add the following to it:
   - <FileAlignment>512</FileAlignment>
-  - *.csproj files add:   
+  - *.csproj files add:
 `<ProjectTypeGuids>{3AC096D0-A1C2-E12C-1390-A8335801FDAB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>`
-  - *.vbproj files add:   
+  - *.vbproj files add:
 `<ProjectTypeGuids>{3AC096D0-A1C2-E12C-1390-A8335801FDAB};{F184B08F-C81C-45F6-A57F-5ABD9991F28F}</ProjectTypeGuids>`
 
 This was all I had to do to get our (my) tests running again under MSTest.  Except they didn't run, with the lovely error of:
@@ -47,16 +47,21 @@ Click the Unblock button, hit Apply, re-run the tests.  All Working now :)
 
 There are a few other points mentioned on the MSDN post too which you may run into:
 
-> If you have relied on NUnit TestFixtureSetup and TestFixtureTearDown methods to do non-static things, will have to move functions in the former to a constructor and the latter to a destructor.  In MSTest, both of these methods must be declared as static.  
+> If you have relied on NUnit TestFixtureSetup and TestFixtureTearDown methods to do non-static things, will have to move functions in the former to a constructor and the latter to a destructor.  In MSTest, both of these methods must be declared as static.
 
-> If you are relying on AppDomain.CurrentDomain.BaseDirectory to get the root directory, your test will break.  The fix is explained at http://www.ademiller.com/blogs/tech/2008/01/gotchas-mstest-appdomain-changes-in-vs-2008/.  Basically, you need to set your BaseDirectory in your MSTest TestClass constructor like this:
+> If you are relying on AppDomain.CurrentDomain.BaseDirectory to get the root directory, your test will break.  The fix is explained at http://www.ademiller.com/blogs/tech/2008/01/gotchas-mstest-appdomain-changes-in-vs-2008/.
 
-    string currDir = Environment.CurrentDirectory.Substring(0, Environment.CurrentDirectory.IndexOf("TestResults"));
-    AppDomain.CurrentDomain.SetData("APPBASE", currDir);
-	
+Basically, you need to set your BaseDirectory in your MSTest TestClass constructor like this:
+
+{% highlight c# %}
+string currDir = Environment.CurrentDirectory.Substring(0, Environment.CurrentDirectory.IndexOf("TestResults"));
+AppDomain.CurrentDomain.SetData("APPBASE", currDir);
+{% endhighlight %}
+
+
 > MSTest launches each test method in a separate STA thread instead of the MTA thread you may be expecting.  This probably won't give you any problems.
 
 Hope that helps everyone who has to do this kind of conversion.
 
 [1]: http://social.msdn.microsoft.com/Forums/en/vststest/thread/433e4860-b61f-44fd-bef9-a569fb32d244
-[2]: /images/88.jpg
+[2]: /images/unblock-file.jpg
