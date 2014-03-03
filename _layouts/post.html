@@ -13,7 +13,8 @@ layout: default
 	{% for tag in page.tags %}{% include tags.html %}{% endfor %}
 </p>
 
-<a class="left" href="{{ page.previous.url }}">« {{ page.previous.title }}</a> : <a class="right" href="{{ page.next.url }}">{{ page.next.title }} »</a>
+{% if page.previous %}<a class="left" href="{{ page.previous.url }}">« {{ page.previous.title }}</a>{% endif %}
+{% if page.next %}<a class="right" href="{{ page.next.url }}">{{ page.next.title }} »</a>{% endif %}
 
 <div id="disqus_thread"></div>
 <script type="text/javascript">
