@@ -152,3 +152,7 @@ ul, ol, img, .highlight, blockquote {
 .right {
   float: right;
 }
+
+#disqus_thread {
+  margin-top: 3em;
+}
