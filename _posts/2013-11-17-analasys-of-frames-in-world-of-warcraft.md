@@ -16,38 +16,42 @@ A lot of frames are created in the lifetime of the Warcraft UI, so they should b
 
 Because of this, it would be reasonable to expect that all methods are defined on a metatable, and that a frame created by `CreateFrame` is just a blank table with a metatable containing all the methods.  A simple implementation of `CreateFrame` could be:
 
-	function CreateFrame(type, name, parent, inherits)
-		
-		local widget = {}
-		local meta = _metas[type]
+{% highlight lua %}
+function CreateFrame(type, name, parent, inherits)
 
-		setmetatable(widget, { __index = meta })
+	local widget = {}
+	local meta = _metas[type]
 
-		widget:SetName(name)
-		widget:SetParent(parent)
+	setmetatable(widget, { __index = meta })
 
-		--something to handle templates...
+	widget:SetName(name)
+	widget:SetParent(parent)
 
-		return widget
+	--something to handle templates...
 
-	end
+	return widget
+
+end
+{% endhighlight %}
 
 The following function will display all of the methods found on the Frame's metatable:
 
 ### Code:
 
-	local frame = CreateFrame("Frame")
-	local meta = getmetatable(frame)
-	
-	print("meta", meta)
-	print("index", meta.__index)
+{% highlight lua %}
+local frame = CreateFrame("Frame")
+local meta = getmetatable(frame)
 
-	for name, value in pairs(meta.__index) do
-		print(name, value)
-	end
+print("meta", meta)
+print("index", meta.__index)
+
+for name, value in pairs(meta.__index) do
+	print(name, value)
+end
+{% endhighlight %}
 
 ### Output:
-	
+
 	meta table: 000000000D42E610
 	index table: 000000000D42E660
 	IsMovable function: 000000000D07F140
@@ -61,30 +65,30 @@ The next point to investigate is how other frame types are built up.  As widgets
 
 ### Code:
 
-	local function printTable(t) 
+{% highlight lua %}
+local function printTable(t)
 
-		local meta = getmetatable(t) 
+	local meta = getmetatable(t)
 
-		if not meta then return end
-		if not meta.__index then return end
+	if not meta then return end
+	if not meta.__index then return end
 
-		local index = meta.__index
+	local index = meta.__index
 
-		print("meta:", meta, "meta.index:" index)
-		printTable(meta)
+	print("meta:", meta, "meta.index:" index)
+	printTable(meta)
 
-	end
+end
 
-	print("Frame:")
-	printTable(CreateFrame("Frame"))
+print("Frame:")
+printTable(CreateFrame("Frame"))
 
-	print("Button:")
-	printTable(CreateFrame("Button"))
-
+print("Button:")
+printTable(CreateFrame("Button"))
+{% endhighlight %}
 
 ### Output:
 
-		
 	Frame:
 	meta: table: 000000000C8F8B40 meta.index: table: 000000000C8F8B90
 	Button:
@@ -92,69 +96,74 @@ The next point to investigate is how other frame types are built up.  As widgets
 
 The output of this indicates that each Widget type has it's own metatable, which helps give a starting point to implementing a new version.
 
- 
 Implementing
 ---
 
 The [WowInterfakes][2] project needs to be able to create all Widgets, so using a similar method as the Warcraft implementation made sense.  As there is no inheritance between Widgets, using a Mixin style for building metatables makes most sense.  The result of building the metatables is stored, and only done once on start up.
 
-	local builder = {}
+{% highlight lua %}
+local builder = {}
 
-	builder.init = function()
-                
-        builder.metas = {}
+builder.init = function()
 
-        local frameMeta = {}
+	builder.metas = {}
 
-        builder.applyUIObject(frameMeta)
-        builder.applyParentedObject(frameMeta)
-        builder.applyRegion(frameMeta)
-        builder.applyVisibleRegion(frameMeta)
-        builder.applyScriptObject(frameMeta)
-        builder.applyFrame(frameMeta)
+	local frameMeta = {}
 
-        builder.metas.frame = { __index = frameMeta }
+	builder.applyUIObject(frameMeta)
+	builder.applyParentedObject(frameMeta)
+	builder.applyRegion(frameMeta)
+	builder.applyVisibleRegion(frameMeta)
+	builder.applyScriptObject(frameMeta)
+	builder.applyFrame(frameMeta)
 
-	end
+	builder.metas.frame = { __index = frameMeta }
+
+end
+{% endhighlight %}
 
 Each `apply` method mixes in the functionality for their type.  `applyRegion` gets reused for a `Texture` as well as a `Frame` for example.
 
 Internally, all mixed in methods write and read to a table on the `self` parameter (called `__storage`), which holds each widgets values:
 
-	builder.applyFrame = function(region)
+{% highlight lua %}
+builder.applyFrame = function(region)
 
-	    region.SetBackdrop = function(self, backdrop)
-			self.__storage.backdrop = backdrop
-	    end
-
-	    region.RegisterEvent = function(self, event)
-			eventRegistry.register(self, event)
-	    end
-
-	    region.CreateTexture = function(self, name, layer, inherits, sublevel)
-			return builder.createTexture(self, name, layer, inherits, sublevel)
-	    end
-
+	region.SetBackdrop = function(self, backdrop)
+		self.__storage.backdrop = backdrop
 	end
+
+	region.RegisterEvent = function(self, event)
+		eventRegistry.register(self, event)
+	end
+
+	region.CreateTexture = function(self, name, layer, inherits, sublevel)
+		return builder.createTexture(self, name, layer, inherits, sublevel)
+	end
+
+end
+{% endhighlight %}
 
 When `createFrame` is called, we create a new table with a table in `__storage`, and apply the standard frame metatable to it.  At this point, the new table is a working `Frame`, which takes up very little in the way of resources (two tables worth of memory).  Initialisation is finished by populating a few properties (some things like frame name are not publicly accessible, so they are written to the backing `__storage` directly), and apply any templates specified.
 
-	builder.createFrame = function(type, name, parent, template)
+{% highlight lua %}
+builder.createFrame = function(type, name, parent, template)
 
-		local frame = { __storage = {} }
+	local frame = { __storage = {} }
 
-		setmetatable(frame, builder.metas.frame)
+	setmetatable(frame, builder.metas.frame)
 
-		frame.__storage.name = name  --no publicly accessable SetName method()
-		frame:SetParent(parent)
+	frame.__storage.name = name  --no publicly accessable SetName method()
+	frame:SetParent(parent)
 
-		if template and template ~= "" then
-			templateManager.apply(template, frame)
-		end
-
-		return frame
-
+	if template and template ~= "" then
+		templateManager.apply(template, frame)
 	end
+
+	return frame
+
+end
+{% endhighlight %}
 
 
 Conclusion
