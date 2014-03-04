@@ -14,68 +14,70 @@ A good example of this principle being implemented cropped up at work a while ag
 
 The class was originally implemented something like this:
 
-	public class UserGrid
+{% highlight c# %}
+public class UserGrid
+{
+
+	public UserGrid()
 	{
+		_menu.Add(new ToolStripMenuItem { Text = "Emails", Tag = MenuTypes.Emails });
+		_menu.Add(new ToolStripMenuItem { Text = "Addresses", Tag = MenuTypes.Addresses });
+		_menu.Add(new ToolStripMenuItem { Text = "Phone Numbers", Tag = MenuTypes.Phones });
+	}
 
-		public UserGrid()
+	public void Populate()
+	{
+		var selection = GetMenuSelection();
+		var rows = new List<DataGridViewRow>();
+
+		switch (selection)
 		{
-			_menu.Add(new ToolStripMenuItem { Text = "Emails", Tag = MenuTypes.Emails });
-			_menu.Add(new ToolStripMenuItem { Text = "Addresses", Tag = MenuTypes.Addresses });
-			_menu.Add(new ToolStripMenuItem { Text = "Phone Numbers", Tag = MenuTypes.Phones });
+			case MenuTypes.Emails:
+				rows.AddRange(_user.EmailAddresses);
+				break;
+
+			case MenuTypes.Addresses:
+				rows.AddRange(_user.Addresses);
+				break;
+
+			case MenuTypes.Phones:
+				rows.AddRange(_user.PhoneNumbers);
+				break;
 		}
 
-		public void Populate()
+		_grid.Rows.Clear();
+		_grid.Rows.AddRange(rows.ToArray());
+	}
+
+	public void OnAddClicked()
+	{
+		var selection = GetMenuSelection();
+
+		switch (selection)
 		{
-			var selection = GetMenuSelection();
-			var rows = new List<DataGridViewRow>();
+			case MenuTypes.Emails:
 
-			switch (selection)
-			{
-				case MenuTypes.Emails:
-					rows.AddRange(_user.EmailAddresses);
-					break;
+				var emailEditor = new EmailEditor(new Email());
+				emailEditor.ShowDialog();
 
-				case MenuTypes.Addresses:
-					rows.AddRange(_user.Addresses);
-					break;
+				break;
 
-				case MenuTypes.Phones:
-					rows.AddRange(_user.PhoneNumbers);
-					break;
-			}
+			case MenuTypes.Addresses:
 
-			_grid.Rows.Clear();
-			_grid.Rows.AddRange(rows.ToArray());
-		}
+				var addressEditor = new AddressEditor(new Address());
+				addressEditor.ShowDialog();
 
-		public void OnAddClicked()
-		{
-			var selection = GetMenuSelection();
+				break;
 
-			switch (selection)
-			{
-				case MenuTypes.Emails:
+			case MenuTypes.Phones:
 
-					var emailEditor = new EmailEditor(new Email());
-					emailEditor.ShowDialog();
-
-					break;
-
-				case MenuTypes.Addresses:
-
-					var addressEditor = new AddressEditor(new Address());
-					addressEditor.ShowDialog();
-
-					break;
-
-				case MenuTypes.Phones:
-
-					var phoneEditor = new PhoneEditor(new Phone());
-					phoneEditor.ShowDialog();
-					break;
-			}
+				var phoneEditor = new PhoneEditor(new Phone());
+				phoneEditor.ShowDialog();
+				break;
 		}
 	}
+}
+{% endhighlight %}
 
 I haven't listed all the methods here, but you get the idea - a lot of repeated-ish code (switch statements), and when you want to add a new grid type you have to do the following steps:
 
@@ -101,188 +103,199 @@ Unlike the last solution, we are going to use an abstract class as our base, rat
 
 Our first step is to create our base class:
 
-	public abstract class GridHandler
-	{
-		public User User { get; set; }
-		public abstract String Title { get; }
-		public abstract IEnumerable<DataGridViewRow> Populate();
+{% highlight c# %}
+public abstract class GridHandler
+{
+	public User User { get; set; }
+	public abstract String Title { get; }
+	public abstract IEnumerable<DataGridViewRow> Populate();
 
-		public virtual void Add()
-		{}
+	public virtual void Add()
+	{}
 
-		public virtual void Edit(object item)
-		{}
+	public virtual void Edit(object item)
+	{}
 
-		public virtual void Delete(object item)
-		{}
-	}
+	public virtual void Delete(object item)
+	{}
+}
+{% endhighlight %}
 
 Note that the `Title` property and `Populate` method are abstract - you must implement these at the very least to be a `GridHandler`.
 At the same time as this, we will lay our groundwork in the `UserGrid` class:
 
-	public class UserGrid
+{% highlight c# %}
+public class UserGrid
+{
+	private readonly List<GridHandler> _handlers;
+
+	public UserGrid()
 	{
-		private readonly List<GridHandler> _handlers;
-	
-		public UserGrid()
+		_handlers = new List<GridHandler>();
+		_grid = new DataGridView();
+		_menu = new List<ToolStripMenuItem>();
+
+		_menu.Add(new ToolStripMenuItem { Text = "Emails", Tag = MenuTypes.Emails });
+		_menu.Add(new ToolStripMenuItem { Text = "Addresses", Tag = MenuTypes.Addresses });
+		_menu.Add(new ToolStripMenuItem { Text = "Phone Numbers", Tag = MenuTypes.Phones });
+
+	}
+
+	public void AddHandler(GridHandler handler)
+	{
+		_handlers.Add(handler);
+		_menu.Add(new ToolStripMenuItem { Text = handler.Title });
+	}
+
+	public void SetUser(User user)
+	{
+		_user = user;
+		_handlers.ForEach(handler => handler.User = user);
+	}
+
+	public void Populate()
+	{
+		var handler = GetHandlerForSelection();
+
+		if (handler != null)
 		{
-			_handlers = new List<GridHandler>();
-			_grid = new DataGridView();
-			_menu = new List<ToolStripMenuItem>();
-
-			_menu.Add(new ToolStripMenuItem { Text = "Emails", Tag = MenuTypes.Emails });
-			_menu.Add(new ToolStripMenuItem { Text = "Addresses", Tag = MenuTypes.Addresses });
-			_menu.Add(new ToolStripMenuItem { Text = "Phone Numbers", Tag = MenuTypes.Phones });
-
-		}
-
-		public void AddHandler(GridHandler handler)
-		{
-			_handlers.Add(handler);
-			_menu.Add(new ToolStripMenuItem { Text = handler.Title });
-		}
-
-		public void SetUser(User user)
-		{
-			_user = user;
-			_handlers.ForEach(handler => handler.User = user);
-		}
-
-		public void Populate()
-		{
-			var handler = GetHandlerForSelection();
-
-			if (handler != null)
-			{
-				_grid.Rows.Clear();
-				_grid.Rows.AddRange(handler.Populate().ToArray());
-				return;
-			}
-
-			var selection = GetMenuSelection();
-			var rows = new List<DataGridViewRow>();
-
-			switch (selection)
-			{
-				case MenuTypes.Emails:
-					rows.AddRange(_user.EmailAddresses);
-					break;
-
-				case MenuTypes.Addresses:
-					rows.AddRange(_user.Addresses);
-					break;
-
-				case MenuTypes.Phones:
-					rows.AddRange(_user.PhoneNumbers);
-					break;
-			}
-
 			_grid.Rows.Clear();
-			_grid.Rows.AddRange(rows.ToArray());
+			_grid.Rows.AddRange(handler.Populate().ToArray());
+			return;
 		}
+
+		var selection = GetMenuSelection();
+		var rows = new List<DataGridViewRow>();
+
+		switch (selection)
+		{
+			case MenuTypes.Emails:
+				rows.AddRange(_user.EmailAddresses);
+				break;
+
+			case MenuTypes.Addresses:
+				rows.AddRange(_user.Addresses);
+				break;
+
+			case MenuTypes.Phones:
+				rows.AddRange(_user.PhoneNumbers);
+				break;
+		}
+
+		_grid.Rows.Clear();
+		_grid.Rows.AddRange(rows.ToArray());
+	}
+}
+{% endhighlight %}
 
 The `UserGrid` class has had a new method called `AddHandler`, which allows handlers to be added to the grid.  The `SetUser` method has been updated to also set the `User` property on all handlers, and all the `Add`, `Edit`, `Delete` and `Populate` methods have been updated to attempt to try and use a handler, and if none is found, use the existing implementation.
 
 Our next step is to create the first `GridHandler`, which will be for Email Addresses:
 
-	public class EmailGridHandler : GridHandler
+{% highlight c# %}
+public class EmailGridHandler : GridHandler
+{
+	public override string Title
 	{
-		public override string Title
-		{
-			get { return "Email Addresses"; }
-		}
-
-		public override IEnumerable<DataGridViewRow> Populate()
-		{
-			return User.EmailAddresses;
-		}
-
-		public override void Add()
-		{
-			var email = new Email();
-			var editor = new EmailEditor(email);
-
-			editor.ShowDialog();
-
-			User.AddEmail(email);
-		}
-
-		public override void Edit(object item)
-		{
-			var email = (Email)item;
-			var editor = new EmailEditor(email);
-
-			editor.ShowDialog();
-		}
-
-		public override void Delete(object item)
-		{
-			var email = (Email)item;
-			User.RemoveEmail(email);
-		}
+		get { return "Email Addresses"; }
 	}
+
+	public override IEnumerable<DataGridViewRow> Populate()
+	{
+		return User.EmailAddresses;
+	}
+
+	public override void Add()
+	{
+		var email = new Email();
+		var editor = new EmailEditor(email);
+
+		editor.ShowDialog();
+
+		User.AddEmail(email);
+	}
+
+	public override void Edit(object item)
+	{
+		var email = (Email)item;
+		var editor = new EmailEditor(email);
+
+		editor.ShowDialog();
+	}
+
+	public override void Delete(object item)
+	{
+		var email = (Email)item;
+		User.RemoveEmail(email);
+	}
+}
+{% endhighlight %}
 
 As you can see, this class obeys the [Single Responsibility Principle][blog-solid-srp] as it only deals with how to change data from the `User` object into data and actions for the grid.
 
 We can now update the usage of our `UserGrid` to take advantage of the new `GridHandler`:
 
-	public class Usage : Form
-	{
-		private UserGrid _grid;
+{% highlight c# %}
+public class Usage : Form
+{
+	private UserGrid _grid;
 
-		public Usage()
-		{
-			_grid = new UserGrid();
-			_grid.AddHandler(new EmailGridHandler());
-		}
+	public Usage()
+	{
+		_grid = new UserGrid();
+		_grid.AddHandler(new EmailGridHandler());
 	}
+}
+{% endhighlight %}
 
 All that remains to be done now is to go through the `UserGrid` and remove all the code relating to `Email`s.  The extraction of functionality steps can then be repeated for each of the existing grid types (`Address` and `Phone` in our case.)
 
 Once this is done, we can go back to the `UserGrid` and remove all non-grid code, leaving us with this:
 
-	public class UserGrid
+{% highlight c# %}
+public class UserGrid
+{
+	private readonly List<GridHandler> _handlers;
+
+	public UserGrid()
 	{
-		private readonly List<GridHandler> _handlers;
+		_handlers = new List<GridHandler>();
+	}
 
-		public UserGrid()
+	public void AddHandler(GridHandler handler)
+	{
+		_handlers.Add(handler);
+		_menu.Add(new ToolStripMenuItem { Text = handler.Title });
+	}
+
+	public void SetUser(User user)
+	{
+		_handlers.ForEach(handler => handler.User = user);
+	}
+
+	public void Populate()
+	{
+		var handler = GetHandlerForSelection();
+
+		if (handler != null)
 		{
-			_handlers = new List<GridHandler>();
-		}
-
-		public void AddHandler(GridHandler handler)
-		{
-			_handlers.Add(handler);
-			_menu.Add(new ToolStripMenuItem { Text = handler.Title });
-		}
-
-		public void SetUser(User user)
-		{
-			_handlers.ForEach(handler => handler.User = user);
-		}
-
-		public void Populate()
-		{
-			var handler = GetHandlerForSelection();
-
-			if (handler != null)
-			{
-				_grid.Rows.Clear();
-				_grid.Rows.AddRange(handler.Populate().ToArray());
-			}
-		}
-
-		public void OnAddClicked()
-		{
-			var handler = GetHandlerForSelection();
-
-			if (handler != null)
-			{
-				handler.Add();
-				Populate();
-			}
+			_grid.Rows.Clear();
+			_grid.Rows.AddRange(handler.Populate().ToArray());
 		}
 	}
+
+	public void OnAddClicked()
+	{
+		var handler = GetHandlerForSelection();
+
+		if (handler != null)
+		{
+			handler.Add();
+			Populate();
+		}
+	}
+}
+{% endhighlight %}
 
 As you can see, the `UserGrid` class is now much smaller, and has no user specific logic in it.  This means we don't need to modify the class when we want to add a new grid type (it is **closed for modification**), but as adding new functionality to the grid just consists of another call to `.AddHandler(new WebsiteGridHandler());` we have made it **open for extension**.
 
