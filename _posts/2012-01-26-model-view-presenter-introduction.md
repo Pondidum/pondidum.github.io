@@ -37,7 +37,7 @@ The Model is the data to be displayed.  This can either be an abstraction that e
 [2]: http://codebetter.com/jeremymiller/2007/07/26/the-build-your-own-cab-series-table-of-contents/
 [3]: http://martinfowler.com/eaaDev/PassiveScreen.html
 [4]: http://martinfowler.com/eaaDev/SupervisingPresenter.html
-[5]: /images/91.jpg
+[5]: /images/mvp-diagram.jpg
 [6]: /model-view-presenters-presenter-to-view-communication
 [7]: /model-view-presenters-view-to-presenter-communication
 [8]: /model-view-presenters-composite-views
