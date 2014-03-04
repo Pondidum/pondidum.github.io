@@ -27,7 +27,7 @@ blockquote {
   background-color:  #eee;
 }
 
-h1, h2 {
+h1, h2, h3 {
   margin: 2em 0 0.7em 0;
   padding: 0 10px;
   font-weight: normal;
@@ -35,8 +35,12 @@ h1, h2 {
   font-family: Georgia, Times, serif;
 }
 
-h2 {
+h2, h3 {
   font: 1.3em Georgia, Times, serif;
+}
+
+h3 {
+  font-style: italic;
 }
 
 p {
