@@ -9,19 +9,22 @@ I needed to be able to detect at run time if an Enum has a specific Attribute on
 
 Calling:
 
-	var hasFlags = typeof(EnumWithFlags).HasAttribute<FlagsAttribute>();
+{% highlight c# %}
+var hasFlags = typeof(EnumWithFlags).HasAttribute<FlagsAttribute>();
+{% endhighlight %}
 
 Implementation:
 
-	public static Boolean HasAttribute<T>(this Type self) where T : Attribute
+{% highlight c# %}
+public static Boolean HasAttribute<T>(this Type self) where T : Attribute
+{
+	if (self == null)
 	{
-		if (self == null) 
-		{
-			throw new ArgumentNullException("self");
-		}
-
-		return self.GetCustomAttributes(typeof(T), false).Any();
-
+		throw new ArgumentNullException("self");
 	}
+
+	return self.GetCustomAttributes(typeof(T), false).Any();
+}
+{% endhighlight %}
 
 It may only be two lines, but it is very useful none the less.
