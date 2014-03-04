@@ -13,53 +13,54 @@ SRP (Single Responsibility Principle) is something I hear a lot of developers ag
 
 A particularly prominent example I find in our code bases is Permissioning and Caching.  These two requirements can often slip into classes slowly - especially if requirements are not clear, or change as the task progresses.  A slightly contrived example is this:
 
+{% highlight c# %}
+public class JobPostingService
+{
+	private static readonly TimeSpan Timeout = new TimeSpan(0, 10, 0);
 
-	public class JobPostingService
+	private readonly JobWebService _jobService;
+
+	private List<Job> _jobs;
+	private DateTime _lastLoaded;
+
+	public JobPostingService()
 	{
-		private static readonly TimeSpan Timeout = new TimeSpan(0, 10, 0);
-
-		private readonly JobWebService _jobService;
-
-		private List<Job> _jobs;
-		private DateTime _lastLoaded;
-
-		public JobPostingService()
-		{
-			_jobService = new JobWebService();
-			_lastLoaded = DateTime.MinValue;
-		}
-
-		public IEnumerable<Job> GetCurrentJobs()
-		{
-			if (_lastLoaded - DateTime.Now > Timeout)
-			{
-				_jobs = _jobService.GetLiveJobs().ToList();
-				_lastLoaded = DateTime.Now;
-			}
-
-			return _jobs;
-		}
-
-		public void PostToFreeBoards(Job job)
-		{
-			var jobs = GetCurrentJobs();
-
-			if (jobs.Any(j => j.ID == job.ID))
-				return;
-
-			_jobService.Post(job, Boards.FreeBoard1 | Boards.FreeBoard2);
-		}
-
-		public void PostToAllBoards(Job job)
-		{
-			var jobs = GetCurrentJobs();
-
-			if (jobs.Any(j => j.ID == job.ID))
-				return;
-
-			_jobService.Post(job, Boards.PaidBoard1 | Boards.PaidBoard2);
-		}
+		_jobService = new JobWebService();
+		_lastLoaded = DateTime.MinValue;
 	}
+
+	public IEnumerable<Job> GetCurrentJobs()
+	{
+		if (_lastLoaded - DateTime.Now > Timeout)
+		{
+			_jobs = _jobService.GetLiveJobs().ToList();
+			_lastLoaded = DateTime.Now;
+		}
+
+		return _jobs;
+	}
+
+	public void PostToFreeBoards(Job job)
+	{
+		var jobs = GetCurrentJobs();
+
+		if (jobs.Any(j => j.ID == job.ID))
+			return;
+
+		_jobService.Post(job, Boards.FreeBoard1 | Boards.FreeBoard2);
+	}
+
+	public void PostToAllBoards(Job job)
+	{
+		var jobs = GetCurrentJobs();
+
+		if (jobs.Any(j => j.ID == job.ID))
+			return;
+
+		_jobService.Post(job, Boards.PaidBoard1 | Boards.PaidBoard2);
+	}
+}
+{% endhighlight %}
 
 This class is fairly small, but it is already showing the symptoms of doing too many things; it is dealing with caching, as well as posting jobs.  While this is not a major problem at the moment, it is also easier to nip the problem in the bud - before a load of new requirements/changes arrive and complicate things.
 
@@ -67,118 +68,134 @@ This class is fairly small, but it is already showing the symptoms of doing too 
 
 We start off by changing our class to take it's dependencies in via constructor parameters (Dependency Injection, the 'D' in SOLID):
 
-	public JobPostingService(JobWebService jobService)
-	{
-		_jobService = jobService;
-		_lastLoaded = DateTime.MinValue;
-	}
+{% highlight c# %}
+public JobPostingService(JobWebService jobService)
+{
+	_jobService = jobService;
+	_lastLoaded = DateTime.MinValue;
+}
+{% endhighlight %}
 
 So the usage of the `JobPostingService` goes from this:
 
-	var poster = new JobPostingService();
+{% highlight c# %}
+var poster = new JobPostingService();
+{% endhighlight %}
 
 To this:
 
-	var poster = new JobPostingService(new JobWebService());
+{% highlight c# %}
+var poster = new JobPostingService(new JobWebService());
+{% endhighlight %}
 
 Next, we take the `JobWebService` class and extract & implement an interface of it's methods:
 
-	public interface IJobService
-	{
-		IEnumerable<Job> GetLiveJobs();
-		bool Post(Job job, Boards boards);
-	}
+{% highlight c# %}
+public interface IJobService
+{
+	IEnumerable<Job> GetLiveJobs();
+	bool Post(Job job, Boards boards);
+}
 
-	public class JobWebService : IJobService
-	{ 
-		//... 
-	}
+public class JobWebService : IJobService
+{
+	//...
+}
+{% endhighlight %}
 
 And finally, create a new class which only deals with caching the results of a JobService, by wrapping calls to another instance:
 
-	public class CachedJobService : IJobService
+{% highlight c# %}
+public class CachedJobService : IJobService
+{
+	private List<Job> _jobs;
+	private DateTime _lastLoaded;
+	private readonly TimeSpan _timeout;
+	private readonly IJobService _other;
+
+	public CachedJobService(IJobService otherService)
+		: this(otherService, new TimeSpan(0, 10, 0))
 	{
-		private List<Job> _jobs;
-		private DateTime _lastLoaded;
-		private readonly TimeSpan _timeout;
-		private readonly IJobService _other;
-
-		public CachedJobService(IJobService otherService)
-			: this(otherService, new TimeSpan(0, 10, 0))
-		{
-		}
-
-		public CachedJobService(IJobService otherService, TimeSpan timeout)
-		{
-			_other = otherService;
-			_timeout = timeout;
-			_lastLoaded = DateTime.MinValue;
-		}
-
-		public IEnumerable<Job> GetLiveJobs()
-		{
-			if (_lastLoaded - DateTime.Now > _timeout)
-			{
-				_jobs = _other.GetLiveJobs().ToList();
-				_lastLoaded = DateTime.Now;
-			}
-
-			return _jobs;
-		}
-
-		public bool Post(Job job, Boards boards)
-		{
-			return _other.Post(job, boards);
-		}
 	}
+
+	public CachedJobService(IJobService otherService, TimeSpan timeout)
+	{
+		_other = otherService;
+		_timeout = timeout;
+		_lastLoaded = DateTime.MinValue;
+	}
+
+	public IEnumerable<Job> GetLiveJobs()
+	{
+		if (_lastLoaded - DateTime.Now > _timeout)
+		{
+			_jobs = _other.GetLiveJobs().ToList();
+			_lastLoaded = DateTime.Now;
+		}
+
+		return _jobs;
+	}
+
+	public bool Post(Job job, Boards boards)
+	{
+		return _other.Post(job, boards);
+	}
+}
+{% endhighlight %}
 
 This class passes all `Post()` calls to the other implementation, but caches the results of calls to `GetLiveJobs()`, and we have added a time-out as an optional constructor parameter.  This wrapping calls to another implementation is called [The Decorator Pattern][pattern-decorator].
 
 As the JobPostingService class no longer has to cache the results of calls to `JobService` itself, we can delete all the caching related code:
 
-	public class JobPostingService
+{% highlight c# %}
+public class JobPostingService
+{
+	private readonly IJobService _jobService;
+
+	public JobPostingService(IJobService jobService)
 	{
-		private readonly IJobService _jobService;
-
-		public JobPostingService(IJobService jobService)
-		{
-			_jobService = jobService;
-		}
-
-		public IEnumerable<Job> GetCurrentJobs()
-		{
-			return _jobService.GetLiveJobs();
-		}
-
-		public void PostToFreeBoards(Job job)
-		{
-			var jobs = GetCurrentJobs();
-
-			if (jobs.Any(j => j.ID == job.ID))
-				return;
-
-			_jobService.Post(job, Boards.FreeBoard1 | Boards.FreeBoard2);
-		}
-
-		public void PostToAllBoards(Job job)
-		{
-			var jobs = GetCurrentJobs();
-
-			if (jobs.Any(j => j.ID == job.ID))
-				return;
-
-			_jobService.Post(job, Boards.PaidBoard1 | Boards.PaidBoard2);
-		}
+		_jobService = jobService;
 	}
+
+	public IEnumerable<Job> GetCurrentJobs()
+	{
+		return _jobService.GetLiveJobs();
+	}
+
+	public void PostToFreeBoards(Job job)
+	{
+		var jobs = GetCurrentJobs();
+
+		if (jobs.Any(j => j.ID == job.ID))
+			return;
+
+		_jobService.Post(job, Boards.FreeBoard1 | Boards.FreeBoard2);
+	}
+
+	public void PostToAllBoards(Job job)
+	{
+		var jobs = GetCurrentJobs();
+
+		if (jobs.Any(j => j.ID == job.ID))
+			return;
+
+		_jobService.Post(job, Boards.PaidBoard1 | Boards.PaidBoard2);
+	}
+}
+{% endhighlight %}
 
 And our usage changes again, from this:
 
-	var poster = new JobPostingService(new JobWebService());
+{% highlight c# %}
+var poster = new JobPostingService(new JobWebService());
+{% endhighlight %}
 
 To this:
-	
-	var webService = new CachedJobService(new JobWebService());
-	var poster = new JobPostingService(webService);
+
+{% highlight c# %}
+var webService = new CachedJobService(new JobWebService());
+var poster = new JobPostingService(webService);
+{% endhighlight %}
 
 We have now successfully extracted all the various pieces of functionality into separate classes, which has gained us the ability to test individual features (caching can be tested with a fake `IJobService` and checked to see when calls go through to the service), and the ability to adapt more easily to new requirements.  Talking of which...
 
@@ -186,54 +203,62 @@ We have now successfully extracted all the various pieces of functionality into 
 
 Now you could go and modify the `JobPostingService` class to have a second webservice parameter:
 
-	var primaryService = new CachedJobService(new JobWebService());
-	var secondaryService = new CachedJobService(new BackupWebService());
+{% highlight c# %}
+var primaryService = new CachedJobService(new JobWebService());
+var secondaryService = new CachedJobService(new BackupWebService());
 
-	var poster = new JobPostingService(primaryService, secondaryService);
+var poster = new JobPostingService(primaryService, secondaryService);
+{% endhighlight %}
 
 But what happens when a third service is added? and a fourth? Surely there is another way?
 
 As luck would have it, we can use the `IJobService` interface to create a single class which handles all the logic for switching between the two services:
 
-	public class FailoverJobService : IJobService
+{% highlight c# %}
+public class FailoverJobService : IJobService
+{
+	private readonly List<IJobService> _services;
+
+	public FailoverJobService(params IJobService[] services)
 	{
-		private readonly List<IJobService> _services;
-
-		public FailoverJobService(params IJobService[] services)
-		{
-			_services = services.ToList();
-		}
-
-		public IEnumerable<Job> GetLiveJobs()
-		{
-			return _services.SelectMany(s => s.GetLiveJobs());
-		}
-
-		public bool Post(Job job, Boards boards)
-		{
-			return _services.Any(service => service.Post(job, boards));
-		}
+		_services = services.ToList();
 	}
+
+	public IEnumerable<Job> GetLiveJobs()
+	{
+		return _services.SelectMany(s => s.GetLiveJobs());
+	}
+
+	public bool Post(Job job, Boards boards)
+	{
+		return _services.Any(service => service.Post(job, boards));
+	}
+}
+{% endhighlight %}
 
 This class takes in a number of `IJobService`s and will try each one in turn to post jobs, and when listing jobs, gets the results from all services.  In the same manner as the `CachedJobService`, we have a single class which can easily be tested without effecting any of the other functionality.
 
 The really interesting point comes when we decide when to use caching? do you cache each service passed to the `FailoverJobService`:
 
-	var primaryService = new CachedJobService(new JobWebService());
-	var secondaryService = new CachedJobService(new BackupWebService());
+{% highlight c# %}
+var primaryService = new CachedJobService(new JobWebService());
+var secondaryService = new CachedJobService(new BackupWebService());
 
-	var failover = new FailoverJobService(primaryService, secondaryService);
+var failover = new FailoverJobService(primaryService, secondaryService);
 
-	var poster = new JobPostingService(failover);
+var poster = new JobPostingService(failover);
+{% endhighlight %}
 
 Or do you cache the `FailoverJobService` itself:
 
-	var primaryService = new JobWebService();
-	var secondaryService = new BackupWebService();
+{% highlight c# %}
+var primaryService = new JobWebService();
+var secondaryService = new BackupWebService();
 
-	var failover = new CachedJobService(new FailoverJobService(primaryService, secondaryService));
+var failover = new CachedJobService(new FailoverJobService(primaryService, secondaryService));
 
-	var poster = new JobPostingService(failover);
+var poster = new JobPostingService(failover);
+{% endhighlight %}
 
 Or both?
 
