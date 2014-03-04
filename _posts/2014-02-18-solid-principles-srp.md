@@ -7,7 +7,7 @@ permalink: solid-principles-srp
 
 ## Single Responsibility Principle
 
-[Single Responsibility][blog-solid-srp] | [Open Closed][blog-solid-ocp] | [Liskov Substitution][blog-solid-lsp] | Interface Segregation | Dependency Inversion
+[Single Responsibility][blog-solid-srp] | [Open Closed][blog-solid-ocp] | [Liskov Substitution][blog-solid-lsp] | [Interface Segregation][blog-solid-isp] | Dependency Inversion
 
 SRP (Single Responsibility Principle) is something I hear a lot of developers agree is a good thing, but when I read their code, they violate it without realising, or don't see the use in their particular case.
 
@@ -244,5 +244,6 @@ All source code is available on my Github: [Solid.Demo Source Code][solid-demo-r
 [blog-solid-srp]: http://andydote.co.uk/solid-principles-srp
 [blog-solid-ocp]: http://andydote.co.uk/solid-principles-ocp
 [blog-solid-lsp]: http://andydote.co.uk/solid-principles-lsp
+[blog-solid-isp]: http://andydote.co.uk/solid-principles-isp
 [pattern-decorator]: http://en.wikipedia.org/wiki/Decorator_pattern
 [solid-demo-repo]: https://github.com/Pondidum/Solid.Demo

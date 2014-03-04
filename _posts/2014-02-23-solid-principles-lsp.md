@@ -7,7 +7,7 @@ permalink: solid-principles-lsp
 
 ## Liskov Substitution Principle
 
-[Single Responsibility][blog-solid-srp] | [Open Closed][blog-solid-ocp] | [Liskov Substitution][blog-solid-lsp] | Interface Segregation | Dependency Inversion
+[Single Responsibility][blog-solid-srp] | [Open Closed][blog-solid-ocp] | [Liskov Substitution][blog-solid-lsp] | [Interface Segregation][blog-solid-isp] | Dependency Inversion
 
 The Liskov Substitution Principle is states:
 
@@ -211,4 +211,5 @@ All source code is available on my Github: [Solid.Demo Source Code][solid-demo-r
 [blog-solid-srp]: http://andydote.co.uk/solid-principles-srp
 [blog-solid-ocp]: http://andydote.co.uk/solid-principles-ocp
 [blog-solid-lsp]: http://andydote.co.uk/solid-principles-lsp
+[blog-solid-isp]: http://andydote.co.uk/solid-principles-isp
 [solid-demo-repo]: https://github.com/Pondidum/Solid.Demo
