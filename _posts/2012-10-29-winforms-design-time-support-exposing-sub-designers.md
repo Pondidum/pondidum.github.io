@@ -13,39 +13,42 @@ We start off with our UserControl, in this case the imaginatively named `TestCon
 
 The code behind looks like this:
 
-    [Designer(typeof(TestControlDesigner))]
-    public partial class TestControl : UserControl
-    {
-        public TestControl()
-        {
-            InitializeComponent();
-        }
+{% highlight c# %}
+[Designer(typeof(TestControlDesigner))]
+public partial class TestControl : UserControl
+{
+	public TestControl()
+	{
+		InitializeComponent();
+	}
 
-        [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
-        public ToolStrip ToolStrip
-        {
-            get { return tsMain; }
-        }
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
+	public ToolStrip ToolStrip
+	{
+		get { return tsMain; }
+	}
 
-    }
+}
+{% endhighlight %}
 
 The first attribute on the class (`[Designer(typeof(TestControlDesigner))]`) just instructs that we want it to use our own custom designer file (which we create in a minute).
 The next important point is the addition of the `ToolStrip` property, and the `DesignerSerializationVisibility` attribute that goes with it.  This informs the winforms designer that any changes made to the ToolStrip should be stored in the hosting container's designer file.  Without this attribute, no changes made in the designer would persist when you closed the designer.
 
-
 Next, we add a reference to `System.Design` in the project, and create our `TestControlDesigner` class, inheriting from [ControlDesigner][3]:
 
-	public class TestControlDesigner : ControlDesigner
-    {
-        public override void Initialize(System.ComponentModel.IComponent component)
-        {
-            base.Initialize(component);
+{% highlight c# %}
+public class TestControlDesigner : ControlDesigner
+{
+	public override void Initialize(System.ComponentModel.IComponent component)
+	{
+		base.Initialize(component);
 
-            var control = (TestControl) component;
+		var control = (TestControl) component;
 
-            EnableDesignMode(control.ToolStrip, "ToolStrip");
-        }
-    }
+		EnableDesignMode(control.ToolStrip, "ToolStrip");
+	}
+}
+{% endhighlight %}
 
 As you can see, we have very little in here.  The `Initialize` method is overriden, and we call `EnableDesignMode` on our ToolStrip (the property added to the TestControl earlier).
 
@@ -57,6 +60,6 @@ As you can see, the two control's ToolStrips contents is unique, and we have the
 
 
 [1]: http://msdn.microsoft.com/en-us/library/system.windows.forms.usercontrol.aspx
-[2]: /images/93.png
+[2]: /images/sub-designer-control.png
 [3]: http://msdn.microsoft.com/en-us/library/system.windows.forms.design.controldesigner.aspx
-[4]: /images/94.png
+[4]: /images/sub-designer-designtime.png
