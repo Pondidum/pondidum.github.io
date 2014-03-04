@@ -25,11 +25,10 @@ Implementing UIs like this is a straight forward task - each application has its
 
 If this was a web application, you could even make it work out which UI to display based on which user has logged in, rather than deploying one application to some users, and a different application to other users.
 
-
 Mockups were made using [Moqups.com][mocking-tool]
 Names generated with [Behind THe Name][name-gen]
 
-[ui-sales]: images/95.png "Sales UI"
-[ui-legal]: images/96.png "Legal UI"
+[ui-sales]: /images/specialised-sales.png
+[ui-legal]: /images/specialised-legal.png
 [name-gen]: http://www.behindthename.com/random/
 [mocking-tool]: https://moqups.com/
