@@ -1,0 +1,5 @@
+---
+layout: none
+permalink: .htaccess
+---
+Redirect 301 /rss http://andydote.co.uk/rss.xml
