@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Noticing Changes
-Tags: design
+tags: design
 permalink: noticing-changes
 ---
 

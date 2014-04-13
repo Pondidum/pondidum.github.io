@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Model View Presenters: Composite Views"
-Tags: design, code, net
+tags: design, code, net
 permalink: model-view-presenters-composite-views
 ---
 

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Using Laziness
-Tags: code
+tags: code
 permalink: using-laziness
 ---
 

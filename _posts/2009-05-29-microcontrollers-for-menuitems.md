@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Microcontrollers for MenuItems
-Tags: design, code, generics, controls, net
+tags: design, code, generics, controls, net
 permalink: microcontrollers-for-menuitems
 ---
 

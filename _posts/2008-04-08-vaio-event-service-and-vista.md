@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Vaio Event Service and Vista
-Tags: bug
+tags: bug
 permalink: vaio-event-service-and-vista
 ---
 

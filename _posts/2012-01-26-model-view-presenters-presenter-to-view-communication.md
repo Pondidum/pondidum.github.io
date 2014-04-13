@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Model View Presenters: Presenter to View Communication"
-Tags: design, code, net
+tags: design, code, net
 permalink: model-view-presenters-presenter-to-view-communication
 ---
 

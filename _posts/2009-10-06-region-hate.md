@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Region Hate
-Tags: design, code, net
+tags: design, code, net
 permalink: region-hate
 ---
 

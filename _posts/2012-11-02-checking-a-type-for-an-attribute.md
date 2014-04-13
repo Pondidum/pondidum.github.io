@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Checking a Type for an Attribute
-Tags: code
+tags: code
 permalink: checking-a-type-for-an-attribute
 ---
 

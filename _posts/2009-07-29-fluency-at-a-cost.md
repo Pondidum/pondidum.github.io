@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Fluency at a cost?
-Tags: design, code, net
+tags: design, code, net
 permalink: fluency-at-a-cost
 ---
 

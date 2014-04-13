@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Thanks Google for solving my problem!
-Tags: design, code, net
+tags: design, code, net
 permalink: thanks-google-for-solving-my-problem
 ---
 

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Overuse of the Var keyword
-Tags: design, code, net
+tags: design, code, net
 permalink: overuse-of-the-var-keyword
 ---
 

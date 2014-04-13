@@ -1,7 +1,7 @@
 ---
 layout: post
 title: (Miss)Use of Narrowing-Implicit Operators
-Tags: design, code, net
+tags: design, code, net
 permalink: missuse-of-narrowing-implicit-operators
 ---
 

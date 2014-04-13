@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Coming From Something as opposed to Going To Something
-Tags: design, code, net
+tags: design, code, net
 permalink: coming-from-something-as-opposed-to-going-to-something
 ---
 

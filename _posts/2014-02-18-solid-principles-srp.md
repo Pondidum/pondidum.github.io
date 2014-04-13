@@ -1,7 +1,7 @@
 ---
 layout: post
 title: SOLID Principles - SRP
-Tags: design, code, net
+tags: design, code, net
 permalink: solid-principles-srp
 ---
 

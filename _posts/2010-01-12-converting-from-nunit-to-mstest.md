@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Converting from NUnit to MSTest
-Tags: code, net
+tags: code, net
 permalink: converting-from-nunit-to-mstest
 ---
 

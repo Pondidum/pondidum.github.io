@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Key Bindings
-Tags: design
+tags: design
 permalink: key-bindings
 ---
 

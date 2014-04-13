@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Conflicting Unrelated Options: Alps Trackpad vs Microsoft Mouse"
-Tags: bug
+tags: bug
 permalink: conflicting-unrelated-options-alps-trackpad-vs-microsoft-mouse
 ---
 

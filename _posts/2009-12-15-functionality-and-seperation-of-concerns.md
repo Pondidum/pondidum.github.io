@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Functionality and Seperation of Concerns
-Tags: design, code, net
+tags: design, code, net
 permalink: functionality-and-seperation-of-concerns
 ---
 

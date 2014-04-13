@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Designing the EventDistributor
-Tags: design, code, net
+tags: design, code, net
 permalink: designing-the-eventdistributor
 ---
 

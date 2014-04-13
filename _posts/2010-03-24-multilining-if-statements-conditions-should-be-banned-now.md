@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Multilining If statements conditions should be banned. now.
-Tags: code, bug, net
+tags: code, bug, net
 permalink: multilining-if-statements-conditions-should-be-banned-now
 ---
 

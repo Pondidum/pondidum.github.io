@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Flow Layout Panel and Scroll Wheel Problem
-Tags: bug
+tags: bug
 permalink: flow-layout-panel-and-scroll-wheel-problem
 ---
 

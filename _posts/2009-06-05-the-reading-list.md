@@ -1,7 +1,7 @@
 ---
 layout: post
 title: The Reading List
-Tags: books
+tags: books
 permalink: the-reading-list
 ---
 

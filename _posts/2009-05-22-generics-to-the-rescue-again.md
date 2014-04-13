@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Generics to the rescue! Again!
-Tags: design, code, generics, net
+tags: design, code, generics, net
 permalink: generics-to-the-rescue-again
 ---
 

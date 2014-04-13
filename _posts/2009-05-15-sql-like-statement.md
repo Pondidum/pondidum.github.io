@@ -1,7 +1,7 @@
 ---
 layout: post
 title: SQL Like statement
-Tags: code, sql
+tags: code, sql
 permalink: sql-like-statement
 ---
 

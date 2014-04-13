@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Software Fuzzying maybe?
-Tags: code
+tags: code
 permalink: software-fuzzying-maybe
 ---
 

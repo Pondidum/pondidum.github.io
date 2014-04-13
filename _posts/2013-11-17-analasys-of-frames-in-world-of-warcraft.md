@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Analysis of Frames in World of Warcraft
-Tags: code
+tags: code
 permalink: analasys-of-frames-in-world-of-warcraft
 ---
 

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Expression Rules, Version 2
-Tags: design, code, net
+tags: design, code, net
 permalink: expression-rules-version-2
 ---
 

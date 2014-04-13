@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Converting Code
-Tags: code
+tags: code
 permalink: converting-code
 ---
 

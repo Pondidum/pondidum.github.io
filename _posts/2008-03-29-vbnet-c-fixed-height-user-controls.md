@@ -1,7 +1,7 @@
 ---
 layout: post
 title: VB.NET &amp; C# Fixed height User Controls
-Tags: design, code, controls, net
+tags: design, code, controls, net
 permalink: vbnet-c-fixed-height-user-controls
 ---
 

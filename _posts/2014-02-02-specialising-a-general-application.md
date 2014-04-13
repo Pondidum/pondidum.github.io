@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Specialising a General Application
-Tags: design
+tags: design
 permalink: specialising-a-general-application
 ---
 

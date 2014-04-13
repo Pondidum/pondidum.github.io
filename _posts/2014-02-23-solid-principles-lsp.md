@@ -1,7 +1,7 @@
 ---
 layout: post
 title: SOLID Principles - LSP
-Tags: design, code, net
+tags: design, code, net
 permalink: solid-principles-lsp
 ---
 

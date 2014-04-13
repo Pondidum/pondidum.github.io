@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Fluent Validation
-Tags: design, code, net
+tags: design, code, net
 permalink: fluent-validation
 ---
 

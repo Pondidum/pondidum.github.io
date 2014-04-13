@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Databinding to a DataGridView - The order of columns
-Tags: controls, bug, net
+tags: controls, bug, net
 permalink: databinding-to-a-datagridview-the-order-of-columns
 ---
 

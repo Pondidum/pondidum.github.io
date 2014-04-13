@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "CI: Thoughts on CC.Net and Hudson"
-Tags: ci
+tags: ci
 permalink: ci-thoughts-on-ccnet-and-hudson
 ---
 

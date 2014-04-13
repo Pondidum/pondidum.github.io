@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Model View Presenters: Introduction"
-Tags: design, net
+tags: design, net
 permalink: model-view-presenter-introduction
 ---
 

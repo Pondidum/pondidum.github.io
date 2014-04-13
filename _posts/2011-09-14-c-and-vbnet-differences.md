@@ -1,7 +1,7 @@
 ---
 layout: post
 title: C# and Vb.Net Differences
-Tags: code, net
+tags: code, net
 permalink: c-and-vbnet-differences
 ---
 

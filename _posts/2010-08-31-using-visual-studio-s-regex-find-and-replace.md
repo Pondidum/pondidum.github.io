@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Using Visual Studio's Regex Find and Replace
-Tags: code, net
+tags: code, net
 permalink: using-visual-studio-s-regex-find-and-replace
 ---
 
