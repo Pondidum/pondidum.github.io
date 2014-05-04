@@ -4,9 +4,9 @@ title: Writing Rich Domain Models
 tags: design, code, net, domain, ddd
 ---
 
-The term Rich Domain Model is used to describe a domain model which really shows you how you should be using and manipulating the model, rather than letting you do anything with it.  It is the opposite of an Enemic Domain Model, which provides a very low abstraction over the data storage (generally), but with little to no enforcing of rules.
+The term Rich Domain Model is used to describe a domain model which really shows you how you should be using and manipulating the model, rather than letting you do anything with it.  It is the opposite of an Anaemic Domain Model, which provides a very low abstraction over the data storage (generally), but with little to no enforcing of rules.
 
-##The Enemic Domain Model
+##The Anaemic Domain Model
 
 To take the standard model of a person who has addresses and phone numbers etc seems a little contrite, so lets run through an example using timesheets (bear in mind I don't know what really goes into a timesheet system, this just seems reasonable).  The current model looks something like the following:
 
@@ -56,7 +56,7 @@ The first problem with this model is that the domain entities are inheriting dir
 
 The model implies that there are rules governing its usage somewhere, but gives no hint as to what these rules are, or where they are located.  Rules such as 'only allow hours to be entered in increments of half an hour' and 'no more than 5 lines in a given week' really should be in the domain model itself, as a Rich Domain Model should not allow itself to get into an invalid state.
 
-The model also is leaking what kind of data store it is built on - afterall, if you had an Event Sourcing pattern for storage, a `Delete` operation on the `TimeSheetLineCollection` would not make a lot of sense.
+The model also is leaking what kind of data store it is built on - after all, if you had an Event Sourcing pattern for storage, a `Delete` operation on the `TimeSheetLineCollection` would not make a lot of sense.
 
 ##The Rich Domain Model
 
@@ -97,7 +97,7 @@ public class TimeSheet
 
 The Rich model does a number of interesting things.  The first is that all the properties of the `TimeSheet` class are now `private set`.  This allows us to enforce rules on when and how they get set.  For example, the `WeekDate` property value gets passed in via the constructor, as our domain says that for a week to be valid it must have a weekdate.
 
-The major improvement is in adding lines to the `TimeSheet`.  In the Enemic version of the model, you could have just created a `TimeSheetLine` object and set the `Day` property to an arbitrary date, rather than one in the given week's range.  The Rich model forces the caller to pass in a `DayOfWeek` to the function, which ensures that a valid datetime will get stored for the line.  The `AddLine` method also calls `_rules.ValidateAdd()` which gives us a central place for putting rules on line actions.
+The major improvement is in adding lines to the `TimeSheet`.  In the Anaemic version of the model, you could have just created a `TimeSheetLine` object and set the `Day` property to an arbitrary date, rather than one in the given week's range.  The Rich model forces the caller to pass in a `DayOfWeek` to the function, which ensures that a valid datetime will get stored for the line.  The `AddLine` method also calls `_rules.ValidateAdd()` which gives us a central place for putting rules on line actions.
 
 Now that the user has been able to fill out all the lines in their timesheet, the next likely action they want to perform is to submit it for authorization.  We can do this by adding the following method:
 
@@ -129,7 +129,7 @@ Note how the method is named to capture the reason for the change.  Although we 
 
 The function also has some logic baked into it - each of the `TimeSheetLine`s needs its `Day` property re-calculating.
 
-Hopefully this helps demonstrate why Rich Domain Models are better solutions to complex domain problems than Enemic Domain Models are.
+Hopefully this helps demonstrate why Rich Domain Models are better solutions to complex domain problems than Anaemic Domain Models are.
 
 For a really good video on this subject, check out Jimmy Bogard's [Crafting Wicked Domain Models][wicked-domains] talk.
 
