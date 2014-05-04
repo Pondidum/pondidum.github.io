@@ -2,6 +2,7 @@
 layout: post
 title: Writing Rich Domain Models
 tags: design, code, net, domain, ddd
+permalink: writing-rich-domain-models
 ---
 
 The term Rich Domain Model is used to describe a domain model which really shows you how you should be using and manipulating the model, rather than letting you do anything with it.  It is the opposite of an Anaemic Domain Model, which provides a very low abstraction over the data storage (generally), but with little to no enforcing of rules.
@@ -11,12 +12,10 @@ The term Rich Domain Model is used to describe a domain model which really shows
 To take the standard model of a person who has addresses and phone numbers etc seems a little contrite, so lets run through an example using timesheets (bear in mind I don't know what really goes into a timesheet system, this just seems reasonable).  The current model looks something like the following:
 
 {% highlight c# %}
-
 public class TimeSheet : DbEntity
 {
 	public DateTime WeekDate { get; set; }
 	public TimeSheetStates State { get; set; }
-
 	public TimeSheetLineCollection Lines { get; set; }
 
 	//...
@@ -49,7 +48,6 @@ public enum LineTypes
 	Holiday,
 	Sick
 }
-
 {% endhighlight %}
 
 The first problem with this model is that the domain entities are inheriting directly from a `DbEntity` which is coupling our logic directly to our data access, which amongst other things is a violation of [SRP][blog-solid-srp].  Putting this aside for the time being, the next issue is that the domain model lets you do anything with the objects and collections.
