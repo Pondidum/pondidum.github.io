@@ -73,6 +73,9 @@ p {
   padding-left: 0px;
 }
 
+#sidebar p.me-external {
+  margin-top: 2em;
+}
 /* links
 ----------------------------------------------- */
 
