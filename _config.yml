@@ -3,3 +3,9 @@ description: Andy Dote's blog
 url: http://andydote.co.uk
 markdown: redcarpet
 pygments: true
+
+paginate: 5
+
+ftp_host: 'andydote.co.uk'
+ftp_dir: '/public_html'
+ftp_passive: false
