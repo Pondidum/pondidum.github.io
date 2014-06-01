@@ -137,11 +137,6 @@ div.divider {
   text-align: center;
 }
 
-ul.posts {
-  list-style-type: none;
-  padding: 0;
-}
-
 ul, ol, img, .highlight, blockquote {
   margin-left: 3em;
   margin-right: 3em;
@@ -162,4 +157,8 @@ ul, ol, img, .highlight, blockquote {
 
 #disqus_thread {
   margin-top: 3em;
+}
+
+.pagination {
+  margin-bottom: 5em;
 }

@@ -3,27 +3,31 @@ layout: default
 title: Andy Dote
 ---
 
-<ul class="posts">
-  {% for post in site.posts %}
+{% for post in paginator.posts %}
 
-  <li>
-    <div>
-      <h1><a href="{{ post.url }}">{{ post.title }}</a></h1>
+  <div>
+    <h1><a href="{{ post.url }}">{{ post.title }}</a></h1>
 
-      <p class="meta">{{ post.date | date_to_string }}</p>
+    <p class="meta">{{ post.date | date_to_string }}</p>
 
-      <div class="post">
-        {{ post.content }}
-      </div>
-
-      <p class="tags">
-        {% for tag in post.tags %}{% include tags.html %}{% endfor %}
-      </p>
-
-      <div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
+    <div class="post">
+      {{ post.content }}
     </div>
 
-  </li>
+    <p class="tags">
+      {% for tag in post.tags %}{% include tags.html %}{% endfor %}
+    </p>
 
-  {% endfor %}
-</ul>
+    <div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
+  </div>
+
+{% endfor %}
+
+<div class="pagination">
+  {% if paginator.previous_page %}
+    <a class="left" href="/page{{ paginator.previous_page }}">Previous</a>
+  {% endif %}
+  {% if paginator.next_page %}
+    <a class="right" href="/page{{ paginator.next_page }}">Next</a>
+  {% endif %}
+</div>
