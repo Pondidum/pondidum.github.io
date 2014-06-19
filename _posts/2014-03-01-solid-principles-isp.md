@@ -7,7 +7,7 @@ permalink: solid-principles-isp
 
 ## Interface Segregation Principle
 
-[Single Responsibility][blog-solid-srp] | [Open Closed][blog-solid-ocp] | [Liskov Substitution][blog-solid-lsp] | [Interface Segregation][blog-solid-isp] | Dependency Inversion
+[Single Responsibility][blog-solid-srp] | [Open Closed][blog-solid-ocp] | [Liskov Substitution][blog-solid-lsp] | [Interface Segregation][blog-solid-isp] | [Dependency Inversion][blog-solid-dip]
 
 Interface Segregation I find is often ignored, or people tend not to see the point in.  Segregating your Interfaces is a very useful way of reducing compexity in your systems, and comes with a number of benefits, such as making mocking inputs easier, and making your objects smaller and simpler.
 
@@ -190,4 +190,5 @@ All source code is available on my Github: [Solid.Demo Source Code][solid-demo-r
 [blog-solid-ocp]: http://andydote.co.uk/solid-principles-ocp
 [blog-solid-lsp]: http://andydote.co.uk/solid-principles-lsp
 [blog-solid-isp]: http://andydote.co.uk/solid-principles-isp
+[blog-solid-dip]: http://andydote.co.uk/solid-principles-dip
 [solid-demo-repo]: https://github.com/Pondidum/Solid.Demo

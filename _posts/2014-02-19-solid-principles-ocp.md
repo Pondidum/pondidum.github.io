@@ -7,7 +7,7 @@ permalink: solid-principles-ocp
 
 ## Open Closed Principle
 
-[Single Responsibility][blog-solid-srp] | [Open Closed][blog-solid-ocp] | [Liskov Substitution][blog-solid-lsp] | [Interface Segregation][blog-solid-isp] | Dependency Inversion
+[Single Responsibility][blog-solid-srp] | [Open Closed][blog-solid-ocp] | [Liskov Substitution][blog-solid-lsp] | [Interface Segregation][blog-solid-isp] | [Dependency Inversion][blog-solid-dip]
 
 The Open Closed Principle is one that I often find is miss-understood - how can something be open for extension, but closed for modification?
 A good example of this principle being implemented cropped up at work a while ago, we had a UI element which has a reusable grid, which gets populated with data based on a menu selection.  The user can also add, edit and delete items from the grids.
@@ -305,4 +305,5 @@ All source code is available on my Github: [Solid.Demo Source Code][solid-demo-r
 [blog-solid-ocp]: http://andydote.co.uk/solid-principles-ocp
 [blog-solid-lsp]: http://andydote.co.uk/solid-principles-lsp
 [blog-solid-isp]: http://andydote.co.uk/solid-principles-isp
+[blog-solid-dip]: http://andydote.co.uk/solid-principles-dip
 [solid-demo-repo]: https://github.com/Pondidum/Solid.Demo
