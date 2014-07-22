@@ -1,13 +1,13 @@
 ---
 layout: post
 title: Strong Type your entity IDs.
-tags: design, code, net, typing, sql, struct, guid, uuid, int, strong typing, primary key, database
+tags: design code net typing sql database orm
 permalink: strong-type-your-entity-ids
 ---
 
 ## The Database is just an Implementation Detail
 
-A quote from Martin Fowler given during his Architecture talk stated that the Database in your application should just be an implementation detail.  I agree on this wholeheartedly, and find that its really not that difficult to achieve if you think about your architecture carefully.
+A quote from Martin Fowler given during his Architecture talk stated that the Database in your application should just be an implementation detail.  I agree on this wholeheartedly and find that its really not that difficult to achieve if you think about your architecture carefully.
 
 Having said that, I still see parts of the database implementation leaking out into the domain, mainly in the form of IDs.  This might not seem like much of a leak, but it does cause a few problems, especially on larger systems.
 
