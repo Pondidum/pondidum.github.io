@@ -1,7 +1,7 @@
 ---
 layout: post
 title: SOLID Principles - DIP
-tags: design code net
+tags: design code net solid
 permalink: solid-principles-dip
 ---
 

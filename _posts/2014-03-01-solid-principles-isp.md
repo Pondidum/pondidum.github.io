@@ -1,7 +1,7 @@
 ---
 layout: post
 title: SOLID Principles - ISP
-tags: design code net
+tags: design code net solid
 permalink: solid-principles-isp
 ---
 
