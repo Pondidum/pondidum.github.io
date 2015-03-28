@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Using a Micro ORM to decouple your DB Access
-tags: design, code, net, automapper, sql, memento
+tags: design code net automapper sql memento
 permalink: using-a-micro-orm-to-decouple-your-db-access
 ---
 

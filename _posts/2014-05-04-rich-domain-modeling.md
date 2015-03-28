@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Writing Rich Domain Models
-tags: design, code, net, domain, ddd
+tags: design code net domain ddd
 permalink: writing-rich-domain-models
 ---
 

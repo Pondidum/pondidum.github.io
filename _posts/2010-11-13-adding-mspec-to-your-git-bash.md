@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Adding MSpec to your Git Bash
-tags: net, git
+tags: net git
 permalink: adding-mspec-to-your-git-bash
 ---
 

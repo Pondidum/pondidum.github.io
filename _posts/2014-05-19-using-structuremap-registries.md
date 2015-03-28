@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Using StructureMap Registries for better separation
-tags: design, code, net, structuremap, separation, testing
+tags: design code net structuremap separation testing
 permalink: using-structuremap-registries-for-better-separation
 ---
 

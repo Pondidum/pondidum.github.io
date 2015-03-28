@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Creating Non resizable controls
-tags: design, code, controls, net
+tags: design code controls net
 permalink: creating-non-resizable-controls
 ---
 

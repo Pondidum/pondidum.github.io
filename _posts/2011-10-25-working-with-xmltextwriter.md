@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Working with XmlTextWriter
-tags: code, net
+tags: code net
 permalink: working-with-xmltextwriter
 ---
 

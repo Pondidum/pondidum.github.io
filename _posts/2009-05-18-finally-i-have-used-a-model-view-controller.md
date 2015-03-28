@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Finally, I have used a Model View Controller!
-tags: design, code
+tags: design code
 permalink: finally-i-have-used-a-model-view-controller
 ---
 

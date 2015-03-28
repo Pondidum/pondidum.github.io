@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Winforms Design Time support: exposing sub designers"
-tags: design, code, controls
+tags: design code controls
 permalink: winforms-design-time-support-exposing-sub-designers
 ---
 

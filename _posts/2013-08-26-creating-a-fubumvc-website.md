@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Creating a FubuMvc website
-tags: code, net
+tags: code net
 permalink: creating-a-fubumvc-website
 ---
 

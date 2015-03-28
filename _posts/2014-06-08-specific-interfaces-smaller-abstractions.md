@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Specific Interfaces
-tags: design, code, net
+tags: design code net
 permalink: specific-interfaces-smaller-abstractions
 ---
 

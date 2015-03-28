@@ -1,7 +1,7 @@
 ---
 layout: post
 title: SqlDataReader.HasRows Problems
-tags: bug, sql
+tags: bug sql
 permalink: sqldatareaderhasrows-problems
 ---
 

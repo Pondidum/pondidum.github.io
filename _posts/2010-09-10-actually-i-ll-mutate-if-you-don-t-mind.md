@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Actually, I'll mutate if you don't mind
-tags: design, code, net
+tags: design code net
 permalink: actually-i-ll-mutate-if-you-don-t-mind
 ---
 

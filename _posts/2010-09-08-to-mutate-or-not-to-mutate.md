@@ -1,7 +1,7 @@
 ---
 layout: post
 title: To mutate or not to mutate
-tags: design, code, net
+tags: design code net
 permalink: to-mutate-or-not-to-mutate
 ---
 
