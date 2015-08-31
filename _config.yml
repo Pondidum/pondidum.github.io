@@ -3,7 +3,7 @@ description: Andy Dote's blog
 url: http://andydote.co.uk
 markdown: redcarpet
 highlighter: true
-exclude: serve, servedrafts, vagrantfile
+exclude: [serve, servedrafts, vagrantfile]
 paginate: 5
 
 ftp_host: 'andydote.co.uk'
