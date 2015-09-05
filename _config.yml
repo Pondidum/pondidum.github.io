@@ -2,7 +2,7 @@ name: Andy Dote
 description: Andy Dote's blog
 url: http://andydote.co.uk
 markdown: redcarpet
-highlighter: true
+highlighter: pygments
 exclude: [serve, servedrafts, vagrantfile]
 paginate: 5
 
