@@ -21,14 +21,21 @@ Tables can be used to expose a transformed version of the service's data, for ex
 For example, one of our services uses Event Sourcing.  It uses projections to construct readmodels as events are stored (we use the [Ledger][ledger] library, and a SqlServer backend for this.)  To provide a Database Integeration point, we have a second set of projections which populate a set of tables specifically for external querying.
 
 If the following event was committed to the store:
-```
-{ "eventType": "phoneNumberAdded", "aggregateID": 231231, "number": "01230 232323", "type": "home" }
+
+```json
+{
+  "eventType": "phoneNumberAdded",
+  "aggregateID": 231231,
+  "number": "01230 232323",
+  "type": "home"
+}
 ```
 
 The readmodel table, which is just two columns: `id:int` and `json:varchar(max)`, would get updated to look like this:
+
 ```
 id      | json
-----------------------------------------------------------
+--------+-------------------------------------------------
 231231  | {
             "id": 231231,
             "name": "Andy Dote",
@@ -40,9 +47,10 @@ id      | json
 ```
 
 The external integration table, which is a denormalised view of the data would get updated to look like this:
+
 ```
 id      | name      | home_phone    | mobile_phone
-----------------------------------------------------------
+--------+-----------+---------------+----------------------
 231231  | Andy Dote | 01230 232 323 | 07123 456 456
 ```
 
@@ -53,6 +61,7 @@ While I have not needed to implement this yet, there is a plan for how to do it:
 ### Relational Systems
 
 A relational system can be done in a number of ways:
+
 * In the same manner as the Non-SQL system: with a periodical job
 * In a similar manner to the Event Sourced system: Updating a second table at the same time as the primary tables
 * Using SQL triggers: on insert, add a row to the integration table etc.
