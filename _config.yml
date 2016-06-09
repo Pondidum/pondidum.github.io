@@ -5,6 +5,7 @@ markdown: redcarpet
 highlighter: pygments
 exclude: [serve, servedrafts, vagrantfile]
 paginate: 5
+gems: [jekyll-paginate]
 
 ftp_host: 'andydote.co.uk'
 ftp_dir: '/public_html'
