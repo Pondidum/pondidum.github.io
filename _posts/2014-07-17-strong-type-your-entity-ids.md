@@ -71,7 +71,7 @@ public struct UserID
 
 	public override bool Equals(object obj)
 	{
-		return obj is ProductID && GetHashCode() == obj.GetHashCode();
+		return (obj is UserID) && (((UserID)obj)._value == _value);
 	}
 }
 
@@ -91,7 +91,7 @@ public struct AccountID
 
 	public override bool Equals(object obj)
 	{
-		return obj is ProductID && GetHashCode() == obj.GetHashCode();
+		return obj is AccountID && GetHashCode() == obj.GetHashCode();
 	}
 }
 {% endhighlight %}
@@ -160,12 +160,19 @@ public struct PersonID
 
 	public override int GetHashCode()
 	{
-		return _value.GetHashCode();
+		//http://stackoverflow.com/questions/263400/what-is-the-best-algorithm-for-an-overridden-system-object-gethashcode/263416#263416
+		unchecked
+		{
+			int hash = 17;
+			hash = hash * 23 + _id.GetHashCode();
+			hash = hash * 23 + _refnum.GetHashCode();
+			return hash;
+		}
 	}
 
 	public override bool Equals(object obj)
 	{
-		return obj is ProductID && GetHashCode() == obj.GetHashCode();
+		return (obj is PersonID) && (((PersonID)obj)._id == _id) && (((PersonID)obj)._refnum == _refnum);
 	}
 
 	public override string ToString()
