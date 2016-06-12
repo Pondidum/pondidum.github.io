@@ -6,6 +6,7 @@ highlighter: pygments
 exclude: [serve, servedrafts, vagrantfile]
 paginate: 5
 gems: [jekyll-paginate]
+permalink: pretty
 
 ftp_host: 'andydote.co.uk'
 ftp_dir: '/public_html'
