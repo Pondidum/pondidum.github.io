@@ -2,7 +2,7 @@
 layout: post
 title: "CI: Thoughts on CC.Net and Hudson"
 tags: ci
-permalink: ci-thoughts-on-ccnet-and-hudson
+
 ---
 
 I have been a fan of CI (Continuous Integration) for a long time now, and ever since I started with CI I have been using [CruiseControl.Net][1]. CCNet is incredibly powerful; you can make to do practically anything, and writing plugins for it is a breeze.

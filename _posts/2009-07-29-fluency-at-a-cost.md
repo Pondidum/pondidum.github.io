@@ -2,7 +2,7 @@
 layout: post
 title: Fluency at a cost?
 tags: design code net
-permalink: fluency-at-a-cost
+
 ---
 
 I like fluent interfaces.  I find them easy to read, and nice to program with.  However the more I write them the more I notice there is a cost associated with them.  It's not much of a cost, but it is there none the less.  To demonstrate say we have a class called `Animator`.  It has the following properties and methods on it:

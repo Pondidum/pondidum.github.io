@@ -2,7 +2,7 @@
 layout: post
 title: Checking a Type for an Attribute
 tags: code
-permalink: checking-a-type-for-an-attribute
+
 ---
 
 I needed to be able to detect at run time if an Enum has a specific Attribute on it.  Generalizing it, I came up with this:

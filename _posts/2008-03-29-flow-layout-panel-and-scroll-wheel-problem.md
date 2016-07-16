@@ -2,7 +2,7 @@
 layout: post
 title: Flow Layout Panel and Scroll Wheel Problem
 tags: bug
-permalink: flow-layout-panel-and-scroll-wheel-problem
+
 ---
 
 I came across a problem while writing an application for my parents today.  If you have a FlowLayoutPanel on your form, and have many items in it, causing it to overflow and require scroll bars, you are unable to scroll the control's content using the mouse wheel.

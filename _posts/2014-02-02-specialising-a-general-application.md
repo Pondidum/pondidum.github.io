@@ -2,7 +2,7 @@
 layout: post
 title: Specialising a General Application
 tags: design
-permalink: specialising-a-general-application
+
 ---
 
 Currently our application at work is used by all employees - sales staff, legal team, marketing, accounts etc.  This means we have one very large, and general fit application.  It covers everyone's needs *just*, and the largest group of users (sales in this case) have an application which closely matches what they need.  This is at the expense of the other teams having an application that is not quite right - close, but could be better.

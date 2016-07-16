@@ -2,7 +2,7 @@
 layout: post
 title: Converting from NUnit to MSTest
 tags: code net
-permalink: converting-from-nunit-to-mstest
+
 ---
 
 While this is not something I personally would want to do, we (for whatever reason...) are to use MSTest at work (I think it is due to the whole "Its Microsoft, so it's supported" argument).

@@ -2,7 +2,7 @@
 layout: post
 title: Thanks Google for solving my problem!
 tags: design code net
-permalink: thanks-google-for-solving-my-problem
+
 ---
 
 Following on from [yesterday's][1] post about separation on concerns and where to put some undefined logic for a multi state checkbox, I did a fair amount of research.

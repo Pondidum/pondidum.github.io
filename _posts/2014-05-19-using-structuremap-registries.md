@@ -2,7 +2,7 @@
 layout: post
 title: Using StructureMap Registries for better separation
 tags: design code net structuremap separation testing
-permalink: using-structuremap-registries-for-better-separation
+
 ---
 
 When it comes to configuring StructureMap, it supports the use of [Registries][structuremap-registries].  Registries support everything that the standard configure method does(`new Container(c => { /* */});`).

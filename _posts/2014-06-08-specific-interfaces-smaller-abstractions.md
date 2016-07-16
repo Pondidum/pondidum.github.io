@@ -2,7 +2,7 @@
 layout: post
 title: Specific Interfaces
 tags: design code net
-permalink: specific-interfaces-smaller-abstractions
+
 ---
 
 While writing my [CruiseCli][github-cruisecli] project, I needed to do some data storage, and so used my standard method of filesystem access, the `IFileSystem`.  This is an interface and implementation which I tend to copy from project to project, and use as is.  The interface looks like the following:

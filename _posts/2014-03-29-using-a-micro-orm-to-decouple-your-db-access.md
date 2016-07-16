@@ -2,7 +2,7 @@
 layout: post
 title: Using a Micro ORM to decouple your DB Access
 tags: design code net automapper sql memento
-permalink: using-a-micro-orm-to-decouple-your-db-access
+
 ---
 
 One of the databases I use on a regular bases has a rather interesting column naming scheme;  all columns have a prefix, based on the table name.  For example, the table containing people would have the prefix `PEO_`, so you would have this:

@@ -2,7 +2,6 @@
 layout: post
 title: Strong Type your entity IDs.
 tags: design code net typing sql database orm
-permalink: strong-type-your-entity-ids
 ---
 
 ## The Database is just an Implementation Detail

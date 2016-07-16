@@ -2,7 +2,7 @@
 layout: post
 title: Actually, I'll mutate if you don't mind
 tags: design code net
-permalink: actually-i-ll-mutate-if-you-don-t-mind
+
 ---
 
 After I had changed all my extension methods to be functions and return a new object rather than mutating the self parameter, I changed them all back to be refs.

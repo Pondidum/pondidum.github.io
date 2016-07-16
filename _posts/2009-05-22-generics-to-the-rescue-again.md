@@ -2,7 +2,7 @@
 layout: post
 title: Generics to the rescue! Again!
 tags: design code generics net
-permalink: generics-to-the-rescue-again
+
 ---
 
 I was writing a component at work that has many events that all need to be thread safe, and was getting annoyed at the amount of duplicate code I was writing:

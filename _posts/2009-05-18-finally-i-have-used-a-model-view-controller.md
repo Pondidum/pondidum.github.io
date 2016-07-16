@@ -2,7 +2,7 @@
 layout: post
 title: Finally, I have used a Model View Controller!
 tags: design code
-permalink: finally-i-have-used-a-model-view-controller
+
 ---
 
 Today I actually managed to use a Model View Controller in an application.  I have been looking for an opportunity to use one fore a while, and have been reading a lot about them (Jeremy Miller's [Build Your Own CAB Series][build-your-own-cab] has been a very good guide).

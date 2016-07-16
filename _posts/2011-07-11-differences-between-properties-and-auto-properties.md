@@ -2,7 +2,7 @@
 layout: post
 title: Differences between Properties and Auto Properties
 tags: code net
-permalink: differences-between-properties-and-auto-properties
+
 ---
 
 While writing some of the specs for [ViewWeaver][1], I noticed that one was failing:

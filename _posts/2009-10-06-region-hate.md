@@ -2,7 +2,7 @@
 layout: post
 title: Region Hate
 tags: design code net
-permalink: region-hate
+
 ---
 
 There seems to be a [lot of][5] [negativity][6] [towards][7] the `#Region` in .net at the moment, with many people hating them and calling all usages of them ['retarded'][1].

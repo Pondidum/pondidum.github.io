@@ -2,7 +2,7 @@
 layout: post
 title: "Model View Presenters: Presenter to View Communication"
 tags: design code net
-permalink: model-view-presenters-presenter-to-view-communication
+
 ---
 
 Table of Contents:

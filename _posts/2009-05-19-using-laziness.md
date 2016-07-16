@@ -2,7 +2,7 @@
 layout: post
 title: Using Laziness
 tags: code
-permalink: using-laziness
+
 ---
 
 As I do a lot of forms development, I end up writing something like this a lot:

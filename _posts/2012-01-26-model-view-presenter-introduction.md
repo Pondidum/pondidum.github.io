@@ -2,7 +2,7 @@
 layout: post
 title: "Model View Presenters: Introduction"
 tags: design net
-permalink: model-view-presenter-introduction
+
 ---
 
 Table of Contents

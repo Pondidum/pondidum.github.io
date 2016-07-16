@@ -2,7 +2,7 @@
 layout: post
 title: SOLID Principles - SRP
 tags: design code net solid
-permalink: solid-principles-srp
+
 ---
 
 ## Single Responsibility Principle

@@ -2,7 +2,7 @@
 layout: post
 title: Overuse of the Var keyword
 tags: design code net
-permalink: overuse-of-the-var-keyword
+
 ---
 
 When I first got hold of VS2008, and had a play with the new version of C# I loved the Var keyword.  To me the most amazing thing was no more declarations like this:

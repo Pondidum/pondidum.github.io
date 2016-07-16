@@ -2,7 +2,7 @@
 layout: post
 title: Multilining If statements conditions should be banned. now.
 tags: code bug net
-permalink: multilining-if-statements-conditions-should-be-banned-now
+
 ---
 
 Multilining if statement conditions is bad.  I was modifying some code and came across this:

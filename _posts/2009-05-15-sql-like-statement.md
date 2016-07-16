@@ -2,7 +2,7 @@
 layout: post
 title: SQL Like statement
 tags: code sql
-permalink: sql-like-statement
+
 ---
 
 Today I learnt a few new (well to me) SQL commands.  The [Like statement][ddart-like] can do some basic regex type things.  It supports character specifiers like this:

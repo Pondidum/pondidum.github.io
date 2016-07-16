@@ -2,7 +2,7 @@
 layout: post
 title: Coming From Something as opposed to Going To Something
 tags: design code net
-permalink: coming-from-something-as-opposed-to-going-to-something
+
 ---
 
 Over the last week I have noticed myself preferring methods being called IntegerFromString rather than StringToInteger.  Is sometimes takes me a little longer to read (only a few milliseconds, mind) but I think I am getting more used to it, and I do think it enhances readability.

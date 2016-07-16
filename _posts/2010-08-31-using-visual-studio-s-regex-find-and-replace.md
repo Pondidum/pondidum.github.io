@@ -2,7 +2,7 @@
 layout: post
 title: Using Visual Studio's Regex Find and Replace
 tags: code net
-permalink: using-visual-studio-s-regex-find-and-replace
+
 ---
 
 The Visual Studio Find and Replace dialog is often overlooked, and when parts of it are looked at (Regex searching) it often gets a bad rep.  Sure it doesn't implement all of the Regex syntax (non greedy search springs to mind), but that's not to say it isn't useful.

@@ -2,7 +2,7 @@
 layout: post
 title: Databinding to a DataGridView - The order of columns
 tags: controls bug net
-permalink: databinding-to-a-datagridview-the-order-of-columns
+
 ---
 
 A while ago I was writing a small history grid in one of our applications at work.  It has a single `HistoryItem` object, which is fairly straightforward, something like this:

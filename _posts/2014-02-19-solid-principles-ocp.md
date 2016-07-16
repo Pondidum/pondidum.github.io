@@ -2,7 +2,7 @@
 layout: post
 title: SOLID Principles - OCP
 tags: design code net solid
-permalink: solid-principles-ocp
+
 ---
 
 ## Open Closed Principle

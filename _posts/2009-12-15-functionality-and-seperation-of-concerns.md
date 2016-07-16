@@ -2,7 +2,7 @@
 layout: post
 title: Functionality and Seperation of Concerns
 tags: design code net
-permalink: functionality-and-seperation-of-concerns
+
 ---
 
 When I am writing a winform in an MVP style, I often wonder how far to go with the separation.  Say I have the following situation:

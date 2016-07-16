@@ -2,7 +2,7 @@
 layout: post
 title: Configuring Dapper to work with custom types
 tags: design code net typing sql database orm
-permalink: configuring-dapper-to-work-with-custom-types
+
 ---
 
 In the [last post][blog-type-ids] we looked at using custom ID types to help abstract the column type from the domain.

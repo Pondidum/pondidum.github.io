@@ -2,7 +2,7 @@
 layout: post
 title: To mutate or not to mutate
 tags: design code net
-permalink: to-mutate-or-not-to-mutate
+
 ---
 
 I have been working on a project recently that involves a lot of work with Flags Enums.  To aid with this I created a set of Extension Methods:

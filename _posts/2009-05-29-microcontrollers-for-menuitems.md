@@ -2,7 +2,7 @@
 layout: post
 title: Microcontrollers for MenuItems
 tags: design code generics controls net
-permalink: microcontrollers-for-menuitems
+
 ---
 
 I have been working my way through Jeremy Miller's excellent [Build Your Own CAB Series][jeremy-cab] (which would be even better if he felt like finishing!) and was very interested by the article on controlling menus with [Microcontrollers][jeremy-micro].

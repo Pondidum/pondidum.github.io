@@ -2,7 +2,7 @@
 layout: post
 title: Writing Rich Domain Models
 tags: design code net domain ddd
-permalink: writing-rich-domain-models
+
 ---
 
 The term Rich Domain Model is used to describe a domain model which really shows you how you should be using and manipulating the model, rather than letting you do anything with it.  It is the opposite of an Anaemic Domain Model, which provides a very low abstraction over the data storage (generally), but with little to no enforcing of rules.

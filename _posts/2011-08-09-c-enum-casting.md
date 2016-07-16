@@ -2,7 +2,7 @@
 layout: post
 title: c# Enum casting
 tags: code net
-permalink: c-enum-casting
+
 ---
 
 I am all for strong typing, and explicit casts, but some things in C# do seem to be a bit over-wordy.  For instance, I would quite often have code that looks like the following in VB.Net:

@@ -2,7 +2,7 @@
 layout: post
 title: Fluent Validation
 tags: design code net
-permalink: fluent-validation
+
 ---
 
 A few days a go i was going through my bookmarks, and came accross [this post][fluent-validation] on the GetPaint.Net blog about using a fluent interface for parameter validation.

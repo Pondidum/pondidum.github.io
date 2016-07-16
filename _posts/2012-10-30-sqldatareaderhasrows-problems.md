@@ -2,7 +2,7 @@
 layout: post
 title: SqlDataReader.HasRows Problems
 tags: bug sql
-permalink: sqldatareaderhasrows-problems
+
 ---
 
 For the last 6 years or so at work, we have had an intermittent bug.  In this case, intermittent means around once in 6 months or so.  A little background to the problem first:

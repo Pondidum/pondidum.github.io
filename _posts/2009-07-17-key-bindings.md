@@ -2,7 +2,7 @@
 layout: post
 title: Key Bindings
 tags: design
-permalink: key-bindings
+
 ---
 
 When I was at college studying Electronics and Computer Engineering, we used a piece of software called [Proteus][1].  This software took a long time to get used to due to its interesting key bindings and mouse usage.

@@ -2,7 +2,7 @@
 layout: post
 title: C# and Vb.Net Differences
 tags: code net
-permalink: c-and-vbnet-differences
+
 ---
 
 So I have been doing some work that involves C# and VB libraries and apps using each other, and have noticed a lot of subtle differences between the two languages.

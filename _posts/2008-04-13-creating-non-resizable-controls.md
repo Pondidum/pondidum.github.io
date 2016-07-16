@@ -2,7 +2,7 @@
 layout: post
 title: Creating Non resizable controls
 tags: design code controls net
-permalink: creating-non-resizable-controls
+
 ---
 
 A control I was recently developing required being non-resizable when on the form.  When the application is running, this would be easy enough, just set its `AutoSize` property to False, and don't dock the control.

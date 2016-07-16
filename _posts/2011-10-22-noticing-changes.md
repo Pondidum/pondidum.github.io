@@ -2,7 +2,7 @@
 layout: post
 title: Noticing Changes
 tags: design
-permalink: noticing-changes
+
 ---
 
 I work on a piece of software that has been around for about 6 years now, which looks something like this:

@@ -2,7 +2,7 @@
 layout: post
 title: VB.NET &amp; C# Fixed height User Controls
 tags: design code controls net
-permalink: vbnet-c-fixed-height-user-controls
+
 ---
 
 Another problem I came across recently was fixed height user controls.  Someone at work had created a fixed height user control, by putting the following code in the paint event:

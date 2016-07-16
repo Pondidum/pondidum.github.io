@@ -2,7 +2,7 @@
 layout: post
 title: Converting Code
 tags: code
-permalink: converting-code
+
 ---
 
 Quite often (well ok, not that often) I am asked why I convert most C# code I find into VB.Net.  The main reason is I find that it helps me to understand the code.

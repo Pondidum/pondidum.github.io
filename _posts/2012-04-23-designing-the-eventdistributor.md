@@ -2,7 +2,7 @@
 layout: post
 title: Designing the EventDistributor
 tags: design code net
-permalink: designing-the-eventdistributor
+
 ---
 
 When it comes to developing a new class, I don't tend to use TDD (Test Driven Development), I favour something I have named TAD - Test Aided Development.  In other words, while I am for Unit Testing in general, designing something via writing tests sometimes feels too clunky and slow.  I always write classes and methods with testing very much in mind, but I do not generally write the tests until later on in the process.  This post covers roughly how I wrote the EventDistributor, and what points of note there are along the way.

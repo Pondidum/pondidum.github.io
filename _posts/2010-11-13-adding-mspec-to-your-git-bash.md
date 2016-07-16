@@ -2,7 +2,7 @@
 layout: post
 title: Adding MSpec to your Git Bash
 tags: net git
-permalink: adding-mspec-to-your-git-bash
+
 ---
 
 My workflow involves Visual Studio, Notepad++ and Git Bash.  I don't use much Visual Studio integration, and prefer to run most things from the command line.

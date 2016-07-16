@@ -2,7 +2,7 @@
 layout: post
 title: Creating a FubuMvc website
 tags: code net
-permalink: creating-a-fubumvc-website
+
 ---
 
 * Add new Empty Web Application to your solution
