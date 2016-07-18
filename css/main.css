@@ -55,6 +55,7 @@ p code {
 
 .highlight {
   padding: 1em;
+  overflow-x: scroll;
 }
 
 /* sidebar
