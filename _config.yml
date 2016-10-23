@@ -1,8 +1,7 @@
 name: Andy Dote
 description: Andy Dote's blog
 url: http://andydote.co.uk
-markdown: redcarpet
-highlighter: pygments
+highlighter: rouge
 exclude: [serve, servedrafts, vagrantfile]
 paginate: 5
 gems: [jekyll-paginate]
