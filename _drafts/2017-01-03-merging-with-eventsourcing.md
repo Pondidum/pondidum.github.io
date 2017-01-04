@@ -31,3 +31,13 @@ When it comes to merging two records with event sourcing, we start off with a ch
 This decision is down to personal taste:  One event is easier to handle, but means it changes whenever we need to add/modify/remove values the merge handles.  Multiple event has better Single Responsibility, but means our undo-merge code will have to watch for multiple events, which need specifying somehow.
 
 Personally I opt for the multiple events system, and mark the events with an interface such as `IMergeEvent` and build a projection/stream processor to look for all events implementing it.
+
+
+## Undoing the Merge
+
+We have the same choice to make when undoing a merge as we did when making the merge - do we create one single undo event, or multiple?
+
+* user created "source_1"
+* billing info added
+* user merged with "source_2" into "target"
+* merge with "source_2" undone
