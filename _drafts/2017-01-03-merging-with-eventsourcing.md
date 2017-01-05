@@ -37,7 +37,40 @@ Personally I opt for the multiple events system, and mark the events with an int
 
 We have the same choice to make when undoing a merge as we did when making the merge - do we create one single undo event, or multiple?
 
-* user created "source_1"
-* billing info added
-* user merged with "source_2" into "target"
-* merge with "source_2" undone
+If we start with two source aggregates:
+
+* AggregateCreated id: "source_1"
+* EmailAdded email: "source.1@example.com"
+* AggregatesMerged otherId: "source_2"
+
+* AggregateCreated id: "source_2"
+* EmailAdded email: "source.2@example.com"
+* AggregatesMerged otherId: "Source 1"
+
+And merge them:
+
+* AggregateCreatedByMerge id: "merged_1", from: [ "source_1", "source_2" ], ...
+* EmailChanged email: "merged.1@example.com"
+
+And "undo" the merge:
+
+* AggregateCreated id: "source_1"
+* EmailAdded email: "source.1@example.com"
+* AggregatesMerged otherId: "source_2"
+* **EmailChanged email: "merged.1@example.com"**
+
+* AggregateCreated id: "source_2"
+* EmailAdded email: "source.2@example.com"
+* AggregatesMerged otherId: "Source 1"
+* **EmailChanged email: "merged.1@example.com"**
+
+Is this valid?  The only real answer here is "it depends", as this is entirely domain specific.
+
+When undoing a merge, frequently the best option is to give the user the choice of what to do:
+
+* Apply all subsequent events to "source_1"
+* Apply all subsequent events to "source_2"
+* Apply all subsequent events to both
+* Choose which events to apply to each aggregate
+
+The last option sounds easy, but also entails validity, what if `EventY` can only happen after `EventX`, but the user selects to apply `EventX` to "source_1" and `EventY` to "source_2"?
