@@ -33,10 +33,11 @@ h1, h2, h3 {
   font-weight: normal;
   font-size: 1.5em;
   font-family: Georgia, Times, serif;
+  color: #c00;
 }
 
-h2, h3 {
-  font: 1.3em Georgia, Times, serif;
+h2 {
+  font-size: 1.5em;
 }
 
 h3 {
