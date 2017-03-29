@@ -30,7 +30,7 @@ First thing to note about this function is the 2nd argument passed to `callback`
 
 We want to upload a zip file containing all our lambda's code, which in this case is just the `index.js` file.  While this could be done by generating the zip file with a gulp script or manually, we can just get terraform to do this for us, by using the [archive_file data source](https://www.terraform.io/docs/providers/archive/d/archive_file.html):
 
-```terraform
+```cmake
 data "archive_file" "lambda" {
   type = "zip"
   source_file = "index.js"
@@ -51,7 +51,7 @@ By using the `source_code_hash` property, Terraform can detect when the zip file
 
 We also need an IAM role for the function to run under.  While the policy could be written inline, but I have found it more expressive to have a separate file for the role policy:
 
-```terraform
+```cmake
 resource "aws_iam_role" "example_api_role" {
   name = "example_api_role"
   assume_role_policy = "${file("policies/lambda-role.json")}"
@@ -86,7 +86,7 @@ We are going to create a simple api, with one endpoint (or resource, in AWS term
 
 First we need to define an api root:
 
-```terraform
+```cmake
 resource "aws_api_gateway_rest_api" "example_api" {
   name = "ExampleAPI"
   description = "Example Rest Api"
@@ -95,7 +95,7 @@ resource "aws_api_gateway_rest_api" "example_api" {
 
 And then a resource to represent the `/messages` endpoint, and a method to handle `POST`:
 
-```terraform
+```cmake
 resource "aws_api_gateway_resource" "example_api_resource" {
   rest_api_id = "${aws_api_gateway_rest_api.example_api.id}"
   parent_id = "${aws_api_gateway_rest_api.example_api.root_resource_id}"
@@ -114,7 +114,7 @@ The `aws_api_gateway_resource` can be attached to other `aws_api_gateway_resourc
 
 Now we need add an integration between the api and lambda:
 
-```terraform
+```cmake
 resource "aws_api_gateway_integration" "example_api_method-integration" {
   rest_api_id = "${aws_api_gateway_rest_api.example_api.id}"
   resource_id = "${aws_api_gateway_resource.example_api_resource.id}"
@@ -127,7 +127,7 @@ resource "aws_api_gateway_integration" "example_api_method-integration" {
 
 Finally a couple of deployment stages, and an output variable for each to let you know the api's urls:
 
-```terraform
+```cmake
 resource "aws_api_gateway_deployment" "example_deployment_dev" {
   depends_on = [
     "aws_api_gateway_method.example_api_method",
@@ -165,11 +165,11 @@ You can now call your url and see a friendly hello world message:
 curl -X POST -H "Content-Type: application/json" "YOUR_DEV_OR_PROD_URL"
 ```
 
-## Switching to C#
+## Switching to C\#
 
 Switching to a C#/dotnetcore lambda is very straight forward from here.  We just need to change the `aws_lambda_function`'s runtime and handler properties, and change the `archive_file` to use `source_dir` rather than `source_file`:
 
-```terraform
+```cmake
 data "archive_file" "lambda" {
   type = "zip"
   source_dir = "./src/published"
