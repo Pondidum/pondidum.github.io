@@ -64,7 +64,7 @@ public class JobPostingService
 
 This class is fairly small, but it is already showing the symptoms of doing too many things; it is dealing with caching, as well as posting jobs.  While this is not a major problem at the moment, it is also easier to nip the problem in the bud - before a load of new requirements/changes arrive and complicate things.
 
-##The Solution
+## The Solution
 
 We start off by changing our class to take it's dependencies in via constructor parameters (Dependency Injection, the 'D' in SOLID):
 

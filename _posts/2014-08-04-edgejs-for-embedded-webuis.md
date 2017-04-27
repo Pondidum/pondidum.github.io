@@ -30,7 +30,7 @@ But while I like this, FubuMvc embedded seems like overkill.
 
 Wouldn't it be nice if we could host an `expressjs` app inside our process?  They are very lightweight, and to get one setup is almost no coding (especially if you use the express commandline tool).
 
-##Enter Edgejs
+## Enter Edgejs
 
 The [Edge.js][github-edge] project provides an in-process bridge between the .net and nodejs worlds, and allows for communication between the two...
 
@@ -138,7 +138,7 @@ router.get('/', function (req, res) {
 
 All the code is [available on github][demo-project].
 
-##How I am aiming to use it
+## How I am aiming to use it
 
 I am planning on constructing a nuget package to do all of this, so that all a developer needs to do is add the package, and configure which statistics they wish to show up on the web ui.
 

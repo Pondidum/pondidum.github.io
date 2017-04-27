@@ -11,7 +11,7 @@ There are two main reasons that I use the registries rather then doing all my co
 
 The only down side I can see to using registries is that it can scatter your configuration across your codebase - but if you have ReSharper, doing a 'Find Implementations' on `Registry` will find them all for you, so it really isn't much of a down side.
 
-##Separation of Concerns
+## Separation of Concerns
 
 Taking [NuCache][github-nucache] as an example, in our app start we have [ConfigureContainer.cs][github-nucache-configurecontainers]:
 
@@ -62,7 +62,7 @@ The [InfrastructureRegistry][github-nucache-infrastructureregistry] just specifi
 
 The [ProxyBehaviourRegistry][github-nucache-proxyregistry] tells StructureMap to add all implementations of `IProxyBehaviour`, so that when we construct as `ProxyBehaviourSet`, which has a constructor parameter of `IEnumerable<IProxyBehaviour>` all the implementations are passed in for us.
 
-##Easier Testing
+## Easier Testing
 
 We can use the Registry feature of StructureMap to allow us to test parts of code as they would be in production.  This mostly applies to acceptance style testing, for example when I am testing the XmlRewriter, I want it to behave exactly as it would in production, with the same `IXElementTransform`s passed in.
 

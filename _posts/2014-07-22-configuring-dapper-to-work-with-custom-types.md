@@ -62,7 +62,7 @@ SqlMapper.AddTypeHandler(new PersonIDHandler());
 
 Now when Dapper loads an object with a property type of `PersonID` it will invoke the `Parse` method on `PersonIDHandler`, and populate the resulting object correctly.  It will also work when getting a value from the `PersonID` property, invoking the `SetValue` method on `PersonIDHandler`.
 
-##Extension
+## Extension
 
 While the `PersonIDHandler` works, I really don't want to be creating essentially the same class over and over again for each ID type.  We can fix this by using a generic id handler class, and some reflection magic.
 

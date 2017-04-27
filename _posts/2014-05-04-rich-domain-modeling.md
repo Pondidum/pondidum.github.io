@@ -7,7 +7,7 @@ tags: design code net domain ddd
 
 The term Rich Domain Model is used to describe a domain model which really shows you how you should be using and manipulating the model, rather than letting you do anything with it.  It is the opposite of an Anaemic Domain Model, which provides a very low abstraction over the data storage (generally), but with little to no enforcing of rules.
 
-##The Anaemic Domain Model
+## The Anaemic Domain Model
 
 To take the standard model of a person who has addresses and phone numbers etc seems a little contrite, so lets run through an example using timesheets (bear in mind I don't know what really goes into a timesheet system, this just seems reasonable).  The current model looks something like the following:
 
@@ -56,7 +56,7 @@ The model implies that there are rules governing its usage somewhere, but gives 
 
 The model also is leaking what kind of data store it is built on - after all, if you had an Event Sourcing pattern for storage, a `Delete` operation on the `TimeSheetLineCollection` would not make a lot of sense.
 
-##The Rich Domain Model
+## The Rich Domain Model
 
 A better version of this model is to make all the behaviour explicit, rather than just exposing the collections for external modification:
 

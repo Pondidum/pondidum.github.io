@@ -41,7 +41,7 @@ ProcessFile(new DbFileEntry());
 
 This however only takes the principle at face value, and would not provide much value.  However, just because a class implements the expected interface does not necessarily mean that it can be a drop in replacement for another implementation.  This can be down to a number of factors, such as side effects of methods (like different kinds of exception being thrown), and external modification of state.
 
-###Side Effects
+### Side Effects
 
 In this example, you can see that the methods both have a pre-condition on some internal data, but as they throw different kinds of exceptions, they violate the principle:
 
@@ -157,7 +157,7 @@ public class KeyNotFoundProcessException : ProcessException
 
 The problem with this approach is that you are hoping that all consumers of `FileEntry` are catching `ProcessException`, rather than one of it's sub-classes.  By using the first solution, you are forcing the consumer to catch your one exception type.
 
-###State Mutation
+### State Mutation
 
 Extra methods on a sub class can cause a violation of the Liskov Substitution Principle too; by mutating state, and causing calling code to make un-expected transitions.  Take this for example:
 
