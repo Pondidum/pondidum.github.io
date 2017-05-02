@@ -166,3 +166,9 @@ ul, ol, img, .highlight, blockquote {
 .pagination {
   margin-bottom: 5em;
 }
+
+.no-bullets {
+  list-style: none;
+  margin-left: 0;
+  margin-right: 0;
+}
