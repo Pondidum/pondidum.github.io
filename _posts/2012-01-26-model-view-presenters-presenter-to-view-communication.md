@@ -20,7 +20,7 @@ Presenter to View Communication
 
 There are two styles utilised for populating the View with data from the Presenter and Model that I have used.  The only difference between them is how tightly coupled you mind your View being to the Model.  For the example of this, we will have the following as our Model:
 
-{% highlight c# %}
+```csharp
 public class Person
 {
 	public int ID { get; private set; }
@@ -29,24 +29,24 @@ public class Person
 	public String LastName { get; set; }
 	Public Genders Gender { get; set; }
 }
-{% endhighlight %}
+```
 
 Method 1: Using the Model
 ---------------
 
 Now our View code:
 
-{% highlight c# %}
+```csharp
 public interface IEmployeesView
 {
 	void ClearList();
 	void PopulateList(IEnumerable<Person> people);
 }
-{% endhighlight %}
+```
 
 And finally the Presenter:
 
-{% highlight c# %}
+```csharp
 public class IEmployeesPresenter
 {
 	public void Display()
@@ -55,7 +55,7 @@ public class IEmployeesPresenter
 		_view.PopulateList(_model.AllEmployees);
 	}
 }
-{% endhighlight %}
+```
 
 This method of population produces a link between the Model and the View; the Person object used as a parameter in `PopulateList`.
 
@@ -71,17 +71,17 @@ The other method population relies on using `Tuple<...>`, `KeyValuePair<,>` and 
 
 Now our View code:
 
-{% highlight c# %}
+```csharp
 public interface IEmployeesView
 {
 	void ClearList();
 	void PopulateList(IEnumerable<Tuple<int, String> names);
 }
-{% endhighlight %}
+```
 
 And finally the Presenter:
 
-{% highlight c# %}
+```csharp
 public class IEmployeesPresenter
 {
 	public void Display()
@@ -92,7 +92,7 @@ public class IEmployeesPresenter
 		_view.PopulateList(names);
 	}
 }
-{% endhighlight %}
+```
 
 The advantages of this method of population is that the Model is free to change without needing to update the View, and the View has no decisions to make on what to display.  It also prevents the View from calling any extra methods on the `Person`, as it does not have a reference to it.
 

@@ -16,7 +16,7 @@ A lot of frames are created in the lifetime of the Warcraft UI, so they should b
 
 Because of this, it would be reasonable to expect that all methods are defined on a metatable, and that a frame created by `CreateFrame` is just a blank table with a metatable containing all the methods.  A simple implementation of `CreateFrame` could be:
 
-{% highlight lua %}
+```lua
 function CreateFrame(type, name, parent, inherits)
 
 	local widget = {}
@@ -32,13 +32,13 @@ function CreateFrame(type, name, parent, inherits)
 	return widget
 
 end
-{% endhighlight %}
+```
 
 The following function will display all of the methods found on the Frame's metatable:
 
 ### Code:
 
-{% highlight lua %}
+```lua
 local frame = CreateFrame("Frame")
 local meta = getmetatable(frame)
 
@@ -48,7 +48,7 @@ print("index", meta.__index)
 for name, value in pairs(meta.__index) do
 	print(name, value)
 end
-{% endhighlight %}
+```
 
 ### Output:
 
@@ -65,7 +65,7 @@ The next point to investigate is how other frame types are built up.  As widgets
 
 ### Code:
 
-{% highlight lua %}
+```lua
 local function printTable(t)
 
 	local meta = getmetatable(t)
@@ -85,7 +85,7 @@ printTable(CreateFrame("Frame"))
 
 print("Button:")
 printTable(CreateFrame("Button"))
-{% endhighlight %}
+```
 
 ### Output:
 
@@ -101,7 +101,7 @@ Implementing
 
 The [WowInterfakes][2] project needs to be able to create all Widgets, so using a similar method as the Warcraft implementation made sense.  As there is no inheritance between Widgets, using a Mixin style for building metatables makes most sense.  The result of building the metatables is stored, and only done once on start up.
 
-{% highlight lua %}
+```lua
 local builder = {}
 
 builder.init = function()
@@ -120,13 +120,13 @@ builder.init = function()
 	builder.metas.frame = { __index = frameMeta }
 
 end
-{% endhighlight %}
+```
 
 Each `apply` method mixes in the functionality for their type.  `applyRegion` gets reused for a `Texture` as well as a `Frame` for example.
 
 Internally, all mixed in methods write and read to a table on the `self` parameter (called `__storage`), which holds each widgets values:
 
-{% highlight lua %}
+```lua
 builder.applyFrame = function(region)
 
 	region.SetBackdrop = function(self, backdrop)
@@ -142,11 +142,11 @@ builder.applyFrame = function(region)
 	end
 
 end
-{% endhighlight %}
+```
 
 When `createFrame` is called, we create a new table with a table in `__storage`, and apply the standard frame metatable to it.  At this point, the new table is a working `Frame`, which takes up very little in the way of resources (two tables worth of memory).  Initialisation is finished by populating a few properties (some things like frame name are not publicly accessible, so they are written to the backing `__storage` directly), and apply any templates specified.
 
-{% highlight lua %}
+```lua
 builder.createFrame = function(type, name, parent, template)
 
 	local frame = { __storage = {} }
@@ -163,7 +163,7 @@ builder.createFrame = function(type, name, parent, template)
 	return frame
 
 end
-{% endhighlight %}
+```
 
 
 Conclusion

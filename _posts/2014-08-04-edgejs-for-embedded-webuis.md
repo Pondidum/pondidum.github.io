@@ -9,7 +9,7 @@ We work we have a number of windows services which each have a lot of stats they
 
 I have been toying with the idea of hosting a website in-process which would give a simple dashboard ui and access to a live view of the log file.  The idea first struck me when I was experimenting with FubuMvc, as they have an `EmbeddedFubuMvcServer`, which is very easy to use:
 
-{% highlight c# %}
+```csharp
 FubuMvcPackageFacility.PhysicalRootPath = @"Backend\";
 
 using (var server = EmbeddedFubuMvcServer.For<EmbeddedBackend>(FubuMvcPackageFacility.PhysicalRootPath))
@@ -24,7 +24,7 @@ using (var server = EmbeddedFubuMvcServer.For<EmbeddedBackend>(FubuMvcPackageFac
 
     Console.ReadKey();
 }
-{% endhighlight %}
+```
 
 But while I like this, FubuMvc embedded seems like overkill.
 
@@ -52,7 +52,7 @@ Steps:
 
 *	Add a new js file in your webui root:
 
-{% highlight c# %}
+```csharp
 var options;
 
 exports.set = function (m) {
@@ -69,14 +69,14 @@ exports.getModel = function (modelName, action) {
     });
 
 };
-{% endhighlight %}
+```
 
 *	add the edgejs package:
 	*	`PM> install-package edge.js`
 
 *	The following function will run the webui, and inject a callback for getting models from .net
 
-{% highlight c# %}
+```csharp
 private static void RunWebui(ModelStore store)
 {
 	var func = Edge.Func(@"
@@ -103,11 +103,11 @@ private static void RunWebui(ModelStore store)
 		getModel
 	}));
 }
-{% endhighlight %}
+```
 
 *	The last step to getting this to work is running `npm install` in the webui directory **of the build output folder**.  I use a rake file to build everything, so its just an extra task (see the entire Rakefile [here][demo-rakefile]):
 
-{% highlight ruby %}
+```ruby
 task :npm do |t|
 
 	Dir.chdir "#{project_name}/bin/debug/webui" do
@@ -115,11 +115,11 @@ task :npm do |t|
 	end
 
 end
-{% endhighlight %}
+```
 
 	ny route needing data from .net just needs to require the communicator file and call `getModel`:
 
-{% highlight js %}
+```js
 var com = require('../communicator');
 
 router.get('/', function (req, res) {
@@ -134,7 +134,7 @@ router.get('/', function (req, res) {
     });
 
 });
-{% endhighlight %}
+```
 
 All the code is [available on github][demo-project].
 

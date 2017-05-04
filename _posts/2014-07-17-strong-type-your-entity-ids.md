@@ -16,7 +16,7 @@ The second problem is that it ties you to using the same ID type as the database
 
 For example, take the following two classes:
 
-{% highlight c# %}
+```csharp
 public class Account
 {
 	public int ID { get; }
@@ -28,23 +28,23 @@ public class User
 	public int ID { get; }
 	public IEnumerable<Account> Accounts { get; }
 }
-{% endhighlight %}
+```
 
 The two classes on their own are not unreasonable, but the use of an `int` for the ID is problematic.  Given the following method:
 
-{% highlight c# %}
+```csharp
 public DateTime GetLastActiveDate(int userID)
 {
 	return ...
 }
-{% endhighlight %}
+```
 
 Both of the following calls are valid, and neither the code nor the compiler will tell you which one is correct (if any!):
 
-{% highlight c# %}
+```csharp
 var date1 = GetLastActiveDate(_user.ID);
 var date2 = GetLastActiveDate(_user.Accounts.First().ID);
-{% endhighlight %}
+```
 
 
 ## Using the Type System to prevent bad arguments
@@ -53,7 +53,7 @@ We can fix this problem by using the Type System to force the correct ID type to
 
 First we need to abstract the notion of an ID to be separate from what type its value is.  To do this we create some structs, one for each ID in our system:
 
-{% highlight c# %}
+```csharp
 public struct UserID
 {
 	private readonly int _value;
@@ -93,13 +93,13 @@ public struct AccountID
 		return obj is AccountID && GetHashCode() == obj.GetHashCode();
 	}
 }
-{% endhighlight %}
+```
 
 Both of our structs store their values immutably so that they cannot be changed after creation, and we override `GetHashCode` and `Equals` so that separate instances can be compared for equality properly.  Note also that there is no inheritance between the two structs - we do not want the ability for a method to expect a `UserID` and find someone passing in an `AccountID` because it inherits.
 
 We can now update our objects to use these IDs:
 
-{% highlight c# %}
+```csharp
 public class Account
 {
 	public AccountID ID { get; }
@@ -111,22 +111,22 @@ public class User
 	public UserID ID { get; }
 	public IEnumerable<Account> Accounts { get; }
 }
-{% endhighlight %}
+```
 
 And update any method which expects an ID now gets the specific type:
 
-{% highlight c# %}
+```csharp
 public DateTime GetLastActiveDate(UserID userID)
 {
 	return ...
 }
-{% endhighlight %}
+```
 
 This means that when someone writes this:
 
-{% highlight c# %}
+```csharp
 var date = GetLastActiveDate(_user.Accounts.First().ID);
-{% endhighlight %}
+```
 
 The compiler will complain with an error: `Unable to cast type 'AccountID` to type 'UserID``.
 
@@ -145,7 +145,7 @@ A system I use has a table with both a uuid column for the primary key, and an i
 
 As we have a `PersonID` type, we can make that hold both values, and override the `ToString` method so that when called it displays the user friendly ID:
 
-{% highlight c# %}
+```csharp
 public struct PersonID
 {
 	private readonly Guid _id;
@@ -179,6 +179,6 @@ public struct PersonID
 		return _refnum.ToString()
 	}
 }
-{% endhighlight %}
+```
 
 This means that if in the future we decided to convert to using the refnum as the primary key, and drop the uuid column, again all we would need to do would be to update the `PersonID` type, and the rest of our code base would be unaffected.

@@ -9,7 +9,7 @@ I have covered a use of Narrowing/Implicit Operators before, but I was thinking 
 
 I gave it a go, and came up with this:
 
-{% highlight c# %}
+```csharp
 public class Person
 {
 	public string Name { get; set; }
@@ -50,26 +50,26 @@ public class PersonOptions
 		return options.Person;
 	}
 }
-{% endhighlight %}
+```
 
 Which can be used like so:
 
-{% highlight c# %}
+```csharp
 Person p1 = PersonManager.GetPerson();
 Person p2 = PersonManager.GetPerson().WaitForFreshResults();
-{% endhighlight %}
+```
 
 Which is all very well and good - but nowadays, everyone (well nearly everyone) loves the `var` keyword, so what happens if it is used like this:
 
-{% highlight c# %}
+```csharp
 var p3 = PersonManager.GetPerson();
 var p4 = PersonManager.GetPerson().WaitForFreshResults();
-{% endhighlight %}
+```
 
 Uh oh.  That's not a person you have in that variable, it's a PersonOptions.  The compiler does help with this, as none of your `Person` methods will be present, and the PersonOptions class does provide a Person object as a Read Only Property, so the code can be modified to use that:
 
-{% highlight c# %}
+```csharp
 var p5 = PersonManager.GetPerson().WaitForFreshResults().Person;
-{% endhighlight %}
+```
 
 I'm not entirely comfortable with using implicit conversions like this, especially with `var`, but it does work rather well, as long as you are careful.

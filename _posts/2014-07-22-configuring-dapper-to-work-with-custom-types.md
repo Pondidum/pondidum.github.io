@@ -11,16 +11,16 @@ This works well until you start trying to load and save entities using an ORM, a
 
 We need to be able to get the raw value out of the id type, but without exposing this to the outside world.  To do this we internal interface:
 
-{% highlight c#%}
+```csharp
 internal interface IValueID
 {
 	object Value();
 }
-{% endhighlight %}
+```
 
 Then update our id struct with a private implementation of the interface, and also mark the only constructor as internal:
 
-{% highlight c#%}
+```csharp
 public struct PersonID : IValueID
 {
 	private readonly Guid _id;
@@ -35,11 +35,11 @@ public struct PersonID : IValueID
 		return _id;
 	}
 }
-{% endhighlight %}
+```
 
 We now can define a class which Dapper can use to do the mapping from uuid to id:
 
-{% highlight c# %}
+```csharp
 public class PersonIDHandler : SqlMapper.TypeHandler<PersonID>
 {
 	public override void SetValue(IDbDataParameter parameter, PersonID value)
@@ -52,13 +52,13 @@ public class PersonIDHandler : SqlMapper.TypeHandler<PersonID>
 		return new PersonID((Guid)value);
 	}
 }
-{% endhighlight %}
+```
 
 We then need to regiter the command with Dapper once on start up of our application:
 
-{% highlight c# %}
+```csharp
 SqlMapper.AddTypeHandler(new PersonIDHandler());
-{% endhighlight %}
+```
 
 Now when Dapper loads an object with a property type of `PersonID` it will invoke the `Parse` method on `PersonIDHandler`, and populate the resulting object correctly.  It will also work when getting a value from the `PersonID` property, invoking the `SetValue` method on `PersonIDHandler`.
 
@@ -68,7 +68,7 @@ While the `PersonIDHandler` works, I really don't want to be creating essentiall
 
 We start off by creating a generic class for id handling:
 
-{% highlight c# %}
+```csharp
 public class CustomHandler<T> : SqlMapper.TypeHandler<T>
 {
 	private readonly Func<Object, T> _createInstance;
@@ -97,13 +97,13 @@ public class CustomHandler<T> : SqlMapper.TypeHandler<T>
 		return _createInstance(value);
 	}
 }
-{% endhighlight %}
+```
 
 The constructor of this class just finds a single constructor on our ID type with one argument, and creates a Func which will create an instance of the id passing in the value.   We put all this constructor discovery logic into the `CustomHandler`'s constructor as this information only needs to be calculated once, and can then be used for every `Parse` call.
 
 We then need to write something to build an instance of this for each ID type in our system.  As all of our IDs need to implement `IValueID` to work, we can scan for all types in the assembly implementing this interface, and then operate on those.
 
-{% highlight c# %}
+```csharp
 public class InitialiseDapper : IApplicationStart
 {
 	public void Initialise()
@@ -131,7 +131,7 @@ public class InitialiseDapper : IApplicationStart
 		}
 	}
 }
-{% endhighlight %}
+```
 
 This class first scans the assembly containing `IValueID` for all types implementing `IValueID` which are not abstract, and not interfaces themselves.  It then goes through each of these types, and builds a new instance of `CustomHandler` for each type, and registers it with Dapper.
 

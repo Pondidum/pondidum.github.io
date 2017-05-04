@@ -9,7 +9,7 @@ When it comes to developing a new class, I don't tend to use TDD (Test Driven De
 
 The first phase in designing it, was the use case:
 
-{% highlight c# %}
+```csharp
 events.RegisterFor<PersonSavedEvent>(OnPersonSaved);
 events.Publish(new PersonSavedEvent());
 events.UnRegisterFor<PersonSavedEvent>(OnPersonSaved);
@@ -18,11 +18,11 @@ private void OnPersonSaved(PersonSavedEvent e)
 {
 	/* ... */
 }
-{% endhighlight %}
+```
 
 From this use case, we are able to tell that we will have 0 -> n events, and each event will have 0 -> n subscribers.  This points to some kind of `Dictionary` based backing field:
 
-{% highlight c# %}
+```csharp
 public class EventDistributor
 {
 	private readonly Dictionary<Type, List<Action<Object>>> _events;
@@ -44,11 +44,11 @@ public class EventDistributor
 	{
 	}
 }
-{% endhighlight %}
+```
 
 For populating the dictionary, we need to add an entry for a `TEvent` if there is not already one (and create a blank list of handlers), and append our new handler:
 
-{% highlight c# %}
+```csharp
 public void RegisterFor<TEvent>(Action<TEvent> handler)
 {
 	var type = typeof(TEvent);
@@ -62,17 +62,17 @@ public void RegisterFor<TEvent>(Action<TEvent> handler)
 
 	handlers.Add(handler);
 }
-{% endhighlight %}
+```
 
 This gives rise to the first problem: the line `handlers.Add(handler);` gives us a nice error of: `Error Argument '1': cannot convert from 'System.Action<TEvent>' to 'System.Action<Object>'`.  To fix this, we need to create a new `Action<Object>` and inside that, cast the parameter to `TEvent`.
 
-{% highlight c# %}
+```csharp
 handlers.Add(o => handler((TEvent) o));
-{% endhighlight %}
+```
 
 This does however make the UnRegisterFor method a little more tricky, as doing `handlers.Remove(o => handler((TEvent)o));` doesn't work because they refer to different objects.  Thankfully, as the Action's `GetHashCode()` gives the same result for each instance, providing the content is the same.  We can use this to check for equality:
 
-{% highlight c# %}
+```csharp
 public void UnRegisterFor<TEvent>(Action<TEvent> handler)
 {
 	var type = typeof(TEvent);
@@ -86,11 +86,11 @@ public void UnRegisterFor<TEvent>(Action<TEvent> handler)
 	var hash = new Action<object>(o => handler((TEvent) o)).GetHashCode();
 	handlers.RemoveAll(h => h.GetHashCode() == hash);
 }
-{% endhighlight %}
+```
 
 The `Publish` method is nice and straight forward; if the event isn't registered, throw an exception, and raise each subscriber's handler.
 
-{% highlight c# %}
+```csharp
 public void Publish<TEvent>(TEvent @event)
 {
 	var type = typeof(TEvent);
@@ -103,11 +103,11 @@ public void Publish<TEvent>(TEvent @event)
 
 	handlers.ForEach(h => h.Invoke(@event));
 }
-{% endhighlight %}
+```
 
 Now that we have a class roughly implemented, we create the first set of tests for it:
 
-{% highlight c# %}
+```csharp
 [Test]
 public void When_publishing_an_event_without_a_handler()
 {
@@ -142,11 +142,11 @@ public void When_publishing_an_event_and_un_registering()
 
 	Assert.AreEqual(1, callCount);
 }
-{% endhighlight %}
+```
 
 Other than the publish method is currently a blocking operation, there is one major floor to this class: it contains a possible memory leak.  If a class forgets to UnRegisterFor a handler, the EventDistributor will still have a reference stored, preventing the calling class from being garbage collected.  We can demonstrate this with a simple unit test:
 
-{% highlight c# %}
+```csharp
 [Test]
 public void When_the_handling_class_does_not_call_unregister()
 {
@@ -187,13 +187,13 @@ public class Listener : IDisposable
 	{
 	}
 }
-{% endhighlight %}
+```
 
 While it would be simple to just say that it's the responsibility of the calling code to call `UnRegisterFor`, it would be better to handle that (likely) case ourselves.  Good news is that .net has just the class needed for this built in: [WeakReference][1].  This class allows the target class to become disposed even while we still hold a reference to it.  We can then act on the disposal, and remove our event registration.
 
 Changing the Dispatcher to use this in its dictionary is fairly straight forward, and we even loose some of the casting needed to add items to the list:
 
-{% highlight c# %}
+```csharp
 public class Distributor
 {
 	private readonly Dictionary<Type, List<WeakReference>> _events;
@@ -242,7 +242,7 @@ public class Distributor
 		recipients.ForEach(wr => ((Action<TEvent>)wr.Target).Invoke(@event));
 	}
 }
-{% endhighlight %}
+```
 
 The main points to note with this change is:
 
@@ -254,7 +254,7 @@ The next item to work on in this class is making the `Publish` method non-blocki
 
 The first option is to create a thread that will invoke all the handlers one after the other.  This has the advantage of only one extra thread to deal with, but has the drawback of a single unresponsive handler will block all other handlers.  Ignoring locking and cross-threading issues for the time being, it could be implemented like this:
 
-{% highlight c# %}
+```csharp
 public void PublishAsyncV1<TEvent>(TEvent @event)
 {
 	var type = typeof(TEvent);
@@ -273,11 +273,11 @@ public void PublishAsyncV1<TEvent>(TEvent @event)
 
 	task.Start();
 }
-{% endhighlight %}
+```
 
 The second option is to have a separate thread/invocation for each handler.  This has the advantage that each of the handlers can take as much time as needed, and will not block any other handlers from being raised, however if you have many handlers to be invoked, it could be slower to return than the first option.  Again, ignoring locking and cross-threading issues, it could be implemented like so:
 
-{% highlight c# %}
+```csharp
 public void PublishAsyncV2<TEvent>(TEvent @event)
 {
 	var type = typeof(TEvent);
@@ -295,7 +295,7 @@ public void PublishAsyncV2<TEvent>(TEvent @event)
 		handler.BeginInvoke(@event, handler.EndInvoke, null);
 	});
 }
-{% endhighlight %}
+```
 
 Personally, I go for the second method, as the number of handlers to be invoked is usually fairly small.
 
@@ -303,7 +303,7 @@ The next part to consider is what we conveniently ignored earlier - the cross-th
 
 Now I cannot remember where I read it, it was either from Jon Skeet, or from the [Visual Basic .Net Threading Handbook][2], but the rough idea was "You should lock as smaller area of code as possible".  This is to minimise the chance of a deadlock.  Starting with the Publish methods, we only need to lock the parts that iterate over the list:
 
-{% highlight c# %}
+```csharp
 lock (Padlock)
 {
 	recipients.RemoveAll(wr => wr.IsAlive == false);
@@ -313,11 +313,11 @@ lock (Padlock)
 		handler.BeginInvoke(@event, handler.EndInvoke, null);
 	});
 }
-{% endhighlight %}
+```
 
 The UnRegisterFor method is also very straight forward, as we again only need to worry about the iteration:
 
-{% highlight c# %}
+```csharp
 if (_events.TryGetValue(type, out recipients))
 {
 	lock (Padlock)
@@ -325,11 +325,11 @@ if (_events.TryGetValue(type, out recipients))
 		recipients.RemoveAll(o => o.Target.GetHashCode() == handler.GetHashCode());
 	}
 }
-{% endhighlight %}
+```
 
 The RegisterFor method takes a little more locking than the other two, as this will handle the creation of the lists, as well as the addition to the list:
 
-{% highlight c# %}
+```csharp
 lock (Padlock)
 {
 	if (!_events.TryGetValue(type, out recipients))
@@ -340,7 +340,7 @@ lock (Padlock)
 
 	recipients.Add(new WeakReference(handler));
 }
-{% endhighlight %}
+```
 
 The full code listing and unit tests for this can be found here: [EventDistributor Gist][3].
 

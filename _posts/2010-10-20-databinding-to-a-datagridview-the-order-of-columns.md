@@ -7,7 +7,7 @@ tags: controls bug net
 
 A while ago I was writing a small history grid in one of our applications at work.  It has a single `HistoryItem` object, which is fairly straightforward, something like this:
 
-{% highlight c# %}
+```csharp
 Class HistoryItem
 {
 	public int ID { get{ return _id; } }
@@ -15,13 +15,13 @@ Class HistoryItem
 	public String Creator { get { return _creatorName; } }
 	public String Note { get { return _note; } }
 }
-{% endhighlight %}
+```
 
 This was populated into a `List<HistoryItem>` and bound to the `DataGridView` directly:
 
-{% highlight c# %}
+```csharp
 	dgvHistory.DataSource = ScreenEntity.History.ToList();
-{% endhighlight %}
+```
 
 This exposes something interesting about how the DataGridView picks column order: It's not done by Alphabetical Order; it is done by Definition Order.  So the order in which the properties in the class are defined is the order that the grid view will display. Usually.
 

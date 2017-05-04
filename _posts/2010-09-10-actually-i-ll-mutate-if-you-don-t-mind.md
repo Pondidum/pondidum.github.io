@@ -9,9 +9,9 @@ After I had changed all my extension methods to be functions and return a new ob
 
 Why? Well mainly because the library I am writing is in VB, and these methods are internal.  VB supports ByRef parameters as the first param in an extension method, so no problems there.  The only reason I was changing them so that they were C# compatible was so that I could test them with MSpec in C#. I solved this little dilemma by just calling the extension method on the static class like so:
 
-{% highlight c# %}
+```csharp
 Because of = () => EnumExtensions.Add(ref testEnum, (int)FlagsTest.Four);
-{% endhighlight %}
+```
 
 This works, and lets me use the extensions how I think they should work.  The real question is why do I think my flags methods (Add, Remove) should mutate the instance, when I am quite happy with `string` and `DateTime` methods returning new instances?  I think it might be in the naming conventions.
 

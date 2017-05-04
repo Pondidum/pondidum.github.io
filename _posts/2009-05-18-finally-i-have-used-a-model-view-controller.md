@@ -18,7 +18,7 @@ As we already have a data layer, and I was just designing a form to expose some 
 
 In the end my Controller and Form looked something like this (much snipped, but you get the idea):
 
-{% highlight vbnet %}
+```vb
  Public Class SearchController
 
     Private _control As ISynchronizeInvoke
@@ -66,7 +66,7 @@ Public Class frmSearch
     End Sub
     '...
 End Class
-{% endhighlight %}
+```
 
 Hopefully I will get the opportunity to use MVC/MVP more completely in the future.
 

@@ -13,7 +13,7 @@ SRP (Single Responsibility Principle) is something I hear a lot of developers ag
 
 A particularly prominent example I find in our code bases is Permissioning and Caching.  These two requirements can often slip into classes slowly - especially if requirements are not clear, or change as the task progresses.  A slightly contrived example is this:
 
-{% highlight c# %}
+```csharp
 public class JobPostingService
 {
 	private static readonly TimeSpan Timeout = new TimeSpan(0, 10, 0);
@@ -60,7 +60,7 @@ public class JobPostingService
 		_jobService.Post(job, Boards.PaidBoard1 | Boards.PaidBoard2);
 	}
 }
-{% endhighlight %}
+```
 
 This class is fairly small, but it is already showing the symptoms of doing too many things; it is dealing with caching, as well as posting jobs.  While this is not a major problem at the moment, it is also easier to nip the problem in the bud - before a load of new requirements/changes arrive and complicate things.
 
@@ -68,29 +68,29 @@ This class is fairly small, but it is already showing the symptoms of doing too 
 
 We start off by changing our class to take it's dependencies in via constructor parameters (Dependency Injection, the 'D' in SOLID):
 
-{% highlight c# %}
+```csharp
 public JobPostingService(JobWebService jobService)
 {
 	_jobService = jobService;
 	_lastLoaded = DateTime.MinValue;
 }
-{% endhighlight %}
+```
 
 So the usage of the `JobPostingService` goes from this:
 
-{% highlight c# %}
+```csharp
 var poster = new JobPostingService();
-{% endhighlight %}
+```
 
 To this:
 
-{% highlight c# %}
+```csharp
 var poster = new JobPostingService(new JobWebService());
-{% endhighlight %}
+```
 
 Next, we take the `JobWebService` class and extract & implement an interface of it's methods:
 
-{% highlight c# %}
+```csharp
 public interface IJobService
 {
 	IEnumerable<Job> GetLiveJobs();
@@ -101,11 +101,11 @@ public class JobWebService : IJobService
 {
 	//...
 }
-{% endhighlight %}
+```
 
 And finally, create a new class which only deals with caching the results of a JobService, by wrapping calls to another instance:
 
-{% highlight c# %}
+```csharp
 public class CachedJobService : IJobService
 {
 	private List<Job> _jobs;
@@ -141,13 +141,13 @@ public class CachedJobService : IJobService
 		return _other.Post(job, boards);
 	}
 }
-{% endhighlight %}
+```
 
 This class passes all `Post()` calls to the other implementation, but caches the results of calls to `GetLiveJobs()`, and we have added a time-out as an optional constructor parameter.  This wrapping calls to another implementation is called [The Decorator Pattern][pattern-decorator].
 
 As the JobPostingService class no longer has to cache the results of calls to `JobService` itself, we can delete all the caching related code:
 
-{% highlight c# %}
+```csharp
 public class JobPostingService
 {
 	private readonly IJobService _jobService;
@@ -182,20 +182,20 @@ public class JobPostingService
 		_jobService.Post(job, Boards.PaidBoard1 | Boards.PaidBoard2);
 	}
 }
-{% endhighlight %}
+```
 
 And our usage changes again, from this:
 
-{% highlight c# %}
+```csharp
 var poster = new JobPostingService(new JobWebService());
-{% endhighlight %}
+```
 
 To this:
 
-{% highlight c# %}
+```csharp
 var webService = new CachedJobService(new JobWebService());
 var poster = new JobPostingService(webService);
-{% endhighlight %}
+```
 
 We have now successfully extracted all the various pieces of functionality into separate classes, which has gained us the ability to test individual features (caching can be tested with a fake `IJobService` and checked to see when calls go through to the service), and the ability to adapt more easily to new requirements.  Talking of which...
 
@@ -203,18 +203,18 @@ We have now successfully extracted all the various pieces of functionality into 
 
 Now you could go and modify the `JobPostingService` class to have a second webservice parameter:
 
-{% highlight c# %}
+```csharp
 var primaryService = new CachedJobService(new JobWebService());
 var secondaryService = new CachedJobService(new BackupWebService());
 
 var poster = new JobPostingService(primaryService, secondaryService);
-{% endhighlight %}
+```
 
 But what happens when a third service is added? and a fourth? Surely there is another way?
 
 As luck would have it, we can use the `IJobService` interface to create a single class which handles all the logic for switching between the two services:
 
-{% highlight c# %}
+```csharp
 public class FailoverJobService : IJobService
 {
 	private readonly List<IJobService> _services;
@@ -234,31 +234,31 @@ public class FailoverJobService : IJobService
 		return _services.Any(service => service.Post(job, boards));
 	}
 }
-{% endhighlight %}
+```
 
 This class takes in a number of `IJobService`s and will try each one in turn to post jobs, and when listing jobs, gets the results from all services.  In the same manner as the `CachedJobService`, we have a single class which can easily be tested without effecting any of the other functionality.
 
 The really interesting point comes when we decide when to use caching? do you cache each service passed to the `FailoverJobService`:
 
-{% highlight c# %}
+```csharp
 var primaryService = new CachedJobService(new JobWebService());
 var secondaryService = new CachedJobService(new BackupWebService());
 
 var failover = new FailoverJobService(primaryService, secondaryService);
 
 var poster = new JobPostingService(failover);
-{% endhighlight %}
+```
 
 Or do you cache the `FailoverJobService` itself:
 
-{% highlight c# %}
+```csharp
 var primaryService = new JobWebService();
 var secondaryService = new BackupWebService();
 
 var failover = new CachedJobService(new FailoverJobService(primaryService, secondaryService));
 
 var poster = new JobPostingService(failover);
-{% endhighlight %}
+```
 
 Or both?
 

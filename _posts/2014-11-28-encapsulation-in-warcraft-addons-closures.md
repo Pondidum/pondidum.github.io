@@ -10,7 +10,7 @@ In the [last post][blog-addon-design] I alluded to the fact that if you put in a
 
 The simplest way to write an object in lua is with a [closure][wiki-closure]  to hide all the variables from the outside world.  For example, we can write a counter class like so:
 
-{% highlight lua %}
+```lua
 local counter = {
 
 	new = function()
@@ -32,16 +32,16 @@ local counter = {
 
 	end,
 }
-{% endhighlight %}
+```
 
 We are using a table to give us a class name, and the closure is the only method on it (called `new`).  My standard convention is to call the actual object we return `this`. The `this` object contains the public surface of our object, in this case two methods called `increase()` and `print()`.  You can use the counter like this:
 
-{% highlight lua %}
+```lua
 local first = counter.new()
 
 first.increase()
 first.print() -- prints "The count is 1"
-{% endhighlight %}
+```
 
 By using a closure, we limit the use of the `count` variable to only methods defined in the body of the function `new`.  This prevents anyone who uses the class from knowing how it is implemented, which is important as we are now at liberty to change the implementation without affecting our users.
 
@@ -49,7 +49,7 @@ A good example of this technique is in my [Dark.Combat][github-dark-combat] addo
 
 To solve this, rather than hard coding values into the view, or forcing the user to specify some kind of "glow at xxx stacks" parameter in the config, I wrote an object which you can be queried.  This could also be expanded later to hold additional spell data which is not available in the API.
 
-{% highlight lua %}
+```lua
 local addon, ns = ...
 
 local spellData = {
@@ -76,7 +76,7 @@ local spellData = {
 }
 
 ns.spellData = spellData.new()
-{% endhighlight %}
+```
 
 As the implementation of `getMaxCharges` is hidden, I can change it at will - perhaps splitting my `charges` table into two separate tables, or if Blizzard kindly implemented a `GetMaxStacks(spellName)` I could call this instead and remove my `charges` table altogether.  
 
@@ -84,7 +84,7 @@ As the implementation of `getMaxCharges` is hidden, I can change it at will - pe
 
 We can utilise composition to create objects based off other objects, by decorating an instance with new functionality.  A slightly cut down version of the grouping code from my [Dark.Bags addon][github-dark-bags-groups] makes good use of this:
 
-{% highlight lua %}
+```lua
 local group = {
 
 	new = function(name, parent, options)
@@ -118,7 +118,7 @@ local bag = {
 
 	end,
 }
-{% endhighlight %}
+```
 
 Here we have two classes `group` and `bag`.  The `group` acts as our base class; it just creates a frame, and initialises a layout engine which does the heavy lifiting of laying out child frames.
 
@@ -128,7 +128,7 @@ In the `bag.new()` function, we create an instance of a `group` and add a `popul
 
 The down side to using closures is that inheritance is not really possible.  To take the `counter` example again, if you wanted to create a stepping counter, you couldn't do this:
 
-{% highlight lua %}
+```lua
 
 local evenCounter = {
 	new = function()
@@ -142,7 +142,7 @@ local evenCounter = {
 		return this
 	end
 }
-{% endhighlight%}
+```
 
 Not only can you not access the original `count` variable, but you would also have to reimplement the `print` function as it would not have access to your new counting variable.
 

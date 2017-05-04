@@ -11,7 +11,7 @@ A small form which should display a list of messages, and allow the user to sele
 
 Now while this is fairly simple, my interface for the message dialog looks like this:
 
-{% highlight vbnet %}
+```vb
 Public Interface IMessageSelector
 
 	Event Submit()
@@ -27,11 +27,11 @@ Public Interface IMessageSelector
 	Sub DisplayWarning(ByVal text As String)
 
 End Interface
-{% endhighlight %}
+```
 
 In the form I have (roughly) the following:
 
-{% highlight vbnet %}
+```vb
 Public Class frmMessages
 	Implements IMessageSelector
 	'...'
@@ -72,7 +72,7 @@ Public Class frmMessages
 	End Property
 
 End Class
-{% endhighlight %}
+```
 
 Now I think that this is ok.  There is not logic as such in the population property, and the Selected property just determines which rows have had their checkboxes ticked.
 

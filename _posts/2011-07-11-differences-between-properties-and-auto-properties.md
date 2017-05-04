@@ -13,29 +13,29 @@ While writing some of the specs for [ViewWeaver][1], I noticed that one was fail
 When I stepped through the code, it was indeed not filtering out the write only property.
 This is the code used to find all readable properties:
 
-{% highlight c# %}
+```csharp
 var allProperties = typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public);
 var readableProperties = allProperties.Where(p => p.CanRead && !p.GetIndexParameters().Any());
-{% endhighlight %}
+```
 
 For some reason `CanRead` was returning true, then I noticed how I had defined my class under test:
 
-{% highlight c# %}
+```csharp
 public class OnePublicWriteonlyProperty
 {
 	public String Test { private get; set; }
 }
-{% endhighlight %}
+```
 
 So it turns out that even though I had filtered to all Public Properties, a private Getter (or Setter) still passes through.
 
-{% highlight c# %}
+```csharp
 var allProperties = typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public);
 var readableProperties = allProperties.Where(p => p.CanRead &&
 											 p.GetGetMethod() != null &&
 											 p.GetGetMethod().IsPublic &&
 											 !p.GetIndexParameters().Any());
-{% endhighlight %}
+```
 
 Changing the expression to check for the GetMethod existing, and being public fixed this, and seems obvious in retrospect, but it is worth remembering that an Auto Property is ever so slightly different from a plain property with only a Get or Set method defined.
 

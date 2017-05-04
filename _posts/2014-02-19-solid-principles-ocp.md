@@ -14,7 +14,7 @@ A good example of this principle being implemented cropped up at work a while ag
 
 The class was originally implemented something like this:
 
-{% highlight c# %}
+```csharp
 public class UserGrid
 {
 
@@ -77,7 +77,7 @@ public class UserGrid
 		}
 	}
 }
-{% endhighlight %}
+```
 
 I haven't listed all the methods here, but you get the idea - a lot of repeated-ish code (switch statements), and when you want to add a new grid type you have to do the following steps:
 
@@ -103,7 +103,7 @@ Unlike the last solution, we are going to use an abstract class as our base, rat
 
 Our first step is to create our base class:
 
-{% highlight c# %}
+```csharp
 public abstract class GridHandler
 {
 	public User User { get; set; }
@@ -119,12 +119,12 @@ public abstract class GridHandler
 	public virtual void Delete(object item)
 	{}
 }
-{% endhighlight %}
+```
 
 Note that the `Title` property and `Populate` method are abstract - you must implement these at the very least to be a `GridHandler`.
 At the same time as this, we will lay our groundwork in the `UserGrid` class:
 
-{% highlight c# %}
+```csharp
 public class UserGrid
 {
 	private readonly List<GridHandler> _handlers;
@@ -186,13 +186,13 @@ public class UserGrid
 		_grid.Rows.AddRange(rows.ToArray());
 	}
 }
-{% endhighlight %}
+```
 
 The `UserGrid` class has had a new method called `AddHandler`, which allows handlers to be added to the grid.  The `SetUser` method has been updated to also set the `User` property on all handlers, and all the `Add`, `Edit`, `Delete` and `Populate` methods have been updated to attempt to try and use a handler, and if none is found, use the existing implementation.
 
 Our next step is to create the first `GridHandler`, which will be for Email Addresses:
 
-{% highlight c# %}
+```csharp
 public class EmailGridHandler : GridHandler
 {
 	public override string Title
@@ -229,13 +229,13 @@ public class EmailGridHandler : GridHandler
 		User.RemoveEmail(email);
 	}
 }
-{% endhighlight %}
+```
 
 As you can see, this class obeys the [Single Responsibility Principle][blog-solid-srp] as it only deals with how to change data from the `User` object into data and actions for the grid.
 
 We can now update the usage of our `UserGrid` to take advantage of the new `GridHandler`:
 
-{% highlight c# %}
+```csharp
 public class Usage : Form
 {
 	private UserGrid _grid;
@@ -246,13 +246,13 @@ public class Usage : Form
 		_grid.AddHandler(new EmailGridHandler());
 	}
 }
-{% endhighlight %}
+```
 
 All that remains to be done now is to go through the `UserGrid` and remove all the code relating to `Email`s.  The extraction of functionality steps can then be repeated for each of the existing grid types (`Address` and `Phone` in our case.)
 
 Once this is done, we can go back to the `UserGrid` and remove all non-grid code, leaving us with this:
 
-{% highlight c# %}
+```csharp
 public class UserGrid
 {
 	private readonly List<GridHandler> _handlers;
@@ -295,7 +295,7 @@ public class UserGrid
 		}
 	}
 }
-{% endhighlight %}
+```
 
 As you can see, the `UserGrid` class is now much smaller, and has no user specific logic in it.  This means we don't need to modify the class when we want to add a new grid type (it is **closed for modification**), but as adding new functionality to the grid just consists of another call to `.AddHandler(new WebsiteGridHandler());` we have made it **open for extension**.
 

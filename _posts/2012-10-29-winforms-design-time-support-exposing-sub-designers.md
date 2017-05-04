@@ -13,7 +13,7 @@ We start off with our UserControl, in this case the imaginatively named `TestCon
 
 The code behind looks like this:
 
-{% highlight c# %}
+```csharp
 [Designer(typeof(TestControlDesigner))]
 public partial class TestControl : UserControl
 {
@@ -29,14 +29,14 @@ public partial class TestControl : UserControl
 	}
 
 }
-{% endhighlight %}
+```
 
 The first attribute on the class (`[Designer(typeof(TestControlDesigner))]`) just instructs that we want it to use our own custom designer file (which we create in a minute).
 The next important point is the addition of the `ToolStrip` property, and the `DesignerSerializationVisibility` attribute that goes with it.  This informs the winforms designer that any changes made to the ToolStrip should be stored in the hosting container's designer file.  Without this attribute, no changes made in the designer would persist when you closed the designer.
 
 Next, we add a reference to `System.Design` in the project, and create our `TestControlDesigner` class, inheriting from [ControlDesigner][3]:
 
-{% highlight c# %}
+```csharp
 public class TestControlDesigner : ControlDesigner
 {
 	public override void Initialize(System.ComponentModel.IComponent component)
@@ -48,7 +48,7 @@ public class TestControlDesigner : ControlDesigner
 		EnableDesignMode(control.ToolStrip, "ToolStrip");
 	}
 }
-{% endhighlight %}
+```
 
 As you can see, we have very little in here.  The `Initialize` method is overriden, and we call `EnableDesignMode` on our ToolStrip (the property added to the TestControl earlier).
 

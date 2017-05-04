@@ -7,7 +7,7 @@ tags: design code net
 
 I have been working on a project recently that involves a lot of work with Flags Enums.  To aid with this I created a set of Extension Methods:
 
-{% highlight vbnet %}
+```vb
 Add(Of T as Structure)(self as T, value as Int) as T
 Add(Of T as Structure)(self as T, values() as Int) as T
 Remove(Of T as Structure)(self as T, value as Int) as T
@@ -16,20 +16,20 @@ Remove(Of T as Structure)(self as T, values() as Int) as T
 Has(Of T as Structure)(self as T, value as Int) as Boolean
 HasAll(Of T as Structure)(self as T, values() as Int) as Boolean
 HasAny(Of T as Structure)(self as T, values() as Int) as Boolean
-{% endhighlight%}
+```
 
 Now the last 3 methods I am happy with - they are self explanatory and do what's expected.  The first four however I am less convinced by.
 
 My main problem is how I wrote some code:
 
-{% highlight vbnet %}
+```vb
 Dim state = States.Blank
 
 If someCondition Then state.Add(States.Disabled)
 If someOtherCondition Then state.Add(States.Disconnected)
 
 return state
-{% endhighlight%}
+```
 
 Which to my surprise always returned `States.Blank` rather than `Disabled` or `Disconnected` or a combination of the two.  After a lot of close looking, I realised it was because the `Add` method was a function and I was not using the return value.
 
@@ -41,9 +41,9 @@ So it cannot work like this, I have to return the result as a new instance of th
 
 On the point of mutability, I think a system like Ruby's of indicating a destructive method would be good:
 
-{% highlight ruby %}
+```ruby
 stringValue.chomp!		//This will modify stringValue
 stringValue.chomp		//This will return a new instance which has been chomped
-{% endhighlight %}
+```
 
 But for now I will settle for returning a new instance.

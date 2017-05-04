@@ -15,7 +15,7 @@ The Liskov Substitution Principle is states:
 
 At face value, it means that a small class hierarchy like this:
 
-{% highlight c# %}
+```csharp
 public class FileEntry
 {
 
@@ -25,19 +25,19 @@ public class DbFileEntry : FileEntry
 {
 
 }
-{% endhighlight %}
+```
 
 And a method which takes in a `FileEntry`, can be called like this:
 
-{% highlight c# %}
+```csharp
 ProcessFile(new FileEntry());
-{% endhighlight %}
+```
 
 Or like this:
 
-{% highlight c#%}
+```csharp
 ProcessFile(new DbFileEntry());
-{% endhighlight %}
+```
 
 This however only takes the principle at face value, and would not provide much value.  However, just because a class implements the expected interface does not necessarily mean that it can be a drop in replacement for another implementation.  This can be down to a number of factors, such as side effects of methods (like different kinds of exception being thrown), and external modification of state.
 
@@ -45,7 +45,7 @@ This however only takes the principle at face value, and would not provide much 
 
 In this example, you can see that the methods both have a pre-condition on some internal data, but as they throw different kinds of exceptions, they violate the principle:
 
-{% highlight c# %}
+```csharp
 public class FileEntry
 {
 	public virtual void Process()
@@ -67,11 +67,11 @@ public class DbFileEntry : FileEntry
 		//do work
 	}
 }
-{% endhighlight %}
+```
 
 The reason for this being a violation is due to what the calling code is expecting to handle:
 
-{% highlight c# %}
+```csharp
 public void RunFiles(IEnumerable<FileEntry> files)
 {
 	foreach (var file in files)
@@ -86,7 +86,7 @@ public void RunFiles(IEnumerable<FileEntry> files)
 		}
 	}
 }
-{% endhighlight %}
+```
 
 This method when called with a list of `FileEntry` will run every entry, and add the names of any which failed to a collection for later use.  However if it were called with a list of `DbFileEntry`, the first file to fail would cause then entire method to fail, and no more files would be processed.
 
@@ -94,7 +94,7 @@ Fixing the classes so they obey the LSP could be done by changing the `DbFileEnt
 
 The solution is to create a new exception type which the `Process` methods with throw, and that the `RunFiles` method will catch:
 
-{% highlight c# %}
+```csharp
 public class FileEntry
 {
 	public virtual void Process()
@@ -131,13 +131,13 @@ public void RunFiles(IEnumerable<FileEntry> files)
 		}
 	}
 }
-{% endhighlight %}
+```
 
 By keeping the original exceptions we were going to throw as the `.InnerException` property of our new `FileEntryProcessException` we can still preserve the more specific exceptions, while allowing the `RunFiles` method to catch it.
 
 An alternate solution to this would be to have two new specific exception types, which both inherit a single type:
 
-{% highlight c# %}
+```csharp
 public abstract class ProcessException : Exception()
 {
 }
@@ -153,7 +153,7 @@ public class KeyNotFoundProcessException : ProcessException
 	public KeyNotFoundProcessException(Guid id)
 	{}
 }
-{% endhighlight %}
+```
 
 The problem with this approach is that you are hoping that all consumers of `FileEntry` are catching `ProcessException`, rather than one of it's sub-classes.  By using the first solution, you are forcing the consumer to catch your one exception type.
 
@@ -161,7 +161,7 @@ The problem with this approach is that you are hoping that all consumers of `Fil
 
 Extra methods on a sub class can cause a violation of the Liskov Substitution Principle too; by mutating state, and causing calling code to make un-expected transitions.  Take this for example:
 
-{% highlight c# %}
+```csharp
 public class DefaultStateGenerator
 {
 	private int _state;
@@ -199,11 +199,11 @@ public class StateMachine
 		_currentState = newState;
 	}
 }
-{% endhighlight %}
+```
 
 Using the `DefaultStateGenerator` will cause the state machine to work as expected - it will transition through the states, calling `PayTheMan` one on state 2, and then just sticking at state 3 for subsequent calls.  However, if you were to use the `EvilStateGenerator` things might be a bit different:
 
-{% highlight c# %}
+```csharp
 public class EvilStateGenerator : IStateGenerator
 {
 	private bool _evil;
@@ -218,7 +218,7 @@ public class EvilStateGenerator : IStateGenerator
 		_evil = true;
 	}
 }
-{% endhighlight %}
+```
 
 This `EvilStateGenerator` works as usual, until a call to its `BeEvil` method gets called, at which point it will return state 2 every time, causing the `PayTheMan` method to be called on every `Transition`.
 

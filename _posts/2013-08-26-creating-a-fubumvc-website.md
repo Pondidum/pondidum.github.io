@@ -14,7 +14,7 @@ tags: code net
 * Add Features\Home\HomeEndpoint.cs
 * Add Features\Home\Home.spark
 * Setup application (ConfigureFubuMVC.cs)
-{% highlight c# %}
+```csharp
 Actions.FindBy(x =>
 {
 	x.Applies.ToThisAssembly();
@@ -26,26 +26,26 @@ Routes.HomeIs<HomeInputModel>();
 Routes.ConstrainToHttpMethod(x => x.Method.Name.Equals("Get", StringComparison.OrdinalIgnoreCase), "GET");
 Routes.IgnoreControllerNamespaceEntirely();	//removes /features/home/ from the start of urls
 Routes.IgnoreMethodSuffix("Get");		//removes the trailing /get from our urls
-{% endhighlight %}
+```
 
 *  HomeViewModel.cs:
-{% highlight c# %}
+```csharp
 public String Message { get; set; }
-{% endhighlight %}
+```
 
 * HomeEndpoint.cs:
-{% highlight c# %}
+```csharp
 public HomeViewModel Get(HomeInputModel input)
 {
 	return new HomeViewModel { Message = "Dave" };
 }
-{% endhighlight %}
+```
 
 * Home.spark
-{% highlight html %}
+```csharp
 <viewdata model = "Dashboard.Features.Home.HomeViewModel" />
 <h1>Hello ${Model.Message}</h1>
-{% endhighlight %}
+```
 
 * Add folder Features\Test
 * Add Features\Test\TestInputModel.cs
@@ -53,20 +53,20 @@ public HomeViewModel Get(HomeInputModel input)
 * Add Features\Test\TestEndpoint.cs
 * Add Features\Test\Test.spark
 * TestEndpoint.cs:
-{% highlight c# %}
+```csharp
 public TestViewModel Get(TestInputModel input)
 {
 	return new TestViewModel();
 }
-{% endhighlight %}
+```
 
 * Test.spark:
-{% highlight html %}
+```csharp
 <viewdata model = "Dashboard.Features.Test.TestViewModel" />
 <h1>Hello ${Model.Message}</h1>
-{% endhighlight %}
+```
 
 * Home.spark:
-{% highlight c# %}
+```csharp
 !{this.LinkTo<TestInputModel>().Text("Test")}
-{% endhighlight %}
+```

@@ -12,7 +12,7 @@ The Dependency Inversion Principle states that "Depend upon Abstractions. Do not
 
 In software terms this means that our higher level classes should not directly depend on lower level classes, but should depend on some intermediary.  The same goes for depending on external resources.  For example, if you have this class which takes a request string, and deserializes it, and does something with the resulting object:
 
-{% highlight c# %}
+```csharp
 public class RequestHandler
 {
 		public void OnRequestReceived(string json)
@@ -22,13 +22,13 @@ public class RequestHandler
 				Console.WriteLine(data.Name + " Received.");
 		}
 }
-{% endhighlight %}
+```
 
 This has two problems - the first is that it is totally dependant on the `NewtonSoftJson` class which means we are in violation of the Dependency Inversion Principle, and also we are tied to a specific provider.  We also are using a static method on the `NewtonSoftJson` class, which makes the method impossible to test, if we didn't want to depend on `NewtonSoftJson` for our test.
 
 We can move towards fixing both of these problems by adding an interface, and depending on that for serialization instead:
 
-{% highlight c# %}
+```csharp
 public interface IJsonSerializer
 {
 		T Deserialize<T>(string json);
@@ -58,7 +58,7 @@ public class RequestHandler
 				Console.WriteLine(data.Name + " Received.");
 		}
 }
-{% endhighlight %}
+```
 
 By doing this, the `RequestHandler` class is now dependant on an abstraction rather than a concretion.  This nets us many benefits:  We are no longer directly dependant on `NewtonSoftJson`, our `OnRequestReceived` method has become more testable, and we have also centralised our json serialization logic.
 

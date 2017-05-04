@@ -10,7 +10,7 @@ So I have been doing some work that involves C# and VB libraries and apps using 
 Declaration of types inside an interface:
 ---
 
-{% highlight vbnet %}
+```vb
 Public Interface ITesting
 
 	ReadOnly Property Test() As TestData
@@ -26,13 +26,13 @@ Public Interface ITesting
 	End Class
 
 End Interface
-{% endhighlight %}
+```
 
 However in C#, you cannot declare types inside an interface, however it is quite happy to consume one create in a VB project:
 
-{% highlight c# %}
+```csharp
 var test = new VbLib.ITesting.TestData();
-{% endhighlight %}
+```
 
 That is not to say it is a good thing to do - I have encountered problems with XML Deserialization not working if it needed to deserialize an enum that was declared inside an interface.
 
@@ -41,7 +41,7 @@ Indexed Properties
 
 Again, this is perfectly legal in VB:
 
-{% highlight vbnet %}
+```vb
 Public Class CustomCollection
 	Inherits List(Of CustomObject)
 
@@ -73,25 +73,25 @@ Public Class CustomCollection
 	End Property
 
 End Class
-{% endhighlight %}
+```
 
 It compiles, and runs fine from VB:
 
-{% highlight vbnet %}
+```vb
 Public Sub Test()
 	Dim collection = New CustomCollection()
 	Dim output = collection.EnumIndexed(CustomObject.CustomTypes.Testing)
 End Sub
-{% endhighlight %}
+```
 
 However trying to consume this from C# will not work:
 
-{% highlight c# %}
+```csharp
 var item = collection.EnumIndexed(VbLib.CustomObject.CustomTypes.Other);
-{% endhighlight %}
+```
 
 But like this will:
 
-{% highlight c# %}
+```csharp
 var item = collection.get_EnumIndexed(VbLib.CustomObject.CustomTypes.Other);
-{% endhighlight %}
+```

@@ -6,7 +6,7 @@ tags: design code postgres sql architecture
 
 I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases.  An example of this is the design of a system which stores data about people, specifically for this, their email addresses.  A cut down version of the structure is this:
 
-{% highlight sql %}
+```sql
 table people
 id serial primary key
 firstname varchar(50)
@@ -17,11 +17,11 @@ id serial primary key
 person_id int => people.id
 address varchar(100)
 type int
-{% endhighlight %}
+```
 
 Which is represented in code like so:
 
-{% highlight c# %}
+```csharp
 public class Person
 {
 	public int ID { get; private set; }
@@ -43,7 +43,7 @@ public class Email
 	public string Address { get; set; }
 	public EmailTypes Type { get; set; }
 }
-{% endhighlight %}
+```
 
 While this works, it is heavily influenced by the storage technology.  Email addresses by definition are unique already, so why do we need a primary key column? They are also associated with exactly one person, so the `person_id` column is only here to facilitate that.  Why not get rid of the emails table completely, and store the person's email addresses in a single column in the person table?  This could be done with a simple csv, but it would be more fore-thinking to use json, so we can associate a little more data with each email address.
 
@@ -59,18 +59,18 @@ The first three can be answered easily: you never query for an email address by 
 
 The final point is the most interesting, as it could be resolved with a few different designs.  The current design has one additional table:
 
-{% highlight sql %}
+```sql
 table rules
 id serial primary key
 person_id int => people.id
 target_type int --e.g 1=email, 2=phone, 3=address etc
 target_id int
 active bool
-{% endhighlight %}
+```
 
 And the `Person` object has a method like this:
 
-{% highlight c# %}
+```csharp
 public bool HasRuleInForce(Entity target)
 {
 	return Rules
@@ -79,7 +79,7 @@ public bool HasRuleInForce(Entity target)
 		.Where(rule => rule.Active)
 		.Any();
 }
-{% endhighlight %}
+```
 
 While this works, the design has a few problems:
 
@@ -96,7 +96,7 @@ The second solution is to remove the `rules` table entirely and implement rules 
 
 The implementation of a `.Rules` property on each entity is trivial - just a standard list property:
 
-{% highlight c# %}
+```csharp
 public class Email
 {
 	public int ID { get; private set; }
@@ -105,11 +105,11 @@ public class Email
 	public EmailTypes Type { get; set; }
 	public List<Rule> Rules { get; set; }
 }
-{% endhighlight %}
+```
 
 As we don't wish to repeat the logic on each collection of rules, we can add an extension method for checking if rules are in force:
 
-{% highlight c# %}
+```csharp
 public static class RulesExtensions
 {
 	public static bool HasRuleInForce(this IEnumerable<Rule> self)
@@ -117,11 +117,11 @@ public static class RulesExtensions
 		return self.Any(rule => rule.Active);
 	}
 }
-{% endhighlight %}
+```
 
 And finally on the `Person` object itself, we can make a simple aggregate property for all child entity's rules:
 
-{% highlight c# %}
+```csharp
 public IEnumerable<Rule> Rules
 {
 	get
@@ -135,6 +135,6 @@ public IEnumerable<Rule> Rules
 		return all.SelectMany(r => r);
 	}
 }
-{% endhighlight %}
+```
 
 Personally I prefer the 2nd form of this, as it makes domain modelling a lot more straight forward - however like all things, you should consider all your requirements carefully - and don't let the database (sql or nosql variety) dictate your model.

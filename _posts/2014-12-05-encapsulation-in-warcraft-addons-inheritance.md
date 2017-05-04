@@ -18,7 +18,7 @@ There are two ways of using `__index`.  The first is to assign it a function, wh
 
 The other way of using `__index` is to pass it another table of methods to call, like in this example:
 
-{% highlight lua %}
+```lua
 local meta = {
 	print = function()
 		print("Hi from the metatable")
@@ -38,7 +38,7 @@ setmetatable(actual, { __index = meta })
 
 -- now it will!
 -- actual.print()
-{% endhighlight %}
+```
 
 By calling `setmetatable` on `actual`, we provide `actual` with all the methods on `meta`.  A table can only have one meta table though, and you might break things by overwriting it (example, don't call `setmetatable` on a Frame or ActionButton...)
 
@@ -46,26 +46,26 @@ By calling `setmetatable` on `actual`, we provide `actual` with all the methods 
 
 All methods on a table can be called in two ways; with a colon, or with a period.  The colon can be thought of as "fill in the first parameter with the table this is being called on".  For example, these two statements are equivalent:
 
-{% highlight lua%}
+```lua%}
 local x = string.gsub("hello world", "hello", "bye")
 local x = "hello world":gsub("hello", "bye")
-{% endhighlight %}
+```
 
 In the example above, the signature of `gsub` is something like this:
 
-{% highlight lua %}
+```lua
 local string = {
 	gsub = function(self, searchTerm, replacement)
 		--self is the input string
 	end,
 }
-{% endhighlight %}
+```
 
 The convention used is to call the first parameter `self`.  We can now use this colon notation with metatables to make our version of inheritance.
 
 ### Combining
 
-{% highlight lua %}
+```lua
 local base = {
 	increase = function(self)
 		self.count = self.count + 1
@@ -91,7 +91,7 @@ second:increase()
 
 first:print()		-- prints 1
 first:print()		-- prints 101
-{% endhighlight %}
+```
 
 Due to the way the colon operator works, the `self` parameter is filled in with the table calling the method, not the table the method is defined on.  So calling `first:increase()` is the same as `base.increase(first)`
 
@@ -99,7 +99,7 @@ Due to the way the colon operator works, the `self` parameter is filled in with 
 
 We can now take these elements, and craft a set of classes designed for reuse.  We start off with our root object (think `System.Object` if you are from a .net world.)
 
-{% highlight lua %}
+```lua
 local class = {
 
 	extend = function(self, this)
@@ -118,7 +118,7 @@ local class = {
 	ctor = function(self, ...)
 	end,
 }
-{% endhighlight %}
+```
 
 We have two methods here, `extend` and `new`.  The `new` method is nice and straight forward - it creates a new table, assigns the meta to be `class` and calls the `ctor` method (which is the one you would want to replace in sub classes).
 
@@ -126,7 +126,7 @@ The `extend` method takes in a new table, and applies and sets the meta to `clas
 
 For example, in my control library, I have a base class with some common methods:
 
-{% highlight lua %}
+```lua
 local control = class:extend({
 
 	size = function(self, config)
@@ -141,11 +141,11 @@ local control = class:extend({
 		self.frame:SetParent(value)
 	end,
 })
-{% endhighlight %}
+```
 
 And then many other classes which extend the base, cilling in the `ctor` method with how to actually create the frame:
 
-{% highlight lua %}
+```lua
 local label = control:extend({
 
 	ctor = function(self, name, parent)
@@ -168,7 +168,7 @@ local textbox  = control:extend({
 		self.frame:SetText(value)
 	end,
 })
-{% endhighlight %}
+```
 
 Some classes, such as the textbox provide other methods where they make sense.
 
@@ -176,7 +176,7 @@ Some classes, such as the textbox provide other methods where they make sense.
 
 If we wish to start overriding a method and then call the original method within, things start to get a lot more complicated.
 
-{% highlight lua %}
+```lua
 local class = {
 	extend = function(self, this)
 		this.base = self
@@ -195,7 +195,7 @@ local grandchild = child:extend({
 		self.base:method()
 	end
 })
-{% endhighlight %}
+```
 
 While this looks like it will work, it will cause some strange and hard to debug problems (I know it will, it took me ages to figure out.)
 
@@ -203,7 +203,7 @@ The problem is that when you do `self.base:method()` you are effectively doing `
 
 We can solve this, but it requires a certain level of voodoo.  First we need to change our `extend` method:
 
-{% highlight lua %}
+```lua
 extend = function(self, this)
 
 	this.super = function(child)
@@ -221,7 +221,7 @@ extend = function(self, this)
 
 	return setmetatable(this, { __index = self })
 end
-{% endhighlight %}
+```
 
 This took me far too long to come up with and get working.  Essentially what it does is take all calls, and replace the `self` parameter with the correct table.  
 

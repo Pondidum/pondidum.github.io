@@ -53,10 +53,10 @@ There are a few other points mentioned on the MSDN post too which you may run in
 
 Basically, you need to set your BaseDirectory in your MSTest TestClass constructor like this:
 
-{% highlight c# %}
+```csharp
 string currDir = Environment.CurrentDirectory.Substring(0, Environment.CurrentDirectory.IndexOf("TestResults"));
 AppDomain.CurrentDomain.SetData("APPBASE", currDir);
-{% endhighlight %}
+```
 
 
 > MSTest launches each test method in a separate STA thread instead of the MTA thread you may be expecting.  This probably won't give you any problems.

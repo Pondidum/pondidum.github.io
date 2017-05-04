@@ -15,7 +15,7 @@ The only down side I can see to using registries is that it can scatter your con
 
 Taking [NuCache][github-nucache] as an example, in our app start we have [ConfigureContainer.cs][github-nucache-configurecontainers]:
 
-{% highlight c# %}
+```csharp
 public static void Register(HttpConfiguration config)
 {
 	var container = new Container(c => c.Scan(a =>
@@ -27,13 +27,13 @@ public static void Register(HttpConfiguration config)
 
 	config.DependencyResolver = new StructureMapDependencyResolver(container);
 }
-{% endhighlight %}
+```
 
 This snippet of code gets called as part of the AppStart, and tells StructureMap to use the default conventions (eg: `IFileSystem => FileSystem`), and to process any registries it finds.  The app then has multiple Registries with the actual configuration in (usually one per namespace, although not all namespaces have a registry).
 
 For example, we have these two registries:
 
-{% highlight c# %}
+```csharp
 public class InfrastructureRegistry : Registry
 {
 	public InfrastructureRegistry()
@@ -56,7 +56,7 @@ public class ProxyBehaviourRegistry : Registry
 		});
 	}
 }
-{% endhighlight %}
+```
 
 The [InfrastructureRegistry][github-nucache-infrastructureregistry] just specifies how to resolve an `IPackageCache`, as it has requires some extra initialisation and to be treated as a singleton.
 
@@ -68,14 +68,14 @@ We can use the Registry feature of StructureMap to allow us to test parts of cod
 
 To do this, we can use the `RewriterRegistry`:
 
-{% highlight c# %}
+```csharp
 var container = new Container(new RewriterRegistry());
 var rewriter = container.GetInstance<XmlRewriter>();
-{% endhighlight %}
+```
 
 Here we create a new container with the `RewriterRegistry` passed directly into the constructor.  This gives us access to a container completely configured for using the `XmlRewriter`.  We can then fake the inputs and outputs to the method under test, keeping the whole system in a known production-like state.
 
-{% highlight c# %}
+```csharp
 using (var inputStream = GetType().Assembly.GetManifestResourceStream("NuCache.Tests.Packages.xml"))
 using (var outputStream = new MemoryStream())
 {
@@ -85,7 +85,7 @@ using (var outputStream = new MemoryStream())
 	_result = XDocument.Load(outputStream);
 	_namespace = _result.Root.Name.Namespace;
 }
-{% endhighlight %}
+```
 
 Hopefully this shows how useful and powerful feature StructureMap's Registries are.
 

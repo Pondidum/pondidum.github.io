@@ -13,11 +13,11 @@ Now when it comes to testing projects, my tool of choice is MSpec (Machine.Speci
 
 To do this, you need to write a Shell Script with the following contents:
 
-{% highlight bash %}
+```bash
     #!/bin/sh
     "D:\dev\downloaded-src\machine.specifications\Build\Release\mspec.exe" "$*"
 	#obviously change this to your mspec path...
-{% endhighlight %}
+```
 
 Save it as `mspec` (no extension), and you can place it in one of two places:
 

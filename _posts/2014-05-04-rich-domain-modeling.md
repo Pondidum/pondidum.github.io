@@ -11,7 +11,7 @@ The term Rich Domain Model is used to describe a domain model which really shows
 
 To take the standard model of a person who has addresses and phone numbers etc seems a little contrite, so lets run through an example using timesheets (bear in mind I don't know what really goes into a timesheet system, this just seems reasonable).  The current model looks something like the following:
 
-{% highlight c# %}
+```csharp
 public class TimeSheet : DbEntity
 {
 	public DateTime WeekDate { get; set; }
@@ -48,7 +48,7 @@ public enum LineTypes
 	Holiday,
 	Sick
 }
-{% endhighlight %}
+```
 
 The first problem with this model is that the domain entities are inheriting directly from a `DbEntity` which is coupling our logic directly to our data access, which amongst other things is a violation of [SRP][blog-solid-srp].  Putting this aside for the time being, the next issue is that the domain model lets you do anything with the objects and collections.
 
@@ -60,7 +60,7 @@ The model also is leaking what kind of data store it is built on - after all, if
 
 A better version of this model is to make all the behaviour explicit, rather than just exposing the collections for external modification:
 
-{% highlight c# %}
+```csharp
 public class TimeSheet
 {
 	public DateTime WeekDate { get; private set; }
@@ -91,7 +91,7 @@ public class TimeSheet
 	}
 
 }
-{% endhighlight %}
+```
 
 The Rich model does a number of interesting things.  The first is that all the properties of the `TimeSheet` class are now `private set`.  This allows us to enforce rules on when and how they get set.  For example, the `WeekDate` property value gets passed in via the constructor, as our domain says that for a week to be valid it must have a weekdate.
 
@@ -99,7 +99,7 @@ The major improvement is in adding lines to the `TimeSheet`.  In the Anaemic ver
 
 Now that the user has been able to fill out all the lines in their timesheet, the next likely action they want to perform is to submit it for authorization.  We can do this by adding the following method:
 
-{% highlight c# %}
+```csharp
 public void SubmitForApproval(User approver)
 {
 	_rules.ValidateTimeSheetIsComplete(this);
@@ -107,13 +107,13 @@ public void SubmitForApproval(User approver)
 	approver.AddWaitingTimeSheet(this);
 	State = TimeSheetStates.Submitted;
 }
-{% endhighlight %}
+```
 
 Note this method only validates if the timesheet is complete enough to be approved - validation for whether the approver can actually approve this timesheet is held within the `apperover.AddWaitingTimeSheet` method.
 
 The next thing to consider is when the approver rejects the timesheet because the user filled out the wrong weekdate.  Rather than just exposing Weekdate to be publicly setable, we can capture the intent of the adjustment with a set of methods:
 
-{% highlight c# %}
+```csharp
 public void UserEnteredIncorrectWeek(DateTime newDate)
 {
 	var delta = WeekDate - newDate;
@@ -121,7 +121,7 @@ public void UserEnteredIncorrectWeek(DateTime newDate)
 	WeekDate = newDate;
 	_lines.ForEach(line => line.Day = line.Day.AddDays(-delta));
 }
-{% endhighlight %}
+```
 
 Note how the method is named to capture the reason for the change.  Although we are not actively storing the reason, if we were using an EventStream for the backing store, or maintaining a separate log of changes we would now have a reason as to why the change was made.  This helps guide UI elements - rather then just having an "Edit Week Date" button, there could be a UI element which says "Change Incorrect Week" or similar.
 

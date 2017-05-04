@@ -20,7 +20,7 @@ When working with MVP, it won't be long before you come across the need for mult
 
 The first method for dealing with the sub views is to expose them as a property of your main view, and set them up in the main view's presenter:
 
-{% highlight c# %}
+```csharp
 interface IMainView
 {
 	ISubView1 View1 { get; }
@@ -61,11 +61,11 @@ static class Program
 		}
 	}
 }
-{% endhighlight %}
+```
 
 This method's advantage is simplicity, just create a new view and presenter, and call `Display`.  The disadvantage is that the main presenter is tied to the sub presenters.  A slight modification alleviates this:
 
-{% highlight c# %}
+```csharp
 interface IMainView
 {
 	ISubView1 View1 { get; }
@@ -107,13 +107,13 @@ static class Program
 		}
 	}
 }
-{% endhighlight %}
+```
 
 The only change here is to pass our two sub presenters in to the main presenter as constructor parameters.  Ultimately this seems to be the 'best' solution from a coupling point of view, however, if you are unlikely to change the sub presenters out for completely different sub presenters, then I would use the first method.
 
 The final method for composing sub views is to push the responsibility to the actual main view, and make your main view pass any events and data to and from the sub view:
 
-{% highlight c# %}
+```csharp
 interface IMainView
 {
 	String FirstName { get; set; }
@@ -162,7 +162,7 @@ class MainView : Form, IMainView
 		set { subView2.PostCode = value; }
 	}
 }
-{% endhighlight %}
+```
 
 The disadvantage to this is that if one of the subViews were to change in anyway, the MainView also has to change to reflect this.
 

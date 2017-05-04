@@ -13,18 +13,18 @@ Interface Segregation I find is often ignored, or people tend not to see the poi
 
 So as usual, lets start off with an set of types which don't adhere to the principle.  Starting off, we have the following interface, which we are using to write data access classes with:
 
-{% highlight c# %}
+```csharp
 public interface IEntity
 {
 	Guid ID { get; }
 	void Save();
 	void Load();
 }
-{% endhighlight %}
+```
 
 And a class which implements the interface:
 
-{% highlight c# %}
+```csharp
 public class Entity : IEntity
 {
 	public Guid ID { get; private set; }
@@ -48,11 +48,11 @@ public class Entity : IEntity
 		//nothing in the base
 	}
 }
-{% endhighlight %}
+```
 
 At first glance, this seems like a pretty reasonable Entity, it doesn't have multiple responsibilities, and it is very simple. However, when we bring the second implementation of `IEntity` into the mix, it becomes more clear that some segregation would be useful:
 
-{% highlight c# %}
+```csharp
 public class ReadOnlyEntity : IEntity
 {
 	public Guid ID { get; private set; }
@@ -76,11 +76,11 @@ public class ReadOnlyEntity : IEntity
 		//nothing in the base
 	}
 }
-{% endhighlight %}
+```
 
 Why would a `ReadOnlyEntity` need a `Save()` method? What happens if you have a collection of data which gets loaded from your database, but never gets saved back (a list of countries and associated data for example.)  Also, consumers of the `IEntity` interface get more access to methods than they need, for example the `Database` class being used here:
 
-{% highlight c# %}
+```csharp
 public class Database
 {
 	public static void Save(IEntity entity)
@@ -88,11 +88,11 @@ public class Database
 		entity.Load();	//?
 	}
 }
-{% endhighlight %}
+```
 
 From looking at our usages of our entities, we can see there are two specific roles: something that can be loaded, and something that can be saved.  We start our separation by inheriting our existing interface:
 
-{% highlight c# %}
+```csharp
 public interface IEntity : ISaveable, ILoadable
 {
 }
@@ -108,24 +108,24 @@ public interface ILoadable
 	Guid ID { get; }
 	void Load();
 }
-{% endhighlight %}
+```
 
 Here we have pulled the method and properties relevant for saving into one interface, and the methods and properties relevant to loading into another.  By making `IEntity` inherit both `ISaveable` and `ILoadable`, we have no need to change any existing code yet.
 
 Our next step is to change usages of `IEntity` to take in the more specific interface that they require:
 
-{% highlight c# %}
+```csharp
 public class Database
 {
 	public static void Save(ISaveable entity)
 	{
 	}
 }
-{% endhighlight %}
+```
 
 Once this is done, we can remove the `IEntity` interface, and update our implementations to use `ISaveable` and `ILoadable` instead:
 
-{% highlight c# %}
+```csharp
 public class Entity : ISaveable, ILoadable
 {
 	public Guid ID { get; private set; }
@@ -168,19 +168,19 @@ public class ReadOnlyEntity : ILoadable
 		//nothing in the base
 	}
 }
-{% endhighlight %}
+```
 
 Now our objects are showing specifically what they are capable of - the `ReadOnlyEntity` doesn't have a `Save()` method which you are not supposed to call!
 
 If you do have a method which requires an object which is both an `ISaveable` and an `ILoadable`, rather than pass in the same object to two parameters, you can achieve it with a generic parameter:
 
-{% highlight c# %}
+```csharp
 public void DoSomething<T>(T entity) where T : ISaveable, ILoadable
 {
 	entity.Save();
 	entity.Load();
 }
-{% endhighlight %}
+```
 
 Hopefully this shows the reasoning of segregating your interfaces and the steps to segregate existing interfaces.
 

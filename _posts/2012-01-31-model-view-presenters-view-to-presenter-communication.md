@@ -18,23 +18,23 @@ Communicating from the View to the Presenter is a reasonably straight forward af
 
 To get around this, we define a new event type, so that we can get rid of our redundant parameters:
 
-{% highlight c# %}
+```csharp
 public delegate void EventAction();
-{% endhighlight %}
+```
 
 In the View we define our events:
 
-{% highlight c# %}
+```csharp
 public interface IEmployeesView
 {
 	event EventAction OkayClicked;
 	event EventAction CancelClicked;
 }
-{% endhighlight %}
+```
 
 And in the Presenter we hook up the events:
 
-{% highlight c# %}
+```csharp
 public class EmployeesPresenter : IDisposable
 {
 	private readonly IEmployeeView _view;
@@ -55,13 +55,13 @@ public class EmployeesPresenter : IDisposable
 		_view.CancelClicked -= OnCancelClicked;
 	}
 }
-{% endhighlight %}
+```
 
 Now I don't know about you, but I dislike having to wire and unwire an event like this - there is too much chance that I will either forget to unwire one of the events, or when copying and pasting the Add code (I know, I know) to the Remove section, I will forget to change a `+` to a `-`.
 
 To this end, I created a class that will auto wire events to handlers based on a convention.  It was based off of the Presenter base class written by [Mark Nijhof][1] in his [Fohjin.DDD][2] sample application, with a few improvements (namely the unwiring of events).  To avoid the need to make your Presenters inherit from a base class (and to not violate SRP!), it is wrapped up into its own class, which can be used like so:
 
-{% highlight c# %}
+```csharp
 public class EmployeesPresenter : IDisposable
 {
 	private readonly IEmployeeView _view;
@@ -82,7 +82,7 @@ public class EmployeesPresenter : IDisposable
 		_autoWire.Unwire();
 	}
 }
-{% endhighlight %}
+```
 
 The wirer supports conventions to allow easier hook-up - by default it will only hook events defined in the View's interface to private methods prefixed with "On" in the presenter.  This means that any events which are only defined in the concrete implementation of the View are not wired automatically - allowing extra view only functionality such as when an item is MouseOver'd etc.
 

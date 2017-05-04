@@ -17,15 +17,15 @@ The code used for this problem boils down to the following
 
 Sproc "ftsSearch":
 
-{% highlight sql %}
+```sql
 	Select	id
 	from	ftsTable
 	where	contains(@query, searchColumn)
-{% endhighlight %}
+```
 
 Reader Class:
 
-{% highlight c# %}
+```csharp
 public class FtsSearch : List<int>
 {
 	public void Search(String input)
@@ -47,7 +47,7 @@ public class FtsSearch : List<int>
 		}
 	}
 }
-{% endhighlight %}
+```
 
 Calling this function while the error is occurring, yields the following results:
 

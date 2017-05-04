@@ -7,7 +7,7 @@ tags: design code net
 
 While writing my [CruiseCli][github-cruisecli] project, I needed to do some data storage, and so used my standard method of filesystem access, the `IFileSystem`.  This is an interface and implementation which I tend to copy from project to project, and use as is.  The interface looks like the following:
 
-{% highlight c# %}
+```csharp
 public interface IFileSystem
 {
 	bool FileExists(string path);
@@ -21,11 +21,11 @@ public interface IFileSystem
 	IEnumerable<string> ListDirectory(string path);
 	void DeleteDirectory(string path);
 }
-{% endhighlight %}
+```
 
 And the standard implementation looks like the following:
 
-{% highlight c# %}
+```csharp
 public class FileSystem : IFileSystem
 {
 	public bool FileExists(string path)
@@ -47,13 +47,13 @@ public class FileSystem : IFileSystem
 	}
 	//snip...
 }
-{% endhighlight %}
+```
 
 This (I think) is a very good solution to file system access as I can easily mock the interface and add expectations and stub values to it for testing.
 
 However, on the CruiseCli project, I realised I didn't need most of what the interface provided, so I chopped all the bits off I didn't want, and added a property for a base directory I was using all the time:
 
-{% highlight c# %}
+```csharp
 public interface IFileSystem
 {
 	string HomePath { get; }
@@ -62,7 +62,7 @@ public interface IFileSystem
 	Stream ReadFile(string path);
 	bool FileExists(string path);
 }
-{% endhighlight %}
+```
 
 Which was better than the original, as I have a lot less methods to worry about, and thus it is more specific to my use case.
 
@@ -70,13 +70,13 @@ But I got thinking later in the project; "what are my use cases?", "what do I ac
 
 So why not make the interface even more specific in this case:
 
-{% highlight c# %}
+```csharp
 public interface IConfiguration
 {
 	void Write(Stream contents);
 	Stream Read();
 }
-{% endhighlight %}
+```
 
 Even simpler, and I now have the benefit of not caring what the filepaths are outside of the implementing class.
 
@@ -84,7 +84,7 @@ This means that in my integration tests, I can write an in-memory `IConfiguratio
 
 In a more complicated system, I would probably keep this new `IConfiguration` interface for accesing the config file, and make the concrete version depend on the more general `IFileSystem`:
 
-{% highlight c# %}
+```csharp
 public class Configuration : IConfiguration
 {
 	private const string FileName = ".cruiseconfig";
@@ -105,7 +105,7 @@ public class Configuration : IConfiguration
 		return _fileSystem.ReadFile(Path.Combine(_fileSystem.Home, FileName));
 	}
 }
-{% endhighlight %}
+```
 
 For a small system this would probably be overkill, but for a much larger project, this could help provide a better seperation of responsibilities.
 

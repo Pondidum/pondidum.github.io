@@ -13,7 +13,7 @@ Somewhere on the internet (where else...?) I can upon the idea of using a custom
 
 To do this, we create Friend Class, and make it inherit from `System.Windows.Forms.Design.ControlDesigner`, then override the `SelectionRules` property:
 
-{% highlight vbnet %}
+```vb
 Friend Class NonResizableDesigner
 	Inherits System.Windows.Forms.Design.ControlDesigner
 
@@ -23,11 +23,11 @@ Friend Class NonResizableDesigner
 		End Get
 	End Property
 End Class
-{% endhighlight %}
+```
 
 As SelectionRules is a FlagsEnum, to remove the particular functionality from it, we have to NOT the flag we want to remove, then AND it with the existing flags.  In other words, take the controls existing flags and add `And Not SelectionRules.AllSizeable` to it.  So the entire designer class becomes this:
 
-{% highlight vbnet %}
+```vb
 Friend Class NonResizableDesigner
 	Inherits System.Windows.Forms.Design.ControlDesigner
 
@@ -37,18 +37,18 @@ Friend Class NonResizableDesigner
 		End Get
 	End Property
 End Class
-{% endhighlight %}
+```
 
 Simple huh?  Now all we need to do is apply it to the control that we wish to be non-resizable, which just takes one attribute on the class:
 
-{% highlight vbnet %}
+```vb
 <Designer(GetType(NonResizableDesigner))> _
 Public Class Foo
 	Public Function Bar()
 		Return False
 	End Function
 End Class
-{% endhighlight %}
+```
 
 Now when this control is viewed in the designer, it has the same outline as a label when the AutoSize property is set to true.  You can move the control to your hearts content, but no resizing.
 

@@ -13,7 +13,7 @@ A particularly prevalent version of this misuse I see is self populating collect
 
 The technique I prefer for reads are Query objects.  These are simple classes which expose a single public method to return some data.  For example:
 
-{% highlight c# %}
+```csharp
 public class GetDocumentsWaitingQuery : IDocumentsQuery
 {
 	private readonly IDataStore _dataStore;
@@ -35,11 +35,11 @@ public class GetDocumentsWaitingQuery : IDocumentsQuery
 		}
 	}
 }
-{% endhighlight %}
+```
 
 The code using this class might look something like this:
 
-{% highlight c# %}
+```csharp
 public class DocumentProcessor
 {
 	private readonly IDocumentsQuery _query;
@@ -57,13 +57,13 @@ public class DocumentProcessor
 		}
 	}
 }
-{% endhighlight %}
+```
 
 This class is almost too simple, but resembles a system's processor which I wrote.  They key here is that the `DocumentProcessor` only relies on an `IDocumentsQuery`, not a specific query.
 
 Normal usage of the system looks like this:
 
-{% highlight c# %}
+```csharp
 public void ProcessAll()
 {
 	var query = new GetDocumentsWaitingQuery(_dataStore);
@@ -73,22 +73,22 @@ public void ProcessAll()
 
 	processor.Run();
 }
-{% endhighlight %}
+```
 
 When the user requests a single document get reprocessed, we just substitute in a different Query:
 
-{% highlight c# %}
+```csharp
 var query = new GetDocumentByIDQuery(_dataStore, id: 123123);
 var saveCommand = new SaveDocumentCommand(_dataStore);
 
 var processor = new DocumentProcessor(query, saveCommand);
 
 processor.Run();
-{% endhighlight %}
+```
 
 And finally, when the system is under test, we can pass in completely fake commands:
 
-{% highlight c# %}
+```csharp
 [Fact]
 public void When_multiple_documents_for_the_same_user()
 {
@@ -104,7 +104,7 @@ public void When_multiple_documents_for_the_same_user()
 	first.Primary.ShouldBe(true);
 	second.Primary.ShouldBe(false);
 }
-{% endhighlight %}
+```
 
 This means that in the standard usage, it gets passed an instance of `GetDocumentsWaitingQuery`, but when under test gets a `Substitute.For<IDocumentsQuery>()`, and for debugging a problem with a specific document, it gets given `new GetSingleDocumentQuery(id: 234234)` for example.
 
@@ -112,7 +112,7 @@ This means that in the standard usage, it gets passed an instance of `GetDocumen
 
 What about saving?  Well it's pretty much the same story:
 
-{% highlight c# %}
+```csharp
 public class SaveDocumentCommand
 {
 	private readonly IDataStore datastore;
@@ -130,7 +130,7 @@ public class SaveDocumentCommand
 		}
 	}
 }
-{% endhighlight %}
+```
 
 Obviously the sql in the save command would be a bit more complete...
 
@@ -138,13 +138,13 @@ Obviously the sql in the save command would be a bit more complete...
 
 Well yes, you can create methods on your repositories to do all of this, like so:
 
-{% highlight c# %}
+```csharp
 public IDocumentRepository
 {
 	public void SaveDocument(Document document) { /* ... */ }
 	public IEnumerable<Document> GetDocumentsWaiting() { /* ... */ }
 }
-{% endhighlight %}
+```
 
 But now your classes utilising this repository are tied to the methods it implements - you cannot just swap out the workings of `.GetDocumentsWaiting` for a single document query any more.
 

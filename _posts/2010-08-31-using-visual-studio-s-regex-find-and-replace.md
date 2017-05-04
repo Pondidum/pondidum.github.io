@@ -23,14 +23,14 @@ A quick breakdown of the parts of the expressions used:
 
 So we start with the Interface:
 
-{% highlight vbnet %}
+```vb
 Public Interface IProcessDetailsView
 	Sub FileID(ByVal value As Integer)
 	Sub SubmittedBy(ByVal value As String)
 	Sub ReceivedDate(ByVal value As DateTime)
 	//...
 End Interface
-{% endhighlight %}
+```
 
 So in the find and replace dialog I enter the following:
 
@@ -42,18 +42,18 @@ So in the find and replace dialog I enter the following:
 
 The interface definition now changes to this:
 
-{% highlight vbnet %}
+```vb
 Public Interface IProcessDetailsView
 	WriteOnly Property FileID() As Integer
 	WriteOnly Property SubmittedBy() As String
 	WriteOnly Property ReceivedDate() As DateTime
 	//...
 End Interface
-{% endhighlight %}
+```
 
 Not too difficult right?  Good. Now onto the View's methods:
 
-{% highlight vbnet %}
+```vb
 Public Class ProcessDetails
 	Implements IProcessDetailsView
 
@@ -67,7 +67,7 @@ Public Class ProcessDetails
 
 	//...
 End Class
-{% endhighlight %}
+```
 
 Into the find and replace dialog:
 
@@ -85,7 +85,7 @@ Into the find and replace dialog:
 
 You could do this with one expression, although I have found its far less hassle to use two find and replace runs rather than trying to find new lines etc
 
-{% highlight vbnet %}
+```vb
 Public Class ProcessDetails
 	Implements IProcessDetailsView
 
@@ -102,17 +102,17 @@ Public Class ProcessDetails
 	End Property
 
 End Class
-{% endhighlight %}
+```
 
 Now the main reason for this change was the presenter code, which doesn't sit right with me.  At a glance, am I expecting something to be calculated or what?
 
-{% highlight vbnet %}
+```vb
 Public Sub Display(ByVal processHistory As ICVProcessHistory)
 	_view.FileID(processHistory.FileID)
 	_view.SubmittedBy(processHistory.AccountName)
 	//...
 End Sub
-{% endhighlight %}
+```
 
 Find and replace dialog again:
 
@@ -124,12 +124,12 @@ Find and replace dialog again:
 
 Which gives us this:
 
-{% highlight vbnet %}
+```vb
 Public Sub Display(ByVal processHistory As ICVProcessHistory)
 	_view.FileID = processHistory.FileID
 	_view.SubmittedBy = processHistory.AccountName
 	//...
 End Sub
-{% endhighlight %}
+```
 
 Much better in my opinion.

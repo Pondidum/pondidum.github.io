@@ -13,7 +13,7 @@ However i wanted to use this at work, and this presented me with a problem.  Wor
 
 I spent a while trying to see if it was possible to keep the fluent interface and not instantiate any objects until something fails.  In the end i settled for this method which only creates one object.
 
-{% highlight vbnet %}
+```vb
 Public Class Validate
 
     Public Shared Function Begin() As ValidationExpression
@@ -68,7 +68,7 @@ Public Class Validate
 
     End Class
 End Class
-{% endhighlight %}
+```
 
 The rest of the code used is identical to Rick Brewster's Article, so [head over there][fluent-validation] to see it in all its (well written) glory.
 

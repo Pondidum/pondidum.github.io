@@ -9,26 +9,26 @@ I was working on some code today that needs a lot of data writing into an XML do
 
 To that end, it uses an `XmlTextWriter`.  The problem I have with it is the way you must write sub-elements.  If you just need a single value wrapped in a tag, you are catered for already:
 
-{% highlight c# %}
+```csharp
 writer.WriteElementString("name", current.Name);
-{% endhighlight %}
+```
 
 However, if you want to embed a composite set of elements, you are left with this lovely chunk:
 
-{% highlight c# %}
+```csharp
 writer.WriteStartElement("composite")
 
 writer.WriteElementString("firstName", current.FirstName);
 writer.WriteElementString("lastName", current.LastName);
 
 writer.WriteEndElement();
-{% endhighlight %}
+```
 
 And if you have a long document, with many composite elements, good luck remembering which element is being ended by `WriteEndElement()` (even if you functionalise it, you still run into the issue.)
 
 The solution I came up with for this was a class and an extension method:
 
-{% highlight c# %}
+```csharp
 internal class WriteElement : IDisposable
 {
 	private XmlTextWriter _writer;
@@ -53,16 +53,16 @@ static class XmlTextWriterExtensions
 		return new WriteElement(self, element);
 	}
 }
-{% endhighlight %}
+```
 
 This enables me to write composite elements like this:
 
-{% highlight c# %}
+```csharp
 using (writer.WriteComposite("composite"))
 {
 	writer.WriteElementString("firstName", current.FirstName);
 	writer.WriteElementString("lastName", current.LastName);
 }
-{% endhighlight %}
+```
 
 With the two benefits of knowing when my composite elements are ending, and I also gain indentation of my elements, which allows me to *see* where the composites are a lot easier.
