@@ -4,6 +4,8 @@ title: Serilog LogContext with StructureMap and SimpleInjector
 tags: net code structuremap simpleinjector di ioc
 ---
 
+*This article has been updated after feedback from [.Net Junkie](https://twitter.com/dot_NET_Junkie) (Godfather of SimpleInjector).  I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)*
+
 Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.  Take the following snippet for example:
 
 ```csharp
@@ -37,17 +39,11 @@ That was easy! Now on to the hard part; removing the repeated `.ForContext` call
 
 ## Fixing the ForContext Repetition
 
-Most (if not all) the applications I build use a dependency injection container to build objects.  In my opinion there are only two containers which are worth considering in the .net space:  [StructureMap](http://structuremap.github.io/), and [SimpleInjector](https://simpleinjector.org).  If you like convention based registration, use StructureMap.  If you like typing/specifying everything yourself, use SimpleInjector.
+Most (if not all) the applications I build use a dependency injection container to build objects.  In my opinion there are only two containers which are worth considering in the .net space:  [StructureMap](http://structuremap.github.io/), and [SimpleInjector](https://simpleinjector.org).  If you like convention based registration, use StructureMap.  If you like to get a safety net that prevents and detects common misconfigurations, use SimpleInjector.
 
-### SimpleInjector
+### Tests
 
-I couldn't work out how to make SimpleInjector do what I wanted for this which is unfortunate, as a large proportion of projects use this container.  Switching to StructureMap which handles this with ease doesn't seem worth the time taken.
-
-Instead I will be asking around to see if this is something SimpleInjector could support in the future, or if it can do it and I am just not seeing how!
-
-### StructureMap
-
-I have the following two classes to test each get a decorated `ILogger`, along with an `ILogOwner` interface to allow me to do more generic testing:
+We can use the same tests to verify the behaviour both when using StructureMap and SimpleInjector's.  We have a couple of test classes, and an interface to allow for more generic testing:
 
 ```csharp
 private interface ILogOwner
@@ -76,6 +72,53 @@ private class Everything : ILogOwner
 }
 ```
 
+And then a single parameterised test method for verification:
+
+```csharp
+public class Tests
+{
+    private readonly Container _container;
+
+    public Tests()
+    {
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.Console()
+            .CreateLogger();
+
+        // _container = new ...
+    }
+
+    [Theory]
+    [InlineData(typeof(Something))]
+    [InlineData(typeof(Everything))]
+    public void Types_get_their_own_context(Type type)
+    {
+        var instance = (ILogOwner)_container.GetInstance(type);
+        var context = GetContextFromLogger(instance);
+
+        context.ShouldBe(type.FullName);
+    }
+
+    private static string GetContextFromLogger(ILogOwner owner)
+    {
+        var logEvent = CreateLogEvent();
+        owner.Logger.Write(logEvent);
+        return logEvent.Properties["SourceContext"].ToString().Trim('"');
+    }
+
+    private static LogEvent CreateLogEvent() => new LogEvent(
+        DateTimeOffset.Now,
+        LogEventLevel.Debug,
+        null,
+        new MessageTemplate("", Enumerable.Empty<MessageTemplateToken>()),
+        Enumerable.Empty<LogEventProperty>());
+}
+```
+
+
+### StructureMap
+
 The StructureMap initialisation just requires a single line change to use the construction context when creating a logger:
 
 ```csharp
@@ -95,37 +138,51 @@ _container = new Container(_ =>
 });
 ```
 
-And we can verify the behaviour with a parameterised test in XUnit:
+
+### SimpleInjector
+
+SimpleInjector does a lot of verification of your container configuration, and as such deals mostly with Types, rather than instances, or types which have multiple mappings as we are doing.  This makes it slightly harder to support the behaviour we had with StructureMap, but not impossible.  A huge thanks to .Net Junkie for assisting with this!
+
+First we need to create an implementation of  `IDependencyInjectionBehavior`, which will handle our `ILogger` type requests, and pass all other types requests to the standard implementation:
 
 ```csharp
-[Theory]
-[InlineData(typeof(Something))]
-[InlineData(typeof(Everything))]
-public void Types_get_their_own_context(Type type)
+class SerilogContextualLoggerInjectionBehavior : IDependencyInjectionBehavior
 {
-    var instance = (ILogOwner)_container.GetInstance(type);
-    var context = GetContextFromLogger(instance);
+    private readonly IDependencyInjectionBehavior _original;
+    private readonly Container _container;
 
-    context.ShouldBe(type.FullName);
+    public SerilogContextualLoggerInjectionBehavior(ContainerOptions options)
+    {
+        _original = options.DependencyInjectionBehavior;
+        _container = options.Container;
+    }
+
+    public void Verify(InjectionConsumerInfo consumer) => _original.Verify(consumer);
+
+    public InstanceProducer GetInstanceProducer(InjectionConsumerInfo i, bool t) =>
+        i.Target.TargetType == typeof(ILogger)
+            ? GetLoggerInstanceProducer(i.ImplementationType)
+            : _original.GetInstanceProducer(i, t);
+
+    private InstanceProducer<ILogger> GetLoggerInstanceProducer(Type type) =>
+        Lifestyle.Transient.CreateProducer(() => Log.ForContext(type), _container);
 }
-
-private static string GetContextFromLogger(ILogOwner owner)
-{
-    var logEvent = CreateLogEvent();
-    owner.Logger.Write(logEvent);
-    return logEvent.Properties["SourceContext"].ToString().Trim('"');
-}
-
-private static LogEvent CreateLogEvent() => new LogEvent(
-    DateTimeOffset.Now,
-    LogEventLevel.Debug,
-    null,
-    new MessageTemplate("", Enumerable.Empty<MessageTemplateToken>()),
-    Enumerable.Empty<LogEventProperty>());
 ```
+
+This can then be set in our container setup:
+
+```csharp
+_ontainer = new Container();
+_container.Options.DependencyInjectionBehavior = new SerilogContextualLoggerInjectionBehavior(_container.Options);
+
+_container.Register<Something>();
+_container.Register<Everything>();
+```
+
+And now our tests pass!
 
 ## Outcomes
 
 Thanks to this container usage, I no longer have to have the `.ForContext(typeof(Something))` scattered throughout my codebases.
 
-I also really want to do this within codebases which use SimpleInjector, so I'll be asking around, or coming up with another way of doing this.
+Hopefully this shows how taking away just some of the little tasks makes life easier - I now no longer have to remember to do the `.ForContext` on each class, and don't need to have tests to validate it is done on each class (I have one test in my container configuration tests which validates this behaviour instead).
