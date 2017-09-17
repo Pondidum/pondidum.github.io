@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Testing Containers or Test behaviour not implementation
+title: Testing Containers or Test Behaviour, Not Implementation
 tags: design code structuremap testing
 ---
 
