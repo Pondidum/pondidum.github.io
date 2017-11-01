@@ -54,7 +54,7 @@ p code {
   background-color: #eee;
 }
 
-.highlight {
+pre.highlight {
   padding: 1em;
   overflow-x: scroll;
 }
@@ -140,12 +140,12 @@ div.divider {
   text-align: center;
 }
 
-ul, ol, img, .highlight, blockquote {
+ul, ol, img, pre.highlight, blockquote {
   margin-left: 3em;
   margin-right: 3em;
 }
 
-.highlight {
+pre.highlight {
   margin-top: 1em;
   margin-bottom: 1em;
 }
