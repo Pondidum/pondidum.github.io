@@ -1,7 +1,7 @@
 ---
 layout: post
 title: c# Enum casting
-tags: code net
+tags: code c#
 
 ---
 

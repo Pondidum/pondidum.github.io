@@ -1,7 +1,7 @@
 ---
 layout: post
 title: CQS with Mediatr
-tags: code net cqs cqrs mediatr
+tags: code c# cqs cqrs mediatr
 ---
 
 This article is some extra thoughts I had on api structure after reading [Derek Comartin][derek-comartin-thin-controllers].
@@ -10,7 +10,7 @@ Asides from the benefits that Derek mentions (no fat repositories, thin controll
 
 ## Ease of Testing
 
-By using Command and Queries, you end up with some very useful seams for writing tests.  
+By using Command and Queries, you end up with some very useful seams for writing tests.
 
 ### For controllers
 With controllers, you typically use Dependency injection to provide an instance of `IMediator`:

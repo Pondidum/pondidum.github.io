@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Strong Type your entity IDs.
-tags: design code net typing sql database orm
+tags: design code c# typing sql database orm
 ---
 
 ## The Database is just an Implementation Detail

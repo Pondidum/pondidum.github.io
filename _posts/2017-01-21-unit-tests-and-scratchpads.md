@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Unit Tests & Scratchpads
-tags: code net testing xunit
+tags: code c# testing xunit
 ---
 
 Often when developing something, I have the need to check how a function or library works.  For example, I *always* have to check for this question:
@@ -51,6 +51,6 @@ namespace NuCrunch.Tests
 
 It gets committed to the git repository with no content in the `When_testing_something` method, and is never committed again afterwards.  The `_output` field is added to allow writing to console/test window easily too.
 
-Now whenever I wish to experiment with something, I can pop open the `Scratchpad` write some test content, then execute and debug it to my hearts content.  
+Now whenever I wish to experiment with something, I can pop open the `Scratchpad` write some test content, then execute and debug it to my hearts content.
 
 After I am done with the test code, one of two things happen:  it gets deleted, or it gets moved into a proper unit test.

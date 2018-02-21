@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Database Integrations for MicroServices
-tags: code net microservices integration eventsourcing
+tags: code c# microservices integration eventsourcing
 ---
 
 This is a follow up post after seeing [Michal Franc][michal-franc-ndc]'s NDC talk on migrating from Monolithic architectures.

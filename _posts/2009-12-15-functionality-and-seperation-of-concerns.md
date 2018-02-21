@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Functionality and Seperation of Concerns
-tags: design code net
+tags: design code c#
 
 ---
 

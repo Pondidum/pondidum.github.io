@@ -1,7 +1,7 @@
 ---
 layout: post
 title: SOLID Principles - SRP
-tags: design code net solid
+tags: design code c# solid
 
 ---
 

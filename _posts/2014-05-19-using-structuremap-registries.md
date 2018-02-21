@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Using StructureMap Registries for better separation
-tags: design code net structuremap separation testing
+tags: design code c# structuremap separation testing
 
 ---
 

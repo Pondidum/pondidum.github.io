@@ -1,7 +1,7 @@
 ---
 layout: post
 title: RabbitMQ integration tests in XUnit
-tags: code net rabbitmq xunit
+tags: code c# rabbitmq xunit
 ---
 
 Quite a number of my projects involve talking to [RabbitMQ][rabbitmq], and to help check things work as expected, I often have a number of integration tests which talk to a local RabbitMQ instance.

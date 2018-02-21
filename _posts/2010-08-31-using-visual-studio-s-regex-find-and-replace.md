@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Using Visual Studio's Regex Find and Replace
-tags: code net
+tags: code c#
 
 ---
 

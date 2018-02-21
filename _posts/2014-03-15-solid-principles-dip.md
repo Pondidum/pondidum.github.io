@@ -1,7 +1,7 @@
 ---
 layout: post
 title: SOLID Principles - DIP
-tags: design code net solid
+tags: design code c# solid
 
 ---
 

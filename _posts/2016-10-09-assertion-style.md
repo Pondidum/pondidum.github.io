@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Shouldly: Why would you assert any other way?"
-tags: code net nunit testing shouldly assert
+tags: code c# nunit testing shouldly assert
 ---
 
 I like to make my development life as easy as possible - and removing small irritations is a great way of doing this.  Having used [Shouldly](http://docs.shouldly-lib.net/v2.4.0/docs) in anger for a long time, I have to say I feel a little hamstrung when going back to just using NUnit's assertions.
@@ -109,11 +109,11 @@ input
     but was
 "this is a long test sentence"
     difference
-Difference     |                                |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |   
-               |                               \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  
-Index          | ...  9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   
-Expected Value | ...  \s   l    o    n    g    e    r    \s   t    e    s    t    \s   s    e    n    t    e    n    c    e    
-Actual Value   | ...  \s   l    o    n    g    \s   t    e    s    t    \s   s    e    n    t    e    n    c    e              
+Difference     |                                |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+               |                               \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/
+Index          | ...  9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29
+Expected Value | ...  \s   l    o    n    g    e    r    \s   t    e    s    t    \s   s    e    n    t    e    n    c    e
+Actual Value   | ...  \s   l    o    n    g    \s   t    e    s    t    \s   s    e    n    t    e    n    c    e
 ```
 
 ## Finishing

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Task Chaining and the Pipeline Operator
-tags: code
+tags: code c#
 ---
 
 Since I have been trying to learn a functional language (Elixir), I have noticed how grating it is when in C# I need to call a few methods in a row, passing the results of one to the next.

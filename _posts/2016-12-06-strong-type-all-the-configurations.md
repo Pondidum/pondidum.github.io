@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Strong Type All The Configurations
-tags: code net strongtyping configuration stronk
+tags: code c# strongtyping configuration stronk
 ---
 
 As anyone I work with can attest, I a have been prattling on about strong typing everything for quite a while.

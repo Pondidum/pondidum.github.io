@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Differences between Properties and Auto Properties
-tags: code net
+tags: code c#
 
 ---
 

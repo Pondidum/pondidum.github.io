@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Preventing MicroService Boilerplate
-tags: code net microservices consul structuremap kibana boilerplate
+tags: code c# microservices consul structuremap kibana boilerplate
 ---
 
 One of the downsides to microservices I have found is that I end up repeating the same blocks of code over and over for each service.  Not only that, but the project setup is repetitive, as all the services use the [Single Project Service and Console][single-project] method.
