@@ -6,10 +6,12 @@ tags: productivity talks writing
 
 I saw an interesting question on twitter today:
 
-https://api.twitter.com/1/statuses/oembed.json?id=995653828933496832
+
 > Hey, people who talk at things: How long does it take you to put a new talk together?
 >
 > I need like 50 hours over at least a couple of months to make something I don't hate. I'm trying to get that down (maybe by not doing pictures?) but wondering what's normal for everyone else.
+
+[Source](https://twitter.com/whereistanya/status/995653828933496832)
 
 I don't know how long it takes me to write a talk - as it is usually spread over many weeks/months, worked on as and when I have inspiration.  The actual processes is something like this:
 
