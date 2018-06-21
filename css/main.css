@@ -11,7 +11,10 @@ body {
   background-color: #fff;
 }
 
-blockquote, h2, p, li {
+blockquote,
+h2,
+p,
+li {
   padding-right: 10px;
   padding-left: 10px;
   font-size: 0.9em;
@@ -21,13 +24,11 @@ blockquote, h2, p, li {
 blockquote {
   margin-right: 40px;
   margin-left: 40px;
-  border-style: solid;
-  border-width: 1px;
-  border-color: #999;
-  background-color: #eee;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   margin: 2em 0 0.7em 0;
   padding: 0 10px;
   font-weight: normal;
@@ -51,12 +52,6 @@ p {
 
 p code {
   font-size: 1.2em;
-  background-color: #eee;
-}
-
-pre.highlight {
-  padding: 1em;
-  overflow-x: scroll;
 }
 
 /* sidebar
@@ -99,7 +94,9 @@ a img {
   text-decoration: none;
 }
 
-h1 a, h2 a, h3 a {
+h1 a,
+h2 a,
+h3 a {
   text-decoration: none;
 }
 
@@ -140,14 +137,26 @@ div.divider {
   text-align: center;
 }
 
-ul, ol, img, pre.highlight, blockquote {
+ul,
+ol,
+img,
+div.highlighter-rouge,
+blockquote {
   margin-left: 3em;
   margin-right: 3em;
 }
 
+div.highlighter-rouge {
+  padding: 0.5em 0.5em 0em 0.5em;
+}
+
 pre.highlight {
-  margin-top: 1em;
-  margin-bottom: 1em;
+  overflow-x: auto;
+}
+
+blockquote > p {
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
 }
 
 .left {
@@ -175,4 +184,48 @@ pre.highlight {
 .talks iframe {
   padding-left: 1em;
   padding-right: 1em;
+}
+
+/* shadowy things! */
+
+blockquote,
+div.highlighter-rouge {
+  position: relative;
+  background-color: #eee;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+  margin-bottom: 1em;
+}
+
+blockquote:before,
+blockquote:after,
+div.highlighter-rouge:before,
+div.highlighter-rouge:after {
+  content: "";
+  z-index: -2;
+  display: block;
+  position: absolute;
+  bottom: 0.75em;
+  left: 0.5em;
+  width: 49%;
+  height: 20%;
+  max-height: 13em;
+  box-shadow: 0px 13px 8px #979797;
+  -webkit-transform: rotate(-2deg);
+  -moz-transform: rotate(-2deg);
+  -ms-transform: rotate(-2deg);
+  -o-transform: rotate(-2deg);
+  transform: rotate(-2deg);
+}
+
+blockquote:after,
+div.highlighter-rouge:after {
+  right: 0.75em;
+  left: auto;
+  -webkit-transform: rotate(2deg);
+  -moz-transform: rotate(2deg);
+  -ms-transform: rotate(2deg);
+  -o-transform: rotate(2deg);
+  transform: rotate(2deg);
 }
