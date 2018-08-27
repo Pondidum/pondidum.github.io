@@ -55,7 +55,7 @@ But we can make it much clearer by using a validation library such as [FluentVal
 
 ```csharp
 var config = new StronkConfig()
-    .Validate.Using<Configuration>(c => new ConfigurationValidator().Validate(c))
+    .Validate.Using<Configuration>(c => new ConfigurationValidator().ValidateAndThrow(c))
     .Build<Configuration>();
 ```
 
