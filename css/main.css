@@ -137,9 +137,14 @@ div.divider {
   text-align: center;
 }
 
+img {
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+}
+
 ul,
 ol,
-img,
 div.highlighter-rouge,
 blockquote {
   margin-left: 3em;
