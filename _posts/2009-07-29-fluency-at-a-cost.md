@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Fluency at a cost?
-tags: design code c#
+tags: design c#
 
 ---
 

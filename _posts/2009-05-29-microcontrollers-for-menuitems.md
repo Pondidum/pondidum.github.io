@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Microcontrollers for MenuItems
-tags: design code generics controls c#
+tags: design generics controls c#
 
 ---
 

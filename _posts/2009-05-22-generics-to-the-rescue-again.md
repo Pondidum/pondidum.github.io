@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Generics to the rescue! Again!
-tags: design code generics c#
+tags: design generics c#
 
 ---
 

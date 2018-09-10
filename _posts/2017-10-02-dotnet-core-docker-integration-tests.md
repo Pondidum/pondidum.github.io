@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Integration Testing with Dotnet Core, Docker and RabbitMQ
-tags: code dotnetcore rabbitmq docker testing
+tags: dotnetcore rabbitmq docker testing
 ---
 
 When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.

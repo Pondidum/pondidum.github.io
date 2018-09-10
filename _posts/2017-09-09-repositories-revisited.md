@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Repositories Revisited (and why CQRS is better)
-tags: design code cqrs architecture
+tags: design cqrs architecture
 ---
 
 **TLDR:** I still don't like Repositories!

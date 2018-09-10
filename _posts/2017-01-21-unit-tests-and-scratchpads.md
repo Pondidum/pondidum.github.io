@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Unit Tests & Scratchpads
-tags: code c# testing xunit
+tags: c# testing xunit
 ---
 
 Often when developing something, I have the need to check how a function or library works.  For example, I *always* have to check for this question:

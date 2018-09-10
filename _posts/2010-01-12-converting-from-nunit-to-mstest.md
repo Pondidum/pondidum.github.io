@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Converting from NUnit to MSTest
-tags: code c#
+tags: c#
 
 ---
 

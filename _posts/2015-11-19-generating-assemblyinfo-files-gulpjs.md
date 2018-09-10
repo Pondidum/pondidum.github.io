@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Generating AssemblyInfo files with Gulp
-tags: code c# gulp
+tags: c# gulp
 ---
 
 When changing a project's build script over to [Gulpjs][gulp], I ran into a problem with one step - creating an `AssemblyInfo.cs` file.

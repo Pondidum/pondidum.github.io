@@ -1,8 +1,6 @@
 ---
 layout: post
 title: Analysis of Frames in World of Warcraft
-tags: code
-
 ---
 
 In this post we will be looking at how the `Frame` and associated objects are (probably) constructed behind the scenes.  This will all be done via inspection in lua from the games scripting engine.

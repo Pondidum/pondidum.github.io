@@ -1,8 +1,6 @@
 ---
 layout: post
 title: Software Fuzzying maybe?
-tags: code
-
 ---
 
 This morning I read [this post][1] by [Alfred Thompson][2] about whether we are Software Engineers or something else.  I can't help but agree with him, as I don't feel we are engineers (yet), our discipline is a little fuzzy to be classified as engineering I think.

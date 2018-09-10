@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Using a Micro ORM to decouple your DB Access
-tags: design code c# automapper sql memento
+tags: design c# automapper sql memento
 
 ---
 

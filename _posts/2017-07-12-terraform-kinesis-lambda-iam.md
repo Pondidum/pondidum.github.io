@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Terraform, Kinesis Streams, Lambda and IAM problems
-tags: code aws terraform s3
+tags: aws terraform s3
 ---
 
 I hit an problem the recently with Terraform, when I was trying to hook up a Lambda Trigger to a Kinesis stream.  Both the lambda itself, and the stream creation succeeded within Terraform, but the trigger would just stay stuck on "creating..." for at least 5 minutes, before I got bored of waiting and killed the process.  Several attempts at doing this had the same issue.

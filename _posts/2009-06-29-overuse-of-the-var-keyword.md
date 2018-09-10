@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Overuse of the Var keyword
-tags: design code c#
+tags: design c#
 
 ---
 

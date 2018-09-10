@@ -1,12 +1,12 @@
 ---
 layout: post
 title: Good Design in Warcraft Addons/Lua
-tags: design code lua warcraft
+tags: design lua warcraft
 ---
 
 ## Lack of Encapsulation in Addons
 
-I first noticed a lack of good design in addon code when I started trying to tweak existing addons to be slightly different.  
+I first noticed a lack of good design in addon code when I started trying to tweak existing addons to be slightly different.
 
 One of the stand out examples was a Threat Meter (you know which one I mean).  It works well, but I felt like writing my own, to make it really fit into my UI, with as little overhead as possible.  Not knowing how to even begin writing a Threat Meter, I downloaded a copy, and opened its source directory... to discover that the entire addon is one 3500+ line file, and 16 Ace.* dependencies.
 

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: To mutate or not to mutate
-tags: design code c#
+tags: design c#
 
 ---
 

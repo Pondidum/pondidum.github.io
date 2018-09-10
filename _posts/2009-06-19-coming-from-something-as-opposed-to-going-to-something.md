@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Coming From Something as opposed to Going To Something
-tags: design code c#
+tags: design c#
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Git Aliases
-tags: code git environment bash
+tags: git environment bash
 ---
 
 Git is great, but creating some git aliases is a great way to make your usages even more efficient.

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Visualising NuGet Dependencies
-tags: code c# nuget graphviz dependencies
+tags: c# nuget graphviz dependencies
 ---
 
 My new place of work has a lot of nuget packages, and I wanted to understand the dependencies between them.  To do this I wrote a simple shell script to find all the `packages.config` files on my machine, and output all the relationships in a way which I could view them.

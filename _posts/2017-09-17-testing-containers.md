@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Testing Containers or Test Behaviour, Not Implementation
-tags: design code structuremap testing
+tags: design structuremap testing
 ---
 
 The trouble with testing containers is that usually the test ends up very tightly coupled to the implementation.

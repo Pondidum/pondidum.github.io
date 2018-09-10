@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Expression Rules, Version 2
-tags: design code c#
+tags: design c#
 
 ---
 

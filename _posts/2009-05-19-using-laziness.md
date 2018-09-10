@@ -1,8 +1,6 @@
 ---
 layout: post
 title: Using Laziness
-tags: code
-
 ---
 
 As I do a lot of forms development, I end up writing something like this a lot:

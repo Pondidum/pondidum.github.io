@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Configuring Dapper to work with custom types
-tags: design code c# typing sql database orm
+tags: design c# typing sql database orm
 
 ---
 

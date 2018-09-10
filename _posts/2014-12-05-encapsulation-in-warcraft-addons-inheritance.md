@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Encapsulation in Warcraft Addons - Inheritance
-tags: design code lua warcraft
+tags: design lua warcraft
 ---
 
 ## Using Inheritance (sort of)
@@ -122,7 +122,7 @@ local class = {
 
 We have two methods here, `extend` and `new`.  The `new` method is nice and straight forward - it creates a new table, assigns the meta to be `class` and calls the `ctor` method (which is the one you would want to replace in sub classes).
 
-The `extend` method takes in a new table, and applies and sets the meta to `class`.  This is what is used to inherit and add new functionality.  
+The `extend` method takes in a new table, and applies and sets the meta to `class`.  This is what is used to inherit and add new functionality.
 
 For example, in my control library, I have a base class with some common methods:
 
@@ -223,7 +223,7 @@ extend = function(self, this)
 end
 ```
 
-This took me far too long to come up with and get working.  Essentially what it does is take all calls, and replace the `self` parameter with the correct table.  
+This took me far too long to come up with and get working.  Essentially what it does is take all calls, and replace the `self` parameter with the correct table.
 
 This method has some restrictions, in that you can only go 'up' one level in the class hierarchy, e.g. you cannot do `item:super():super():super()`.  In practice though, I have never needed to do this.
 

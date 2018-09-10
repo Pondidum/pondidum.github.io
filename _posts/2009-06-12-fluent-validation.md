@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Fluent Validation
-tags: design code c#
+tags: design c#
 
 ---
 

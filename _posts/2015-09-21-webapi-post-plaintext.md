@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Posting PlainText to Asp WebApi
-tags: code c# webapi
+tags: c# webapi
 ---
 
 Recently I have been writing a WebApi project which needs to accept plaintext via the body of a PUT request, and did the logical thing of using the `FromBodyAttribute`

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Edge.js for Embedded Webuis
-tags: design code c# typing sql database orm
+tags: design c# typing sql database orm
 
 ---
 

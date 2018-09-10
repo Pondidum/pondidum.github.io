@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Using Terraform to setup AWS API-Gateway and Lambda
-tags: code c# nodejs aws terraform lambda apigateway rest
+tags: c# nodejs aws terraform lambda apigateway rest
 ---
 
 I have been writing simple webhook type applications using [Claudiajs](https://claudiajs.com/), which in behind the scenes is using Aws's Lambda and Api Gateway to make things happen, but I really wanted to understand what exactly it was doing for me, and how I could achieve the same results using [Terraform](https://terraform.io).

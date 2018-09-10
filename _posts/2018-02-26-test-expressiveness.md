@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Test Expressiveness
-tags: code c# testing
+tags: c# testing
 ---
 
 We have a test suite at work which tests a retry decorator class works as expected.  One of the tests checks that when the inner implementation throws an exception, it will log the number of times it has failed:

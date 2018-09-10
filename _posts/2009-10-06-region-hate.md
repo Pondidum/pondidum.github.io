@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Region Hate
-tags: design code c#
+tags: design c#
 
 ---
 

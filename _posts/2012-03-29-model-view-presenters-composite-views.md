@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Model View Presenters: Composite Views"
-tags: design code c#
+tags: design c#
 
 ---
 

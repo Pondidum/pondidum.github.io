@@ -1,7 +1,7 @@
 ---
 layout: post
 title: CQS with Mediatr
-tags: code c# cqs cqrs mediatr
+tags: c# cqs cqrs mediatr
 ---
 
 This article is some extra thoughts I had on api structure after reading [Derek Comartin][derek-comartin-thin-controllers].

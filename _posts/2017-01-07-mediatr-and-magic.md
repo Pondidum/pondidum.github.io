@@ -1,7 +1,7 @@
 ---
 layout: post
 title: MediatR and Magic
-tags: code c# cqs cqrs mediatr
+tags: c# cqs cqrs mediatr
 ---
 
 Having recently watched Greg Young's excellent talk on [8 Lines of Code][8-lines] I was thinking about how this kind of thinking applies to the mediator pattern, and specifically the [MediatR][mediatr] implementation.

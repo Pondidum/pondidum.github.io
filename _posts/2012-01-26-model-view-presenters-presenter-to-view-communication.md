@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Model View Presenters: Presenter to View Communication"
-tags: design code c#
+tags: design c#
 
 ---
 

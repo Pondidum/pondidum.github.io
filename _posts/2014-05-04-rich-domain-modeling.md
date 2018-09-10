@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Writing Rich Domain Models
-tags: design code c# domain ddd
+tags: design c# domain ddd
 
 ---
 

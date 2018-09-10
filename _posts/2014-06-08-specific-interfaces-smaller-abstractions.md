@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Specific Interfaces
-tags: design code c#
+tags: design c#
 
 ---
 

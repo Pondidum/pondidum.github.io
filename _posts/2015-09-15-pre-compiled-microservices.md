@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Running pre-compiled microservices in Docker with Mono
-tags: design code microservices docker mono
+tags: design microservices docker mono
 ---
 
 Last time we went through [creating a Dockerfile for a microservice][blog-docker], with the service being compiled on creation of the container image, using xbuild.

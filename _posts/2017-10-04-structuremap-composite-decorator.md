@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Composite Decorators with StructureMap
-tags: code structuremap di ioc
+tags: structuremap di ioc
 ---
 
 While I was developing my [Crispin](https://github.com/pondidum/crispin) project, I ended up needing to create a bunch of implementations of a single interface, and then use all those implementations at once (for metrics logging).

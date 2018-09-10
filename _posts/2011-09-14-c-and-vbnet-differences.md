@@ -1,7 +1,7 @@
 ---
 layout: post
 title: C# and Vb.Net Differences
-tags: code c#
+tags: c#
 
 ---
 

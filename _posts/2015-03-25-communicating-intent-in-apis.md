@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Communicating Intent in APIs
-tags: design code api
+tags: design api
 ---
 
 Recently was trying to work out how to allow custom resources to be specified in [Dashen][github-dashen].  I already know what data is needed/defined for a resource: a name, a MIME type, and a Stream.  We can make this required data known very easily:

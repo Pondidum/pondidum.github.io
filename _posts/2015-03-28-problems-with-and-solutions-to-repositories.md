@@ -1,7 +1,7 @@
 ---
 layout: post
-title: The problems with and solutions to Repositories 
-tags: design code cqrs architecture
+title: The problems with and solutions to Repositories
+tags: design cqrs architecture
 ---
 
 

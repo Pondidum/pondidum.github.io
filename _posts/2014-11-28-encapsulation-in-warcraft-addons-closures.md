@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Encapsulation in Warcraft Addons - Closures
-tags: design code lua warcraft
+tags: design lua warcraft
 ---
 
 In the [last post][blog-addon-design] I alluded to the fact that if you put in a little leg work, you could write well encapsulated objects in lua.  There are two main ways to do this; with closures, and with metatables.  In this post we will deal with using closures, and in the next post we will cover using metatables.
@@ -78,7 +78,7 @@ local spellData = {
 ns.spellData = spellData.new()
 ```
 
-As the implementation of `getMaxCharges` is hidden, I can change it at will - perhaps splitting my `charges` table into two separate tables, or if Blizzard kindly implemented a `GetMaxStacks(spellName)` I could call this instead and remove my `charges` table altogether.  
+As the implementation of `getMaxCharges` is hidden, I can change it at will - perhaps splitting my `charges` table into two separate tables, or if Blizzard kindly implemented a `GetMaxStacks(spellName)` I could call this instead and remove my `charges` table altogether.
 
 ### Composition
 

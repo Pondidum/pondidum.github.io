@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Semantic Configuration Validation: Earlier"
-tags: code configuration c# strongtyping stronk validation
+tags: configuration c# strongtyping stronk validation
 ---
 
 After my previous post on [Validating Your Configuration](/2018/08/26/validate-configuration/), one of my colleagues made an interesting point, paraphrasing:

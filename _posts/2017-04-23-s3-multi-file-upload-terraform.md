@@ -1,7 +1,7 @@
 ---
 layout: post
 title: S3 Multi-File upload with Terraform
-tags: code aws terraform s3
+tags: aws terraform s3
 ---
 
 Hosting a static website with S3 is really easy, especially from terraform:

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Vagrant in the world of Docker
-tags: code docker vagrant testing
+tags: docker vagrant testing
 ---
 
 I gave a little talk at work recently on my use of Vagrant, what it is, and why it is still useful in a world full of Docker containers.

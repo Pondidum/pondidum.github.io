@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Validate Your Configuration
-tags: code configuration c# strongtyping stronk validation
+tags: configuration c# strongtyping stronk validation
 ---
 
 As I have [written](/2016/12/06/strong-type-all-the-configurations/) many [times](/2017/11/09/configuration-composition/) before, your application's configuration should be strongly typed and validated that it loads correctly at startup.

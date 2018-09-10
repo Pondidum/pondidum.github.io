@@ -1,7 +1,7 @@
 ---
 layout: post
 title: SQL Like statement
-tags: code sql
+tags: sql
 
 ---
 
