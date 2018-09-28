@@ -15,8 +15,6 @@ blockquote,
 h2,
 p,
 li {
-  padding-right: 10px;
-  padding-left: 10px;
   font-size: 0.9em;
   line-height: 1.6em;
 }
@@ -30,7 +28,6 @@ h1,
 h2,
 h3 {
   margin: 2em 0 0.7em 0;
-  padding: 0 10px;
   font-weight: normal;
   font-family: Georgia, Times, serif;
   color: #c00;
