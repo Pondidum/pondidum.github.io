@@ -32,9 +32,12 @@ h3 {
   margin: 2em 0 0.7em 0;
   padding: 0 10px;
   font-weight: normal;
-  font-size: 1.5em;
   font-family: Georgia, Times, serif;
   color: #c00;
+}
+
+h1 {
+  font-size: 2em;
 }
 
 h2 {
