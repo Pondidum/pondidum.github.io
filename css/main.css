@@ -235,3 +235,8 @@ div.highlighter-rouge:after {
   -o-transform: rotate(2deg);
   transform: rotate(2deg);
 }
+
+.attribution {
+  font-size: 0.7em !important;
+  text-align: center;
+}
