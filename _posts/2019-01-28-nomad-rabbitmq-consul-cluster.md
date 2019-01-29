@@ -66,7 +66,7 @@ COPY rabbitmq.conf /etc/rabbitmq
 RUN rabbitmq-plugins enable --offline rabbitmq_peer_discovery_consul
 ```
 
-The `rabbitmq.conf` only needs a few lines:
+The `rabbitmq.conf` only needs a few lines.  For this demo, we are enabling the `guest` account, and allowing it access to the webui from anyware, which should **not be done in a production**!
 
 ```conf
 loopback_users.guest = false
@@ -158,14 +158,14 @@ task "rabbit" {
     port_map {
       amqp = 5672
       ui = 15672
-      discovery = 4369
+      epmd = 4369
       clustering = 25672
     }
   }
 }
 ```
 
-The `env` section is pretty self-explanatory; they are environment variables to pass to the container.  As Consul is running on the Nomad host, we use the Nomad interpolation attribute to specify the IP of the current host, and we also set the `RABBITMQ_ERLANG_COOKIE` to a specific value.  In a production environment, you should be setting this value to something unguessable, possibly using the [Vault intergration](https://www.nomadproject.io/docs/job-specification/vault.html) in Nomad to fetch a token.
+The `env` section is pretty self-explanatory; they are environment variables to pass to the container.  As Consul is running on the Nomad host, we use the Nomad interpolation attribute to specify the IP of the current host, and we also set the `RABBITMQ_ERLANG_COOKIE` to a specific value.  In a production environment, you should be setting this value to something unguessable, possibly using the [Vault intergration](https://www.nomadproject.io/docs/job-specification/vault.html) in Nomad to fetch a token.  We can also add other settings to pass to the container here, such as `RABBITMQ_DEFAULT_USER` and `RABBITMQ_DEFAULT_PASS`.  As with the cookie generation, in a production-like environment, you'd probably want to use the Vault integration to pull the values for these variables.
 
 ```bash
 env {
@@ -181,7 +181,7 @@ resources {
   network {
     port "amqp" { static = 5672 }
     port "ui" { static = 15672 }
-    port "node_names" { static = 4369 }
+    port "epmd" { static = 4369 }
     port "clustering" { static = 25672 }
   }
 }
@@ -236,7 +236,7 @@ job "rabbit" {
         port_map {
           amqp = 5672
           ui = 15672
-          discovery = 4369
+          epmd = 4369
           clustering = 25672
         }
       }
@@ -250,7 +250,7 @@ job "rabbit" {
         network {
           port "amqp" { static = 5672 }
           port "ui" { static = 15672 }
-          port "node_names" { static = 4369 }
+          port "epmd" { static = 4369 }
           port "clustering" { static = 25672 }
         }
       }
