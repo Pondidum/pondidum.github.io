@@ -8,6 +8,8 @@ RabbitMQ is the centre of a lot of micros service architectures, and while you c
 
 I ran into a few problems trying to get this working, but a lot of searching and some help from the [RabbitMQ mailing list](https://groups.google.com/forum/#!forum/rabbitmq-users) (thanks Luke!) got me through all the issues, so hopefully, this will be easier next time and for other people too.
 
+It is also worth noting that this is only going to be covering how to make a cluster work, not how to make it secure (setting up TLS etc.) for production usage.  There is a lot of [documentation on the RabbitMQ website](https://www.rabbitmq.com/production-checklist.html#security-considerations) for further reading on this!
+
 The full repository with all of the [demo code is available on my Github](https://github.com/Pondidum/Nomad-RabbitMQ-Demo).
 
 ## Nomad Cluster
@@ -163,7 +165,7 @@ task "rabbit" {
 }
 ```
 
-The `env` section is pretty self-explanatory; they are environment variables to pass to the container.  As Consul is running on the Nomad host, we use the Nomad interpolation attribute to specify the IP to use.
+The `env` section is pretty self-explanatory; they are environment variables to pass to the container.  As Consul is running on the Nomad host, we use the Nomad interpolation attribute to specify the IP of the current host, and we also set the `RABBITMQ_ERLANG_COOKIE` to a specific value.  In a production environment, you should be setting this value to something unguessable, possibly using the [Vault intergration](https://www.nomadproject.io/docs/job-specification/vault.html) in Nomad to fetch a token.
 
 ```bash
 env {
