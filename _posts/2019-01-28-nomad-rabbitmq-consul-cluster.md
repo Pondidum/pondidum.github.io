@@ -4,6 +4,8 @@ title: RabbitMQ clustering with Consul in Nomad
 tags: infrastructure vagrant nomad consul rabbitmq
 ---
 
+**Update** If you want a secure version of this cluster, see [Running a Secure RabbitMQ Cluster in Nomad](/2019/04/06/nomad-rabbitmq-secure/).
+
 RabbitMQ is the centre of a lot of micros service architectures, and while you can cluster it manually, it is a lot easier to use some of the [auto clustering plugins](https://www.rabbitmq.com/clustering.html#cluster-formation-options), such as AWS (EC2), Consul, Etcd, or Kubernetes. As I like to use [Nomad](https://www.nomadproject.io/) for container orchestration, I thought it would be a good idea to show how to cluster RabbitMQ when it is running in a Docker container, on an unknown host (i.e. one picked by Nomad.)
 
 I ran into a few problems trying to get this working, but a lot of searching and some help from the [RabbitMQ mailing list](https://groups.google.com/forum/#!forum/rabbitmq-users) (thanks Luke!) got me through all the issues, so hopefully, this will be easier next time and for other people too.
@@ -66,10 +68,9 @@ COPY rabbitmq.conf /etc/rabbitmq
 RUN rabbitmq-plugins enable --offline rabbitmq_peer_discovery_consul
 ```
 
-The `rabbitmq.conf` only needs a few lines.  For this demo, we are enabling the `guest` account, and allowing it access to the webui from anyware, which should **not be done in a production**!
+The `rabbitmq.conf` only needs a few lines:
 
 ```conf
-loopback_users.guest = false
 cluster_formation.peer_discovery_backend = rabbit_peer_discovery_consul
 cluster_formation.consul.svc_addr_auto = true
 ```
@@ -86,9 +87,9 @@ Once we have a custom container built, it's a good idea to test that it actually
 docker network create rabbit
 docker run -d --rm --name consul -p 8500:8500 consul
 
-docker run -d --rm --name rabbit1 -h rabbit1 --network rabbit -p 30001:15672 -e RABBITMQ_ERLANG_COOKIE='rabbit' -e CONSUL_HOST='10.0.75.1' rabbitmq:consul
-docker run -d --rm --name rabbit2 -h rabbit2 --network rabbit -p 30002:15672 -e RABBITMQ_ERLANG_COOKIE='rabbit' -e CONSUL_HOST='10.0.75.1' rabbitmq:consul
-docker run -d --rm --name rabbit3 -h rabbit3 --network rabbit -p 30003:15672 -e RABBITMQ_ERLANG_COOKIE='rabbit' -e CONSUL_HOST='10.0.75.1' rabbitmq:consul
+docker run -d --rm --name rabbit1 -h rabbit1 --network rabbit -p 30001:15672 -e RABBITMQ_ERLANG_COOKIE='rabbit' -e 'RABBITMQ_DEFAULT_USER=test' -e 'RABBITMQ_DEFAULT_PASS=test' -e CONSUL_HOST='10.0.75.1' rabbitmq:consul
+docker run -d --rm --name rabbit2 -h rabbit2 --network rabbit -p 30002:15672 -e RABBITMQ_ERLANG_COOKIE='rabbit' -e 'RABBITMQ_DEFAULT_USER=test' -e 'RABBITMQ_DEFAULT_PASS=test' -e CONSUL_HOST='10.0.75.1' rabbitmq:consul
+docker run -d --rm --name rabbit3 -h rabbit3 --network rabbit -p 30003:15672 -e RABBITMQ_ERLANG_COOKIE='rabbit' -e 'RABBITMQ_DEFAULT_USER=test' -e 'RABBITMQ_DEFAULT_PASS=test' -e CONSUL_HOST='10.0.75.1' rabbitmq:consul
 ```
 
 You can now visit `http://localhost:30001` (or `30002` or `30003`) and see that we have a successful cluster running.  Once you're happy with it, you can kill it all off (as we started the containers with the `--rm` flag, Docker will delete them for us when they stop):
@@ -159,7 +160,7 @@ task "rabbit" {
       amqp = 5672
       ui = 15672
       epmd = 4369
-      clustering = 25672
+      clustering =
     }
   }
 }
@@ -242,7 +243,9 @@ job "rabbit" {
       }
 
       env {
-        RABBITMQ_ERLANG_COOKIE = "rabbitmq"
+        RABBITMQ_ERLANG_COOKIE = "generate_a_guid_-_or_something_for_this"
+        RABBITMQ_DEFAULT_USER = "test"
+        RABBITMQ_DEFAULT_PASS = "test"
         CONSUL_HOST = "${attr.unique.network.ip-address}"
       }
 
