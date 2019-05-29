@@ -201,6 +201,7 @@ To configure RabbitMQ to use SSL, we need to provide it with values for 3 enviro
 
 So let's add a `template` block to the job to generate and write out a certificate.  It's worth noting that **line endings matter**.  You either need your `.nomad` file to use LF line endings, or make the `template` a single line and use `\n` to add the correct line endings in.  I prefer to have the file with LF line endings.
 
+{% raw %}
 ```bash
 template {
   data = <<EOH
@@ -213,18 +214,23 @@ EOH
   change_mode = "restart"
 }
 ```
+{% endraw %}
 
 As we want to use the Nomad node's hostname within the `common_name` parameter of the secret, we need to use a variable to fetch and format the value:
 
+{% raw %}
 ```ruby
 {{ $host := printf "common_name=%s.mshome.net" (env "attr.unique.hostname") }}
 ```
+{% endraw %}
 
 This can then be used by the `with secret` block to fetch a certificate for the current host:
 
+{% raw %}
 ```ruby
 {{ with secret "pki/issue/rabbit" $host "format=pem" }}
 ```
+{% endraw %}
 
 Now that we have a certificate in the `./secrets/` directory, we can add a couple of volume mounts to the container, and set the environment variables with the container paths to the certificates.  Note how the root certificate is coming from the `/vagrant` directory, not from Vault itself.  Depending on how you are provisioning your machines to trust your CA, you will have a different path here!
 
@@ -257,6 +263,7 @@ You can see the version of this file with [only these changes here](https://gith
 
 Now that we have things running with a certificate, it would be a great idea to start using the Erlang Cookie value and Management UI credentials we stored in Vault earlier.  This is a super easy change to support in the Nomad file - we need to add another `template` block, but this time set `env = true` which will instruct nomad that the key-values in the template should be loaded as environment variables:
 
+{% raw %}
 ```bash
 template {
     data = <<EOH
@@ -272,6 +279,7 @@ EOH
     env = true
 }
 ```
+{% endraw %}
 
 The complete nomad file with [both certificates and credentials can be seen here](https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/a78736cac3a93a43a96cbe84492089fca29d15e1/rabbit/secure.nomad).
 
