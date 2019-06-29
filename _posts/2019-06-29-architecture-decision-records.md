@@ -98,6 +98,7 @@ Next, we need to add some context for the decision being made.  In our serializa
 
 We need to have a consistent serialization scheme for the API.  It needs to be backwards and forwards compatible, as we don't control all of the clients.  Messages will be fairly high volume and don't *need* to be human readable.
 ```
+{: .wrap }
 
 Now that we have some context, we need to explain what choices we have available.  This will help when reading past decisions, as it will let us answer the question "was xxxx or yyyy considered?".  In our example, we consider JSON, Apache Avro, the inbuilt binary serializer, and a custom built serializer (and others, such as Thrift, ProtoBufs, etc.)
 
@@ -115,6 +116,7 @@ Now that we have some context, we need to explain what choices we have available
 
 5. **Thrift**: ...
 ```
+{: .wrap }
 
 The second to last section is our Chosen Decision, which will not only list which one we picked (Avro, in this case) but also why it was chosen over other options.  All this helps reading older decisions, as it lets you know what was known at the time the decision was made - and you will always know less at the time of the decision than you do now.
 
@@ -125,6 +127,7 @@ The second to last section is our Chosen Decision, which will not only list whic
 
 Avro was chosen because it has the best combination of message size and schema definition.  No need to have a central schema repository set up is also a huge benefit.
 ```
+{: .wrap }
 
 In this example, we have selected Avro and listed that our main reasons were message size, and the fact that Avro includes the schema with each message, meaning we don't need a central (or distributed) schema repository to be able to read messages.
 
@@ -135,6 +138,7 @@ The final section is for Consequences of the decision.  This is **not** to list 
 
 As the messages are binary format, we cannot directly view them on the wire.  However, a small CLI will be built to take a message and pretty print it to aid debugging.
 ```
+{: .wrap }
 
 As we have selected a binary message format, the messages can't be easily viewed any more, so we will build a small CLI which when given a message (which as noted, contains the schema), renders a human-readable version of the message.
 

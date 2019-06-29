@@ -240,3 +240,7 @@ div.highlighter-rouge:after {
   font-size: 0.7em !important;
   text-align: center;
 }
+
+div.wrap pre {
+  white-space: pre-line;
+}
