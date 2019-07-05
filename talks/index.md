@@ -21,12 +21,23 @@ A Talk on how the 12 Factor Application Principles can help simplify development
 
 <div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
 
+
 # Nomad: Kubernetes without the Complexity
 A talk on Hashicorp's Nomad product, which provides container orchestration, but in a much lighter weight manner than Kubernetes.
 
 [Slides](/presentations/index.html?nomad) and [Slide Source](https://github.com/Pondidum/presentations/tree/master/content/nomad/)
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/THNgtTsApaE" frameborder="0" allowfullscreen></iframe>
+
+<div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
+
+
+# How to Secure Your Microservices
+A talk on how to use Hashicorp's Vault to generate and consume dynamic database credentials.  Examples on the CLI and from a C# application.
+
+[Slides](/presentations/index.html?vault) and [Slide Source](https://github.com/Pondidum/presentations/tree/master/content/vault/)
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/SCTOXsFGYnM" frameborder="0" allowfullscreen></iframe>
 
 <div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
 
