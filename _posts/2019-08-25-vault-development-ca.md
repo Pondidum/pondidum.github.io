@@ -86,6 +86,57 @@ vault write pki/roles/cert \
 
 Also note how we don't stop the docker container either.  Wouldn't be much of a CA if it stopped the second it was configured...
 
+
+## Creating a Vault Intermediate CA
+
+Sometimes, I want to test that a piece of software works when I have issued certificates from an Intermediate CA, rather than directly from the root.  We can configure Vault to do this too, with a modified script which this time we start two PKI secret backends, one to act as the root, and onc as the intermediate:
+
+```bash
+#!/bin/bash
+
+set -e
+
+docker run -d --rm  --cap-add=IPC_LOCK -p 8200:8200 -e "VAULT_DEV_ROOT_TOKEN_ID=vault" vault:latest
+
+export VAULT_ADDR="http://localhost:8200"
+export VAULT_TOKEN="vault"
+
+# create root ca
+certs_dir="./ca"
+pem=$(cat $certs_dir/ca.crt $certs_dir/private.key)
+
+vault secrets enable -path=pki_root pki
+vault secrets tune -max-lease-ttl=87600h pki_root
+vault write pki_root/config/ca pem_bundle="$pem"
+
+# create the intermediate
+vault secrets enable pki
+vault secrets tune -max-lease-ttl=43800h pki
+
+csr=$(vault write pki/intermediate/generate/internal \
+  -format=json common_name="Spectre Dev Intermdiate CA" \
+  | jq -r .data.csr)
+
+intermediate=$(vault write pki_root/root/sign-intermediate \
+  -format=json csr="$csr" format=pem_bundle ttl=43800h \
+  | jq -r .data.certificate)
+
+vault write pki/intermediate/set-signed certificate="$intermediate"
+
+echo "$intermediate" > intermediate.crt
+
+vault write pki/roles/cert \
+  allowed_domains=localhost,mshome.net \
+  allow_subdomains=true \
+  max_ttl=43800h
+
+# destroy the temp root
+vault secrets disable pki_root
+```
+
+We use the `pki_root` backend to sign a CSR from the `pki` (intermediate) backend, and once the signed response is stored in `pki`, we delete the `pki_root` backend, as it is no longer needed for our Development Intermediate CA.
+
+
 ## Issuing Certificates
 
 We can now use the `cert` role to issue certificates for our applications, which I have in a script called `issue.sh`:
