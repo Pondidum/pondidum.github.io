@@ -121,7 +121,9 @@ intermediate=$(vault write pki_root/root/sign-intermediate \
   -format=json csr="$csr" format=pem_bundle ttl=43800h \
   | jq -r .data.certificate)
 
-vault write pki/intermediate/set-signed certificate="$intermediate"
+chained=$(echo -e "$intermediate\n$(cat $certs_dir/ca.crt)")
+
+vault write pki/intermediate/set-signed certificate="$chained"
 
 echo "$intermediate" > intermediate.crt
 
