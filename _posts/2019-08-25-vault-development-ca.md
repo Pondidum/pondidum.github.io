@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Using Vault as a Development CA
-tags: vault security ssl
+tags: vault security tls
 ---
 
 Often when developing or testing some code, I need (or want) to use SSL, and one of the easiest ways to do that is to use [Vault](https://www.vaultproject.io/).  However, it gets pretty annoying having to generate a new CA for each project, and import the CA cert into windows (less painful in Linux, but still annoying), especially as I forget which cert is in use, and accidentally clean up the wrong ones.
