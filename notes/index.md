@@ -24,3 +24,12 @@ EC2 (and GCP) instances run scripts on machine start, but Packer won't wait for 
     "inline": [ "/usr/bin/cloud-init status --wait" ]
 }
 ```
+
+
+## Vagrant
+
+Override the default smb share in hyper-v with the username and password to use, pulled from environment:
+
+```ruby
+config.vm.synced_folder ".", "/vagrant", smb_username: ENV['VAGRANT_SMB_USER'], smb_password: ENV['VAGRANT_SMB_PASS']
+```
