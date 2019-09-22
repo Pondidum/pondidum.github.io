@@ -140,7 +140,7 @@ cat <<-EOF
     "verify_incoming_https": false,
     "verify_outgoing": true,
     "verify_server_hostname": true,
-    "ca_file": "$config_dir/issuer.crt",
+    "ca_path": "$config_dir/ca/",
     "cert_file": "$config_dir/consul.crt",
     "key_file": "$config_dir/consul.key",
     "ports": {
