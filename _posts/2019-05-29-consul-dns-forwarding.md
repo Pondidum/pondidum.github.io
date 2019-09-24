@@ -1,7 +1,13 @@
 ---
 layout: post
 title: Configuring Consul DNS Forwarding in Ubuntu 16.04
-tags: infrastructure consul
+tags: infrastructure dns consul
+---
+
+# DEPRECATED - This doesn't work properly
+
+[Please see this post for an updated version which works!](/2019/09/24/consul-ubuntu-dns-revisited/)
+
 ---
 
 One of the advantages of using [Consul](https://www.consul.io/) for service discovery is that besides an HTTP API, you can also query it by DNS.

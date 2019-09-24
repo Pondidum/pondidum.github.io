@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Configuring Consul DNS Forwarding in Alpine Linux
-tags: infrastructure consul alpine
+tags: infrastructure consul alpine dns
 ---
 
 Following on from the post the other day on setting up [DNS forwarding to Consul with SystemD](/2019/05/29/consul-dns-forwarding/), I wanted also to show how to get Consul up and running under [Alpine Linux](https://www.alpinelinux.org/), as it's a little more awkward in some respects.
