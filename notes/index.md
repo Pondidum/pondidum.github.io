@@ -33,3 +33,19 @@ Override the default smb share in hyper-v with the username and password to use,
 ```ruby
 config.vm.synced_folder ".", "/vagrant", smb_username: ENV['VAGRANT_SMB_USER'], smb_password: ENV['VAGRANT_SMB_PASS']
 ```
+
+
+## Jenkins
+
+Adding build parameters e.g. `commit_hash` will show up on the `params.commit_hash` in a pipeline, **but will also** get written as an environment variable, maintaining case, e.g. `env.commit_hash` or `$commit_hash`.
+
+If you export in a different case, the original name is preserved, with the new value e.g. `env.COMMIT_HASH = 'new'` will actually be available as `$commit_hash`.
+
+If you try to unset the original casing first, then set on the casing you want, it **removes both** e.g.
+
+```
+env.commit_hash = ""
+env.COMMIT_HASH = "yes?"
+
+sh "env | grep -i commit_hash | wc -l" // 0.
+```
