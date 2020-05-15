@@ -1,6 +1,10 @@
 name: Andy Dote
 description: Andy Dote's blog
 url: https://andydote.co.uk
+twitter_username: "pondidum"
+author: "Andy Dote"
+title_image: /images/site.png
+
 highlighter: rouge
 exclude: [serve, servedrafts, vagrantfile]
 paginate: 5
