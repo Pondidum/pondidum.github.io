@@ -15,7 +15,7 @@ We can achieve this by tweaking how we build our stages, which will also allow s
 An example dockerfile is below.  There are two stages, `builder` and `prod`.  In the case we are looking at, both the OS packages and application dependencies rarely change, but can take quite a while to install.
 
 ```dockerfile
-FROM node:14.2.0-alpine3.11
+FROM node:14.2.0-alpine3.11 AS builder
 WORKDIR /app
 
 RUN apk add --no-cache make gcc g++ python
