@@ -1,3 +1,9 @@
-#! /bin/bash
+#!/bin/bash
 
-bundle exec jekyll serve -H 0.0.0.0 -P 4000 --incremental "$@"
+docker run \
+    --rm \
+    -it \
+    -v "$PWD:/srv/jekyll" \
+    -p 4000:4000 \
+    jekyll/jekyll:pages \
+    jekyll serve --watch --incremental
