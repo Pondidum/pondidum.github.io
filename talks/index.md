@@ -10,7 +10,6 @@ A Talk on how Feature Toggles can be a great asset or terrible curse. Examples o
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/r7VI5x2XKXw" frameborder="0" allowfullscreen></iframe>
 
-<div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
 
 # 12 Factor Microservices (in C#)
 A Talk on how the 12 Factor Application Principles can help simplify development and operations of microservices.  Examples in asp.net core.
@@ -19,7 +18,6 @@ A Talk on how the 12 Factor Application Principles can help simplify development
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/KGIGFHVoZo0" frameborder="0" allowfullscreen></iframe>
 
-<div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
 
 
 # Nomad: Kubernetes without the Complexity
@@ -29,7 +27,6 @@ A talk on Hashicorp's Nomad product, which provides container orchestration, but
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/THNgtTsApaE" frameborder="0" allowfullscreen></iframe>
 
-<div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
 
 
 # How to Secure Your Microservices
@@ -39,7 +36,6 @@ A talk on how to use Hashicorp's Vault to generate and consume dynamic database 
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/SCTOXsFGYnM" frameborder="0" allowfullscreen></iframe>
 
-<div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
 
 
 # Streaming Software Development for Fun and...?
@@ -49,7 +45,6 @@ A Lightning Talk on my experiences streaming software development on Twitch.
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/8tpab1xpBSs" frameborder="0" allowfullscreen></iframe>
 
-<div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
 
 # Building a Serverless, EventSourced Slack clone
 A talk about the leasons learned trying to make a totally serverless application. Covers terraform, cognito, lambda, api-gateway, dynamodb and s3
@@ -58,7 +53,6 @@ A talk about the leasons learned trying to make a totally serverless application
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/8dvzgCcvdGY" frameborder="0" allowfullscreen></iframe>
 
-<div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>
 
 # Strong Type All The Things!
 A Lightning Talk on Strong Typing, covering configuration, identifiers and value types.
@@ -67,4 +61,3 @@ A Lightning Talk on Strong Typing, covering configuration, identifiers and value
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/gTTVirxhETc" frameborder="0" allowfullscreen></iframe>
 
-<div class="divider"><img src="/images/divider.gif" width="400" height="1" alt="---" title="" /></div>

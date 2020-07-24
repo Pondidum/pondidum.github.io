@@ -11,5 +11,5 @@ paginate: 5
 gems: [jekyll-paginate]
 permalink: pretty
 
-collections:
-  - twelve
+sass:
+  style: compact
