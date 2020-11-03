@@ -7,7 +7,10 @@ tags: docker
 Often when building applications, I will use a multistage docker build for output container size and efficiency, but will run the build in two halves, to make use of the extra assets in the builder container, something like this:
 
 ```bash
-docker build --target builder -t builder:$GIT_COMMIT .
+docker build \
+  --target builder \
+  -t builder:$GIT_COMMIT \
+  .
 
 docker run --rm \
   -v "$PWD/artefacts/tests:/artefacts/tests" \
@@ -104,7 +107,11 @@ COPY --from builder /app/dist /app
 Now our build script can use the `--build-arg` parameter to force the right container:
 
 ```diff
-docker build --target builder -t builder:$GIT_COMMIT .
+docker build \
+-  --target builder \
++  --file Dockerfile.builder \
+  -t builder:$GIT_COMMIT \
+  .
 
 docker run --rm \
   -v "$PWD/artefacts/tests:/artefacts/tests" \
@@ -119,7 +126,7 @@ docker run --rm \
 docker build \
 -  --cache-from builder:$GIT_COMMIT \
 +  --build-arg "builder_image=builder:$GIT_COMMIT" \
-  --target output \
++  --file Dockerfile.output \
   -t app:$GIT_COMMIT \
   .
 ```
