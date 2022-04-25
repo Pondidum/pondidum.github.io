@@ -1,4 +1,8 @@
-# Random Notes
+---
+title: Random Notes
+url: "/notes/"
+summary: "Notes"
+---
 
 Just little snippets of things which might be useful later, but are not really worthy of a blog post.
 

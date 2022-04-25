@@ -1,9 +1,8 @@
 ---
-layout: default
-title: Andy Dote
+title: Contact
+url: "/contact/"
+summary: "contact"
 ---
-
-# Contact
 
 I’m usually pretty easy to get hold of, here’s how I use different channels to communicate with people and how best to contact me.
 
@@ -30,7 +29,7 @@ My rough rules for speaking at events, which are not set in stone are as follows
 * **Local (In Finland)** - I'll gladly come and speak
 * **Non-Profit/Community (abroad)** - Depends on how interesting the location/event looks to me
 * **For-Profit/Corporate (abroad)** - Cover my Hotel & Travel Expenses
-{:.no-bullets}
+
 
 ## What I might respond to
 
