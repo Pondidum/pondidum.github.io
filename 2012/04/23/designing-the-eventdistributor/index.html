@@ -1,0 +1,255 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=x-ua-compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Designing the EventDistributor | Andy Dote</title><meta name=keywords content="design,c#"><meta name=description content="When it comes to developing a new class, I don&rsquo;t tend to use TDD (Test Driven Development), I favour something I have named TAD - Test Aided Development. In other words, while I am for Unit Testing in general, designing something via writing tests sometimes feels too clunky and slow. I always write classes and methods with testing very much in mind, but I do not generally write the tests until later on in the process."><meta name=author content><link rel=canonical href=https://andydote.co.uk/2012/04/23/designing-the-eventdistributor/><link crossorigin=anonymous href=/assets/css/stylesheet.min.b4e19c453811e60acfec1f00c15ac2be1c53f6ab90187e684358ce7faaf48bab.css integrity="sha256-tOGcRTgR5grP7B8AwVrCvhxT9quQGH5oQ1jOf6r0i6s=" rel="preload stylesheet" as=style><script defer crossorigin=anonymous src=/assets/js/highlight.min.2840b7fccd34145847db71a290569594bdbdb00047097f75d6495d162f5d7dff.js integrity="sha256-KEC3/M00FFhH23GikFaVlL29sABHCX911kldFi9dff8=" onload=hljs.initHighlightingOnLoad()></script>
+<link rel=icon href=https://andydote.co.uk/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://andydote.co.uk/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://andydote.co.uk/favicon-32x32.png><link rel=apple-touch-icon href=https://andydote.co.uk/apple-touch-icon.png><link rel=mask-icon href=https://andydote.co.uk/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><noscript><style>#theme-toggle,.top-link{display:none}</style></noscript><meta property="og:title" content="Designing the EventDistributor"><meta property="og:description" content="When it comes to developing a new class, I don&rsquo;t tend to use TDD (Test Driven Development), I favour something I have named TAD - Test Aided Development. In other words, while I am for Unit Testing in general, designing something via writing tests sometimes feels too clunky and slow. I always write classes and methods with testing very much in mind, but I do not generally write the tests until later on in the process."><meta property="og:type" content="article"><meta property="og:url" content="https://andydote.co.uk/2012/04/23/designing-the-eventdistributor/"><meta property="article:section" content="post"><meta property="article:published_time" content="2012-04-23T00:00:00+00:00"><meta property="article:modified_time" content="2012-04-23T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Designing the EventDistributor"><meta name=twitter:description content="When it comes to developing a new class, I don&rsquo;t tend to use TDD (Test Driven Development), I favour something I have named TAD - Test Aided Development. In other words, while I am for Unit Testing in general, designing something via writing tests sometimes feels too clunky and slow. I always write classes and methods with testing very much in mind, but I do not generally write the tests until later on in the process."><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":2,"name":"Posts","item":"https://andydote.co.uk/post/"},{"@type":"ListItem","position":3,"name":"Designing the EventDistributor","item":"https://andydote.co.uk/2012/04/23/designing-the-eventdistributor/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Designing the EventDistributor","name":"Designing the EventDistributor","description":"When it comes to developing a new class, I don\u0026rsquo;t tend to use TDD (Test Driven Development), I favour something I have named TAD - Test Aided Development. In other words, while I am for Unit Testing in general, designing something via writing tests sometimes feels too clunky and slow. I always write classes and methods with testing very much in mind, but I do not generally write the tests until later on in the process.","keywords":["design","c#"],"articleBody":"When it comes to developing a new class, I don’t tend to use TDD (Test Driven Development), I favour something I have named TAD - Test Aided Development. In other words, while I am for Unit Testing in general, designing something via writing tests sometimes feels too clunky and slow. I always write classes and methods with testing very much in mind, but I do not generally write the tests until later on in the process. This post covers roughly how I wrote the EventDistributor, and what points of note there are along the way.\nThe first phase in designing it, was the use case:\nevents.RegisterFor(OnPersonSaved); events.Publish(new PersonSavedEvent()); events.UnRegisterFor(OnPersonSaved);  private void OnPersonSaved(PersonSavedEvent e) { \t/* ... */ } From this use case, we are able to tell that we will have 0 - n events, and each event will have 0 - n subscribers. This points to some kind of Dictionary based backing field:\npublic class EventDistributor { \tprivate readonly Dictionary _events;  \tpublic EventDistributor() \t{ \t_events = new Dictionary(); \t}  \tpublic void RegisterFor(Action handler) \t{ \t}  \tpublic void UnRegisterFor(Action handler) \t{ \t}  \tpublic void Publish(TEvent @event) \t{ \t} } For populating the dictionary, we need to add an entry for a TEvent if there is not already one (and create a blank list of handlers), and append our new handler:\npublic void RegisterFor(Action handler) { \tvar type = typeof(TEvent); \tList handlers;  \tif (_events.TryGetValue(type, out handlers) == false) \t{ \thandlers = new List(); \t_events[type] = handlers; \t}  \thandlers.Add(handler); } This gives rise to the first problem: the line handlers.Add(handler); gives us a nice error of: Error Argument '1': cannot convert from 'System.Action' to 'System.Action'. To fix this, we need to create a new Action and inside that, cast the parameter to TEvent.\nhandlers.Add(o = handler((TEvent) o)); This does however make the UnRegisterFor method a little more tricky, as doing handlers.Remove(o = handler((TEvent)o)); doesn’t work because they refer to different objects. Thankfully, as the Action’s GetHashCode() gives the same result for each instance, providing the content is the same. We can use this to check for equality:\npublic void UnRegisterFor(Action handler) { \tvar type = typeof(TEvent); \tList handlers;  \tif (_events.TryGetValue(type, out handlers) == false) \t{ \treturn; \t}  \tvar hash = new Actionobject(o = handler((TEvent) o)).GetHashCode(); \thandlers.RemoveAll(h = h.GetHashCode() == hash); } The Publish method is nice and straight forward; if the event isn’t registered, throw an exception, and raise each subscriber’s handler.\npublic void Publish(TEvent @event) { \tvar type = typeof(TEvent); \tList handlers;  \tif (_events.TryGetValue(type, out handlers) == false) \t{ \tthrow new EventNotRegisteredException(type); \t}  \thandlers.ForEach(h = h.Invoke(@event)); } Now that we have a class roughly implemented, we create the first set of tests for it:\n[Test] public void When_publishing_an_event_without_a_handler() { \tvar distributor = new Distributor(); \tAssert.DoesNotThrow(() = distributor.Publish(new PersonSavedEvent())); } [Test] public void When_publishing_an_event_with_a_handler() { \tvar wasCalled = false; \tvar distributor = new Distributor();  \tdistributor.RegisterFor(e = wasCalled = true); \tdistributor.Publish(new TestEvent());  \tAssert.IsTrue(wasCalled, \"The target was not invoked.\"); } [Test] public void When_publishing_an_event_and_un_registering() { \tvar callCount = 0; \tvar increment = new Action(e = callCount++); \tvar distributor = new Distributor();  \tdistributor.RegisterFor(increment); \tdistributor.Publish(new TestEvent());  \tdistributor.UnRegisterFor(increment); \tdistributor.Publish(new TestEvent());  \tAssert.AreEqual(1, callCount); } Other than the publish method is currently a blocking operation, there is one major floor to this class: it contains a possible memory leak. If a class forgets to UnRegisterFor a handler, the EventDistributor will still have a reference stored, preventing the calling class from being garbage collected. We can demonstrate this with a simple unit test:\n[Test] public void When_the_handling_class_does_not_call_unregister() { \tvar count = 0; \tvar increment = new Action(() = count++); \tvar distributor = new Distributor();  \tusing(var l = new Listener(distributor, increment)) \t{ \tdistributor.Publish(new TestEvent()); \t}  \tGC.Collect(); \tGC.WaitForPendingFinalizers(); \tGC.Collect();  \tdistributor.Publish(new TestEvent());  \tAssert.AreEqual(1, count, \"OnPersonSaved should have only been called 1 time, was actually {0}\", count); }  public class Listener : IDisposable { \tprivate readonly Action _action;  \tpublic Listener(Distributor events, Action action) \t{ \t_action = action; \tevents.RegisterFor(OnTestEvent); \t}  \tprivate void OnTestEvent(TestEvent e) \t{ \t_action.Invoke(); \t}  \tpublic void Dispose() \t{ \t} } While it would be simple to just say that it’s the responsibility of the calling code to call UnRegisterFor, it would be better to handle that (likely) case ourselves. Good news is that .net has just the class needed for this built in: WeakReference. This class allows the target class to become disposed even while we still hold a reference to it. We can then act on the disposal, and remove our event registration.\nChanging the Dispatcher to use this in its dictionary is fairly straight forward, and we even loose some of the casting needed to add items to the list:\npublic class Distributor { \tprivate readonly Dictionary _events;  \tpublic Distributor() \t{ \t_events = new Dictionary(); \t}  \tpublic void RegisterFor(Action handler) \t{ \tvar type = typeof(TEvent); \tList recipients;  \tif (!_events.TryGetValue(type, out recipients)) \t{ \trecipients = new List(); \t_events[type] = recipients; \t}  \trecipients.Add(new WeakReference(handler)); \t}  \tpublic void UnRegisterFor(Action handler) \t{ \tvar type = typeof(TEvent); \tList recipients;  \tif (_events.TryGetValue(type, out recipients)) \t{ \trecipients.RemoveAll(o = o.Target.GetHashCode() == handler.GetHashCode()); \t} \t}  \tpublic void Publish(TEvent @event) \t{ \tvar type = typeof(TEvent); \tList recipients;  \tif (!_events.TryGetValue(type, out recipients)) \t{ \treturn; \t}  \trecipients.RemoveAll(wr = wr.IsAlive == false); \trecipients.ForEach(wr = ((Action)wr.Target).Invoke(@event)); \t} } The main points to note with this change is:\n We no longer need to create a new Action just to cast the handler in RegisterFor. UnRegisterFor no longer needs to create a new Action to get the hash code. Publish has an extra line to remove all handlers where the target has become disposed.  The next item to work on in this class is making the Publish method non-blocking, which can be done in a variety of ways.\nThe first option is to create a thread that will invoke all the handlers one after the other. This has the advantage of only one extra thread to deal with, but has the drawback of a single unresponsive handler will block all other handlers. Ignoring locking and cross-threading issues for the time being, it could be implemented like this:\npublic void PublishAsyncV1(TEvent @event) { \tvar type = typeof(TEvent); \tList recipients;  \tif (!_events.TryGetValue(type, out recipients)) \t{ \treturn; \t}  \tvar task = new Task(() = \t{ \trecipients.RemoveAll(wr = wr.IsAlive == false); \trecipients.ForEach(wr = ((Action) wr.Target).Invoke(@event)); \t});  \ttask.Start(); } The second option is to have a separate thread/invocation for each handler. This has the advantage that each of the handlers can take as much time as needed, and will not block any other handlers from being raised, however if you have many handlers to be invoked, it could be slower to return than the first option. Again, ignoring locking and cross-threading issues, it could be implemented like so:\npublic void PublishAsyncV2(TEvent @event) { \tvar type = typeof(TEvent); \tList recipients;  \tif (!_events.TryGetValue(type, out recipients)) \t{ \treturn; \t}  \trecipients.RemoveAll(wr = wr.IsAlive == false); \trecipients.ForEach(wr = \t{ \tvar handler = (Action)wr.Target; \thandler.BeginInvoke(@event, handler.EndInvoke, null); \t}); } Personally, I go for the second method, as the number of handlers to be invoked is usually fairly small.\nThe next part to consider is what we conveniently ignored earlier - the cross-threading issues. The main issue we have is handlers being added or removed from the list while we are iterating over it.\nNow I cannot remember where I read it, it was either from Jon Skeet, or from the Visual Basic .Net Threading Handbook, but the rough idea was “You should lock as smaller area of code as possible”. This is to minimise the chance of a deadlock. Starting with the Publish methods, we only need to lock the parts that iterate over the list:\nlock (Padlock) { \trecipients.RemoveAll(wr = wr.IsAlive == false); \trecipients.ForEach(wr = \t{ \tvar handler = (Action)wr.Target; \thandler.BeginInvoke(@event, handler.EndInvoke, null); \t}); } The UnRegisterFor method is also very straight forward, as we again only need to worry about the iteration:\nif (_events.TryGetValue(type, out recipients)) { \tlock (Padlock) \t{ \trecipients.RemoveAll(o = o.Target.GetHashCode() == handler.GetHashCode()); \t} } The RegisterFor method takes a little more locking than the other two, as this will handle the creation of the lists, as well as the addition to the list:\nlock (Padlock) { \tif (!_events.TryGetValue(type, out recipients)) \t{ \trecipients = new List(); \t_events[type] = recipients; \t}  \trecipients.Add(new WeakReference(handler)); } The full code listing and unit tests for this can be found here: EventDistributor Gist.\n","wordCount":"1369","inLanguage":"en","datePublished":"2012-04-23T00:00:00Z","dateModified":"2012-04-23T00:00:00Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://andydote.co.uk/2012/04/23/designing-the-eventdistributor/"},"publisher":{"@type":"Organization","name":"Andy Dote","logo":{"@type":"ImageObject","url":"https://andydote.co.uk/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://andydote.co.uk accesskey=h title="Andy Dote (Alt + H)">Andy Dote</a>
+<span class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)"><svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></span></div><ul id=menu><li><a href=https://andydote.co.uk/archive title=Archive><span>Archive</span></a></li><li><a href=https://andydote.co.uk/talks title=Talks><span>Talks</span></a></li><li><a href=https://andydote.co.uk/notes title=Notes><span>Notes</span></a></li><li><a href=https://andydote.co.uk/tags title=Tags><span>Tags</span></a></li><li><a href=https://andydote.co.uk/contact title=Contact><span>Contact</span></a></li><li><a href=https://andydote.co.uk/rss.xml title=RSS><span>RSS</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><h1 class=post-title>Designing the EventDistributor</h1><div class=post-meta><span title="2012-04-23 00:00:00 +0000 UTC">April 23, 2012</span>&nbsp;·&nbsp;7 min</div></header><div class=post-content><p>When it comes to developing a new class, I don&rsquo;t tend to use TDD (Test Driven Development), I favour something I have named TAD - Test Aided Development. In other words, while I am for Unit Testing in general, designing something via writing tests sometimes feels too clunky and slow. I always write classes and methods with testing very much in mind, but I do not generally write the tests until later on in the process. This post covers roughly how I wrote the EventDistributor, and what points of note there are along the way.</p><p>The first phase in designing it, was the use case:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span>events.RegisterFor&lt;PersonSavedEvent&gt;(OnPersonSaved);
+</span></span><span style=display:flex><span>events.Publish(<span style=color:#66d9ef>new</span> PersonSavedEvent());
+</span></span><span style=display:flex><span>events.UnRegisterFor&lt;PersonSavedEvent&gt;(OnPersonSaved);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>private</span> <span style=color:#66d9ef>void</span> OnPersonSaved(PersonSavedEvent e)
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#75715e>/* ... */</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>From this use case, we are able to tell that we will have 0 -> n events, and each event will have 0 -> n subscribers. This points to some kind of <code>Dictionary</code> based backing field:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>EventDistributor</span>
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>private</span> <span style=color:#66d9ef>readonly</span> Dictionary&lt;Type, List&lt;Action&lt;Object&gt;&gt;&gt; <span style=color:#ae81ff>_</span>events;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> EventDistributor()
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#ae81ff>_</span>events = <span style=color:#66d9ef>new</span> Dictionary&lt;Type, List&lt;Action&lt;Object&gt;&gt;&gt;();
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> RegisterFor&lt;TEvent&gt;(Action&lt;TEvent&gt; handler)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> UnRegisterFor&lt;TEvent&gt;(Action&lt;TEvent&gt; handler)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> Publish&lt;TEvent&gt;(TEvent @event)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>For populating the dictionary, we need to add an entry for a <code>TEvent</code> if there is not already one (and create a blank list of handlers), and append our new handler:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> RegisterFor&lt;TEvent&gt;(Action&lt;TEvent&gt; handler)
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> type = <span style=color:#66d9ef>typeof</span>(TEvent);
+</span></span><span style=display:flex><span>	List&lt;Action&lt;Object&gt;&gt; handlers;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> (<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> handlers) == <span style=color:#66d9ef>false</span>)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		handlers = <span style=color:#66d9ef>new</span> List&lt;Action&lt;Object&gt;&gt;();
+</span></span><span style=display:flex><span>		<span style=color:#ae81ff>_</span>events[type] = handlers;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	handlers.Add(handler);
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>This gives rise to the first problem: the line <code>handlers.Add(handler);</code> gives us a nice error of: <code>Error Argument '1': cannot convert from 'System.Action&lt;TEvent>' to 'System.Action&lt;Object>'</code>. To fix this, we need to create a new <code>Action&lt;Object></code> and inside that, cast the parameter to <code>TEvent</code>.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span>handlers.Add(o =&gt; handler((TEvent) o));
+</span></span></code></pre></div><p>This does however make the UnRegisterFor method a little more tricky, as doing <code>handlers.Remove(o => handler((TEvent)o));</code> doesn&rsquo;t work because they refer to different objects. Thankfully, as the Action&rsquo;s <code>GetHashCode()</code> gives the same result for each instance, providing the content is the same. We can use this to check for equality:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> UnRegisterFor&lt;TEvent&gt;(Action&lt;TEvent&gt; handler)
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> type = <span style=color:#66d9ef>typeof</span>(TEvent);
+</span></span><span style=display:flex><span>	List&lt;Action&lt;Object&gt;&gt; handlers;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> (<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> handlers) == <span style=color:#66d9ef>false</span>)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> hash = <span style=color:#66d9ef>new</span> Action&lt;<span style=color:#66d9ef>object</span>&gt;(o =&gt; handler((TEvent) o)).GetHashCode();
+</span></span><span style=display:flex><span>	handlers.RemoveAll(h =&gt; h.GetHashCode() == hash);
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>The <code>Publish</code> method is nice and straight forward; if the event isn&rsquo;t registered, throw an exception, and raise each subscriber&rsquo;s handler.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> Publish&lt;TEvent&gt;(TEvent @event)
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> type = <span style=color:#66d9ef>typeof</span>(TEvent);
+</span></span><span style=display:flex><span>	List&lt;Action&lt;Object&gt;&gt; handlers;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> (<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> handlers) == <span style=color:#66d9ef>false</span>)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>throw</span> <span style=color:#66d9ef>new</span> EventNotRegisteredException(type);
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	handlers.ForEach(h =&gt; h.Invoke(@event));
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Now that we have a class roughly implemented, we create the first set of tests for it:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#a6e22e>[Test]</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> When_publishing_an_event_without_a_handler()
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> distributor = <span style=color:#66d9ef>new</span> Distributor();
+</span></span><span style=display:flex><span>	Assert.DoesNotThrow(() =&gt; distributor.Publish(<span style=color:#66d9ef>new</span> PersonSavedEvent()));
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span><span style=color:#a6e22e>
+</span></span></span><span style=display:flex><span><span style=color:#a6e22e>[Test]</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> When_publishing_an_event_with_a_handler()
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> wasCalled = <span style=color:#66d9ef>false</span>;
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> distributor = <span style=color:#66d9ef>new</span> Distributor();
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	distributor.RegisterFor&lt;TestEvent&gt;(e =&gt; wasCalled = <span style=color:#66d9ef>true</span>);
+</span></span><span style=display:flex><span>	distributor.Publish(<span style=color:#66d9ef>new</span> TestEvent());
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	Assert.IsTrue(wasCalled, <span style=color:#e6db74>&#34;The target was not invoked.&#34;</span>);
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span><span style=color:#a6e22e>
+</span></span></span><span style=display:flex><span><span style=color:#a6e22e>[Test]</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> When_publishing_an_event_and_un_registering()
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> callCount = <span style=color:#ae81ff>0</span>;
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> increment = <span style=color:#66d9ef>new</span> Action&lt;TestEvent&gt;(e =&gt; callCount++);
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> distributor = <span style=color:#66d9ef>new</span> Distributor();
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	distributor.RegisterFor&lt;TestEvent&gt;(increment);
+</span></span><span style=display:flex><span>	distributor.Publish(<span style=color:#66d9ef>new</span> TestEvent());
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	distributor.UnRegisterFor&lt;TestEvent&gt;(increment);
+</span></span><span style=display:flex><span>	distributor.Publish(<span style=color:#66d9ef>new</span> TestEvent());
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	Assert.AreEqual(<span style=color:#ae81ff>1</span>, callCount);
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Other than the publish method is currently a blocking operation, there is one major floor to this class: it contains a possible memory leak. If a class forgets to UnRegisterFor a handler, the EventDistributor will still have a reference stored, preventing the calling class from being garbage collected. We can demonstrate this with a simple unit test:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#a6e22e>[Test]</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> When_the_handling_class_does_not_call_unregister()
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> count = <span style=color:#ae81ff>0</span>;
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> increment = <span style=color:#66d9ef>new</span> Action(() =&gt; count++);
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> distributor = <span style=color:#66d9ef>new</span> Distributor();
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	using(<span style=color:#66d9ef>var</span> l = <span style=color:#66d9ef>new</span> Listener(distributor, increment))
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		distributor.Publish(<span style=color:#66d9ef>new</span> TestEvent());
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	GC.Collect();
+</span></span><span style=display:flex><span>	GC.WaitForPendingFinalizers();
+</span></span><span style=display:flex><span>	GC.Collect();
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	distributor.Publish(<span style=color:#66d9ef>new</span> TestEvent());
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	Assert.AreEqual(<span style=color:#ae81ff>1</span>, count, <span style=color:#e6db74>&#34;OnPersonSaved should have only been called 1 time, was actually {0}&#34;</span>, count);
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>Listener</span> : IDisposable
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>private</span> <span style=color:#66d9ef>readonly</span> Action <span style=color:#ae81ff>_</span>action;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> Listener(Distributor events, Action action)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#ae81ff>_</span>action = action;
+</span></span><span style=display:flex><span>		events.RegisterFor&lt;TestEvent&gt;(OnTestEvent);
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>private</span> <span style=color:#66d9ef>void</span> OnTestEvent(TestEvent e)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#ae81ff>_</span>action.Invoke();
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> Dispose()
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>While it would be simple to just say that it&rsquo;s the responsibility of the calling code to call <code>UnRegisterFor</code>, it would be better to handle that (likely) case ourselves. Good news is that .net has just the class needed for this built in: <a href=http://msdn.microsoft.com/en-us/library/system.weakreference.aspx>WeakReference</a>. This class allows the target class to become disposed even while we still hold a reference to it. We can then act on the disposal, and remove our event registration.</p><p>Changing the Dispatcher to use this in its dictionary is fairly straight forward, and we even loose some of the casting needed to add items to the list:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>Distributor</span>
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>private</span> <span style=color:#66d9ef>readonly</span> Dictionary&lt;Type, List&lt;WeakReference&gt;&gt; <span style=color:#ae81ff>_</span>events;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> Distributor()
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#ae81ff>_</span>events = <span style=color:#66d9ef>new</span> Dictionary&lt;Type, List&lt;WeakReference&gt;&gt;();
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> RegisterFor&lt;TEvent&gt;(Action&lt;TEvent&gt; handler)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>var</span> type = <span style=color:#66d9ef>typeof</span>(TEvent);
+</span></span><span style=display:flex><span>		List&lt;WeakReference&gt; recipients;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>if</span> (!<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> recipients))
+</span></span><span style=display:flex><span>		{
+</span></span><span style=display:flex><span>			recipients = <span style=color:#66d9ef>new</span> List&lt;WeakReference&gt;();
+</span></span><span style=display:flex><span>			<span style=color:#ae81ff>_</span>events[type] = recipients;
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>		recipients.Add(<span style=color:#66d9ef>new</span> WeakReference(handler));
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> UnRegisterFor&lt;TEvent&gt;(Action&lt;TEvent&gt; handler)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>var</span> type = <span style=color:#66d9ef>typeof</span>(TEvent);
+</span></span><span style=display:flex><span>		List&lt;WeakReference&gt; recipients;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>if</span> (<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> recipients))
+</span></span><span style=display:flex><span>		{
+</span></span><span style=display:flex><span>			recipients.RemoveAll(o =&gt; o.Target.GetHashCode() == handler.GetHashCode());
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> Publish&lt;TEvent&gt;(TEvent @event)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>var</span> type = <span style=color:#66d9ef>typeof</span>(TEvent);
+</span></span><span style=display:flex><span>		List&lt;WeakReference&gt; recipients;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>if</span> (!<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> recipients))
+</span></span><span style=display:flex><span>		{
+</span></span><span style=display:flex><span>			<span style=color:#66d9ef>return</span>;
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>		recipients.RemoveAll(wr =&gt; wr.IsAlive == <span style=color:#66d9ef>false</span>);
+</span></span><span style=display:flex><span>		recipients.ForEach(wr =&gt; ((Action&lt;TEvent&gt;)wr.Target).Invoke(@event));
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>The main points to note with this change is:</p><ul><li>We no longer need to create a new <code>Action&lt;Object></code> just to cast the handler in <code>RegisterFor</code>.</li><li><code>UnRegisterFor</code> no longer needs to create a new <code>Action&lt;Object></code> to get the hash code.</li><li><code>Publish</code> has an extra line to remove all handlers where the target has become disposed.</li></ul><p>The next item to work on in this class is making the <code>Publish</code> method non-blocking, which can be done in a variety of ways.</p><p>The first option is to create a thread that will invoke all the handlers one after the other. This has the advantage of only one extra thread to deal with, but has the drawback of a single unresponsive handler will block all other handlers. Ignoring locking and cross-threading issues for the time being, it could be implemented like this:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> PublishAsyncV1&lt;TEvent&gt;(TEvent @event)
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> type = <span style=color:#66d9ef>typeof</span>(TEvent);
+</span></span><span style=display:flex><span>	List&lt;WeakReference&gt; recipients;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> (!<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> recipients))
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> task = <span style=color:#66d9ef>new</span> Task(() =&gt;
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		recipients.RemoveAll(wr =&gt; wr.IsAlive == <span style=color:#66d9ef>false</span>);
+</span></span><span style=display:flex><span>		recipients.ForEach(wr =&gt; ((Action&lt;TEvent&gt;) wr.Target).Invoke(@event));
+</span></span><span style=display:flex><span>	});
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	task.Start();
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>The second option is to have a separate thread/invocation for each handler. This has the advantage that each of the handlers can take as much time as needed, and will not block any other handlers from being raised, however if you have many handlers to be invoked, it could be slower to return than the first option. Again, ignoring locking and cross-threading issues, it could be implemented like so:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> PublishAsyncV2&lt;TEvent&gt;(TEvent @event)
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> type = <span style=color:#66d9ef>typeof</span>(TEvent);
+</span></span><span style=display:flex><span>	List&lt;WeakReference&gt; recipients;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> (!<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> recipients))
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	recipients.RemoveAll(wr =&gt; wr.IsAlive == <span style=color:#66d9ef>false</span>);
+</span></span><span style=display:flex><span>	recipients.ForEach(wr =&gt;
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>var</span> handler = (Action&lt;TEvent&gt;)wr.Target;
+</span></span><span style=display:flex><span>		handler.BeginInvoke(@event, handler.EndInvoke, <span style=color:#66d9ef>null</span>);
+</span></span><span style=display:flex><span>	});
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Personally, I go for the second method, as the number of handlers to be invoked is usually fairly small.</p><p>The next part to consider is what we conveniently ignored earlier - the cross-threading issues. The main issue we have is handlers being added or removed from the list while we are iterating over it.</p><p>Now I cannot remember where I read it, it was either from Jon Skeet, or from the <a href=http://www.amazon.co.uk/Visual-Basic-NET-Threading-Handbook-Programmer/dp/1861007132>Visual Basic .Net Threading Handbook</a>, but the rough idea was &ldquo;You should lock as smaller area of code as possible&rdquo;. This is to minimise the chance of a deadlock. Starting with the Publish methods, we only need to lock the parts that iterate over the list:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>lock</span> (Padlock)
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	recipients.RemoveAll(wr =&gt; wr.IsAlive == <span style=color:#66d9ef>false</span>);
+</span></span><span style=display:flex><span>	recipients.ForEach(wr =&gt;
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>var</span> handler = (Action&lt;TEvent&gt;)wr.Target;
+</span></span><span style=display:flex><span>		handler.BeginInvoke(@event, handler.EndInvoke, <span style=color:#66d9ef>null</span>);
+</span></span><span style=display:flex><span>	});
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>The UnRegisterFor method is also very straight forward, as we again only need to worry about the iteration:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>if</span> (<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> recipients))
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>lock</span> (Padlock)
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		recipients.RemoveAll(o =&gt; o.Target.GetHashCode() == handler.GetHashCode());
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>The RegisterFor method takes a little more locking than the other two, as this will handle the creation of the lists, as well as the addition to the list:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-csharp data-lang=csharp><span style=display:flex><span><span style=color:#66d9ef>lock</span> (Padlock)
+</span></span><span style=display:flex><span>{
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> (!<span style=color:#ae81ff>_</span>events.TryGetValue(type, <span style=color:#66d9ef>out</span> recipients))
+</span></span><span style=display:flex><span>	{
+</span></span><span style=display:flex><span>		recipients = <span style=color:#66d9ef>new</span> List&lt;WeakReference&gt;();
+</span></span><span style=display:flex><span>		<span style=color:#ae81ff>_</span>events[type] = recipients;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	recipients.Add(<span style=color:#66d9ef>new</span> WeakReference(handler));
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>The full code listing and unit tests for this can be found here: <a href=https://gist.github.com/2467463>EventDistributor Gist</a>.</p></div><footer class=post-footer><ul class=post-tags><li><a href=https://andydote.co.uk/tags/design/>design</a></li><li><a href=https://andydote.co.uk/tags/c#/>c#</a></li></ul><nav class=paginav><a class=prev href=https://andydote.co.uk/2012/10/29/winforms-design-time-support-exposing-sub-designers/><span class=title>« Prev Page</span><br><span>Winforms Design Time support: exposing sub designers</span></a>
+<a class=next href=https://andydote.co.uk/2012/03/29/model-view-presenters-composite-views/><span class=title>Next Page »</span><br><span>Model View Presenters: Composite Views</span></a></nav></footer></article></main><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentcolor"><path d="M12 6H0l6-6z"/></svg></a><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(t){t.preventDefault();var e=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(e)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(e)}']`).scrollIntoView({behavior:"smooth"}),e==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${e}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(t=>{const n=t.parentNode.parentNode,e=document.createElement("button");e.classList.add("copy-code"),e.innerText="copy";function s(){e.innerText="copied!",setTimeout(()=>{e.innerText="copy"},2e3)}e.addEventListener("click",o=>{if("clipboard"in navigator){navigator.clipboard.writeText(t.textContent),s();return}const e=document.createRange();e.selectNodeContents(t);const n=window.getSelection();n.removeAllRanges(),n.addRange(e);try{document.execCommand("copy"),s()}catch(e){}n.removeRange(e)}),n.classList.contains("highlight")?n.appendChild(e):n.parentNode.firstChild==n||(t.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?t.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(e):t.parentNode.appendChild(e))})</script></body></html>
