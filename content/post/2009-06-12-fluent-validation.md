@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Fluent Validation
+date: "2009-06-12T00:00:00Z"
 tags: design c#
-
+title: Fluent Validation
 ---
 
 A few days a go i was going through my bookmarks, and came accross [this post][fluent-validation] on the GetPaint.Net blog about using a fluent interface for parameter validation.

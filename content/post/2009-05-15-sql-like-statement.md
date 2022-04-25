@@ -1,8 +1,7 @@
 ---
-layout: post
-title: SQL Like statement
+date: "2009-05-15T00:00:00Z"
 tags: sql
-
+title: SQL Like statement
 ---
 
 Today I learnt a few new (well to me) SQL commands.  The [Like statement][ddart-like] can do some basic regex type things.  It supports character specifiers like this:

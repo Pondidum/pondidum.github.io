@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Creating a Vault instance with a TLS Consul Cluster
+date: "2019-10-06T00:00:00Z"
 tags: consul vault infrastructure security tls
+title: Creating a Vault instance with a TLS Consul Cluster
 ---
 
 So we want to set up a [Vault](https://www.vaultproject.io/) instance, and have it's storage be a TLS based [Consul](https://www.consul.io/) cluster.  The problem is that the Consul cluster needs Vault to create the certificates for TLS, which is quite the catch-22.  Luckily for us, quite easy to solve:

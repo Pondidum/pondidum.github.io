@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Running microservices in Docker with Mono
+date: "2015-09-05T00:00:00Z"
 tags: design microservices docker mono
+title: Running microservices in Docker with Mono
 ---
 
 Getting a service running under [Docker][docker] is fairly straight forward once you have all the working parts together.  I have an app written (following [my guide][blog-serviceconsole] on service and console in one), which uses Owin to serve a web page as a demo:

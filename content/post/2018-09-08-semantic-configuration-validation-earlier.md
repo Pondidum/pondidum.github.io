@@ -1,7 +1,7 @@
 ---
-layout: post
-title: "Semantic Configuration Validation: Earlier"
+date: "2018-09-08T00:00:00Z"
 tags: configuration c# strongtyping stronk validation
+title: 'Semantic Configuration Validation: Earlier'
 ---
 
 After my previous post on [Validating Your Configuration](/2018/08/26/validate-configuration/), one of my colleagues made an interesting point, paraphrasing:

@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Configuring Dapper to work with custom types
+date: "2014-07-22T00:00:00Z"
 tags: design c# typing sql database orm
-
+title: Configuring Dapper to work with custom types
 ---
 
 In the [last post][blog-type-ids] we looked at using custom ID types to help abstract the column type from the domain.

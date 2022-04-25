@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Vaio Event Service and Vista
+date: "2008-04-08T00:00:00Z"
 tags: bug
-
+title: Vaio Event Service and Vista
 ---
 
 When I first installed vista onto my laptop (a Sony Vaio VGN-FE21M) I also installed all the Sony stuff that I needed for it, mainly the VES (Vaio Event Service) and Control Panel, although there is a lot of other junk that they give you to install.

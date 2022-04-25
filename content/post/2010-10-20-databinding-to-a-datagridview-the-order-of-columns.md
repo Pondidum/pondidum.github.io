@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Databinding to a DataGridView - The order of columns
+date: "2010-10-20T00:00:00Z"
 tags: controls bug c#
-
+title: Databinding to a DataGridView - The order of columns
 ---
 
 A while ago I was writing a small history grid in one of our applications at work.  It has a single `HistoryItem` object, which is fairly straightforward, something like this:

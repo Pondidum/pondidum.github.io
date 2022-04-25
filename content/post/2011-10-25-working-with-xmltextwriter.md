@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Working with XmlTextWriter
+date: "2011-10-25T00:00:00Z"
 tags: c#
-
+title: Working with XmlTextWriter
 ---
 
 I was working on some code today that needs a lot of data writing into an XML document.  The documents structure is not repetitive - it is loads of one time data, so templating the document is possible, but not the best route to go.

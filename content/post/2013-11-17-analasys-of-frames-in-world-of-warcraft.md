@@ -1,5 +1,5 @@
 ---
-layout: post
+date: "2013-11-17T00:00:00Z"
 title: Analysis of Frames in World of Warcraft
 ---
 

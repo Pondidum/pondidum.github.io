@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Encapsulation in Warcraft Addons - Closures
+date: "2014-11-28T00:00:00Z"
 tags: design lua warcraft
+title: Encapsulation in Warcraft Addons - Closures
 ---
 
 In the [last post][blog-addon-design] I alluded to the fact that if you put in a little leg work, you could write well encapsulated objects in lua.  There are two main ways to do this; with closures, and with metatables.  In this post we will deal with using closures, and in the next post we will cover using metatables.

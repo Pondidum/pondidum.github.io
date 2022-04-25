@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Testing RabbitMQ Concurrency in MassTransit
+date: "2017-10-11T00:00:00Z"
 tags: masstransit rabbitmq testing
+title: Testing RabbitMQ Concurrency in MassTransit
 ---
 
 We have a service which consumes messages from a [RabbitMQ](http://www.rabbitmq.com/) queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api.  One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.)

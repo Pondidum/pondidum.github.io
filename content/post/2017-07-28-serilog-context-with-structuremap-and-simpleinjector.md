@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Serilog LogContext with StructureMap and SimpleInjector
+date: "2017-07-28T00:00:00Z"
 tags: c# structuremap simpleinjector di ioc
+title: Serilog LogContext with StructureMap and SimpleInjector
 ---
 
 *This article has been updated after feedback from [.Net Junkie](https://twitter.com/dot_NET_Junkie) (Godfather of SimpleInjector).  I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)*

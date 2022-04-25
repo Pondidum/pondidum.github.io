@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Strong Type All The Configurations
+date: "2016-12-06T00:00:00Z"
 tags: c# strongtyping configuration stronk
+title: Strong Type All The Configurations
 ---
 
 As anyone I work with can attest, I a have been prattling on about strong typing everything for quite a while.

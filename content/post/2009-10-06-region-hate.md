@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Region Hate
+date: "2009-10-06T00:00:00Z"
 tags: design c#
-
+title: Region Hate
 ---
 
 There seems to be a [lot of][5] [negativity][6] [towards][7] the `#Region` in .net at the moment, with many people hating them and calling all usages of them ['retarded'][1].

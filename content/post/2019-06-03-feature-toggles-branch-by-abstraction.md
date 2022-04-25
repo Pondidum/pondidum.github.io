@@ -1,7 +1,7 @@
 ---
-layout: post
-title: "Feature Toggles: Branch by Abstraction"
+date: "2019-06-03T00:00:00Z"
 tags: featuretoggles c# di microservices
+title: 'Feature Toggles: Branch by Abstraction'
 ---
 
 Recently, I was asked if I could provide an example of Branch By Abstraction when dealing with feature toggles.  As this has come up a few times, I thought a blog post would be a good idea so I can refer others to it later too.

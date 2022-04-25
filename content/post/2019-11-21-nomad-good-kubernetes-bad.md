@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Nomad Good, Kubernetes Bad
+date: "2019-11-21T00:00:00Z"
 tags: nomad infrastructure kubernetes
+title: Nomad Good, Kubernetes Bad
 ---
 
 I will update this post as I learn more (both positive and negative), and is here to be linked to when people ask me why I don't like Kubernetes, and why I would pick Nomad in most situations if I chose to use an orchestrator *at all*.

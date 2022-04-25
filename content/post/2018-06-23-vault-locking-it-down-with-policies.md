@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Locking Vault Down with Policies
+date: "2018-06-23T00:00:00Z"
 tags: vault security microservices
+title: Locking Vault Down with Policies
 ---
 
 The final part of my Vault miniseries focuses on permissioning, which is provided by Vault's [Policies](https://www.vaultproject.io/docs/concepts/policies.html).

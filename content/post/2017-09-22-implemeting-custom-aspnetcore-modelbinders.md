@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Implementing Custom Aspnet Core ModelBinders
+date: "2017-09-22T00:00:00Z"
 tags: design aspnetcore dotnetcore
+title: Implementing Custom Aspnet Core ModelBinders
 ---
 
 This post is a summary of a [stream](https://twitch.tv/pondidum) I did last night where I implemented all of this.  If you want to watch me grumble my way through it, it's [available on YouTube here](https://www.youtube.com/watch?v=hR213Oxj_xI).

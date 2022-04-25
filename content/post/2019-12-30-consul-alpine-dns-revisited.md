@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Consul DNS Fowarding in Alpine, revisited
+date: "2019-12-30T00:00:00Z"
 tags: consul dns infrastructure
+title: Consul DNS Fowarding in Alpine, revisited
 ---
 
 I noticed when running an Alpine based virtual machine with Consul DNS forwarding set up, that sometimes the machine couldn't resolve `*.consul` domains, but not in a consistent manner. Inspecting the logs looked like the request was being made and responded to successfully, but the result was being ignored.

@@ -1,5 +1,5 @@
 ---
-layout: post
+date: "2012-11-02T00:00:00Z"
 title: Checking a Type for an Attribute
 ---
 

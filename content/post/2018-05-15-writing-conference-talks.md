@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Writing Conference Talks
+date: "2018-05-15T00:00:00Z"
 tags: productivity talks writing
+title: Writing Conference Talks
 ---
 
 I saw an interesting question on twitter today:

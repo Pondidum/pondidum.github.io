@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Key Bindings
+date: "2009-07-17T00:00:00Z"
 tags: design
-
+title: Key Bindings
 ---
 
 When I was at college studying Electronics and Computer Engineering, we used a piece of software called [Proteus][1].  This software took a long time to get used to due to its interesting key bindings and mouse usage.

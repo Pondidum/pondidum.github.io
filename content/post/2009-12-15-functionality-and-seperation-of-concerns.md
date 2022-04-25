@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Functionality and Seperation of Concerns
+date: "2009-12-15T00:00:00Z"
 tags: design c#
-
+title: Functionality and Seperation of Concerns
 ---
 
 When I am writing a winform in an MVP style, I often wonder how far to go with the separation.  Say I have the following situation:

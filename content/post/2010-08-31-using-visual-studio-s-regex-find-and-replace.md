@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Using Visual Studio's Regex Find and Replace
+date: "2010-08-31T00:00:00Z"
 tags: c#
-
+title: Using Visual Studio's Regex Find and Replace
 ---
 
 The Visual Studio Find and Replace dialog is often overlooked, and when parts of it are looked at (Regex searching) it often gets a bad rep.  Sure it doesn't implement all of the Regex syntax (non greedy search springs to mind), but that's not to say it isn't useful.

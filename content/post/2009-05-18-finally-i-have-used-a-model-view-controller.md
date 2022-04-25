@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Finally, I have used a Model View Controller!
+date: "2009-05-18T00:00:00Z"
 tags: design code
-
+title: Finally, I have used a Model View Controller!
 ---
 
 Today I actually managed to use a Model View Controller in an application.  I have been looking for an opportunity to use one fore a while, and have been reading a lot about them (Jeremy Miller's [Build Your Own CAB Series][build-your-own-cab] has been a very good guide).

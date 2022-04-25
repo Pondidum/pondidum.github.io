@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Encapsulation in Warcraft Addons - Inheritance
+date: "2014-12-05T00:00:00Z"
 tags: design lua warcraft
+title: Encapsulation in Warcraft Addons - Inheritance
 ---
 
 ## Using Inheritance (sort of)

@@ -1,8 +1,7 @@
 ---
-layout: post
-title: "Conflicting Unrelated Options: Alps Trackpad vs Microsoft Mouse"
+date: "2008-04-17T00:00:00Z"
 tags: bug
-
+title: 'Conflicting Unrelated Options: Alps Trackpad vs Microsoft Mouse'
 ---
 
 Usability.  It's one of those things that everyone wants, you know, stuff that 'just works'.  It's nice when companies go out of their way to make things 'just work'.  It's a shame Sony (and others, but I have a Sony, so it's their fault for this exercise) decided to make things harder for me.

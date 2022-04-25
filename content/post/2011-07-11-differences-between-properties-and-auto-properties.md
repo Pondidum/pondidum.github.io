@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Differences between Properties and Auto Properties
+date: "2011-07-11T00:00:00Z"
 tags: c#
-
+title: Differences between Properties and Auto Properties
 ---
 
 While writing some of the specs for [ViewWeaver][1], I noticed that one was failing:

@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Tweaking Processes to Remove Errors
+date: "2017-12-09T00:00:00Z"
 tags: design process
+title: Tweaking Processes to Remove Errors
 ---
 
 When we are developing (internal) Nuget packages at work, the process used is the following:

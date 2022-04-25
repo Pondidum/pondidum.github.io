@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Generics to the rescue! Again!
+date: "2009-05-22T00:00:00Z"
 tags: design generics c#
-
+title: Generics to the rescue! Again!
 ---
 
 I was writing a component at work that has many events that all need to be thread safe, and was getting annoyed at the amount of duplicate code I was writing:

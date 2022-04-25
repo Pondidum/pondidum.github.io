@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Getting Things Done
+date: "2017-07-15T00:00:00Z"
 tags: productivity
+title: Getting Things Done
 ---
 
 I have been trying to actually be productive in my evenings and weekends, but I find I often end up not getting as much done as I feel I could have.  I end up browsing imgur, reading slashdot, reddit, twitter, etc. rather than reading books, writing or anything else.

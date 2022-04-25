@@ -1,7 +1,7 @@
 ---
-layout: post
-title: The problems with and solutions to Repositories
+date: "2015-03-28T00:00:00Z"
 tags: design cqrs architecture
+title: The problems with and solutions to Repositories
 ---
 
 

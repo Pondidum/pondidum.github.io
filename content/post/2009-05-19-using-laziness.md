@@ -1,5 +1,5 @@
 ---
-layout: post
+date: "2009-05-19T00:00:00Z"
 title: Using Laziness
 ---
 

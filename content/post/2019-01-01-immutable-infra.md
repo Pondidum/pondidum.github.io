@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Testing Immutable Infrastructure
+date: "2019-01-01T00:00:00Z"
 tags: logstash microservices infrastructure vagrant packer aws testing
+title: Testing Immutable Infrastructure
 ---
 
 In my [previous post](/2018/12/22/serilog-elk-jaeger/), I glossed over one of the most important and useful parts of Immutable Infrastructure: Testability.  There are many kinds of tests we can write for our infrastructure, but they should all be focused on the machine/service and *maybe* it's nearest dependencies, [not the entire system](https://medium.com/@copyconstruct/testing-microservices-the-sane-way-9bb31d158c16).

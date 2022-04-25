@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Hyper-V, Docker, and Networking Drama
+date: "2019-03-22T00:00:00Z"
 tags: vagrant docker hyperv networking
+title: Hyper-V, Docker, and Networking Drama
 ---
 
 I had a major problem a few hours before giving my [Nomad: Kubernetes Without the Complexity](https://andydote.co.uk/presentations/index.html?nomad) talk this morning: the demo stopped working.

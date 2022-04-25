@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Strong Configuration Composition
+date: "2017-11-09T00:00:00Z"
 tags: configuration design architecture c# strongtyping stronk
+title: Strong Configuration Composition
 ---
 
 It's no secret I am a fan of strong typing - not only do I talk and blog about it a lot, but I also have a library called [Stronk](https://github.com/pondidum/stronk) which provides strong typed configuration for non dotnet core projects.

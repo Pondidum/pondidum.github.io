@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Branching and Red Builds
+date: "2018-08-10T00:00:00Z"
 tags: rant git ci process productivity testing
+title: Branching and Red Builds
 ---
 
 So this is a bit of a rant...but hopefully with some solutions and workarounds too. So let's kick things off with a nice statement:

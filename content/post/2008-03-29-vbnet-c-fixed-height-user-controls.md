@@ -1,8 +1,7 @@
 ---
-layout: post
-title: VB.NET &amp; C# Fixed height User Controls
+date: "2008-03-29T00:00:00Z"
 tags: design controls c#
-
+title: VB.NET &amp; C# Fixed height User Controls
 ---
 
 Another problem I came across recently was fixed height user controls.  Someone at work had created a fixed height user control, by putting the following code in the paint event:

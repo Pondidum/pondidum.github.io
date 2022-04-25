@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Managing AppSettings in Consul
+date: "2018-08-07T00:00:00Z"
 tags: microservices consul terraform 12factor
+title: Managing AppSettings in Consul
 ---
 
 [Consul](https://www.consul.io/) is a great utility to make running your microservice architecture very simple.  Amongst other things, it provides Service Discovery, Health Checks, and Configuration.  In this post, we are going to be looking at Configuration; not specifically how to read from Consul, but about how we put configuration data into Consul in the first place.

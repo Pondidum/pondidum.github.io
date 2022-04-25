@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Secure Communication with Vault
+date: "2018-06-22T00:00:00Z"
 tags: vault security microservices
+title: Secure Communication with Vault
 ---
 
 I think [Vault by Hashicorp](https://vaultproject.io) is a great product - I particularly love how you can do dynamic secret generation (e.g [for database connections](/2018/06/17/secret-management-vault-postgres-connection)).  But how do you validate that the application requesting the secret is allowed to perform that action?  How do you know it's not someone or something impersonating your application?

@@ -1,8 +1,7 @@
 ---
-layout: post
-title: Specific Interfaces
+date: "2014-06-08T00:00:00Z"
 tags: design c#
-
+title: Specific Interfaces
 ---
 
 While writing my [CruiseCli][github-cruisecli] project, I needed to do some data storage, and so used my standard method of filesystem access, the `IFileSystem`.  This is an interface and implementation which I tend to copy from project to project, and use as is.  The interface looks like the following:

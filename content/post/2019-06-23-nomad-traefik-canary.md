@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Canary Routing with Traefik in Nomad
+date: "2019-06-23T00:00:00Z"
 tags: infrastructure vagrant nomad consul traefik
+title: Canary Routing with Traefik in Nomad
 ---
 
 I wanted to implement canary routing for some HTTP services deployed via [Nomad](https://www.nomadproject.io/) the other day, but rather than having the traffic split by weighting to the containers, I wanted to direct the traffic based on a header.

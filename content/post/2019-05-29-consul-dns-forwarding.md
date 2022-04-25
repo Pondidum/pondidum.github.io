@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Configuring Consul DNS Forwarding in Ubuntu 16.04
+date: "2019-05-29T00:00:00Z"
 tags: infrastructure dns consul
+title: Configuring Consul DNS Forwarding in Ubuntu 16.04
 ---
 
 # DEPRECATED - This doesn't work properly

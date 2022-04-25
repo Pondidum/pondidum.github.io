@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Git Aliases
+date: "2017-01-06T00:00:00Z"
 tags: git environment bash
+title: Git Aliases
 ---
 
 Git is great, but creating some git aliases is a great way to make your usages even more efficient.

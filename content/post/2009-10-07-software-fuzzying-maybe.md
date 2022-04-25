@@ -1,5 +1,5 @@
 ---
-layout: post
+date: "2009-10-07T00:00:00Z"
 title: Software Fuzzying maybe?
 ---
 

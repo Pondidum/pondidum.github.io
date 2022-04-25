@@ -1,8 +1,7 @@
 ---
-layout: post
-title: SOLID Principles - DIP
+date: "2014-03-15T00:00:00Z"
 tags: design c# solid
-
+title: SOLID Principles - DIP
 ---
 
 

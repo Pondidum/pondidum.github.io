@@ -1,7 +1,7 @@
 ---
-layout: post
-title: Strong Type your entity IDs.
+date: "2014-07-17T00:00:00Z"
 tags: design c# typing sql database orm
+title: Strong Type your entity IDs.
 ---
 
 ## The Database is just an Implementation Detail
