@@ -1,0 +1,58 @@
+baseURL = "https://andydote.co.uk"
+disablePathToLower = false
+languageCode = "en-gb"
+title = "Andy Dote"
+theme = "PaperMod"
+
+enableRobotsTXT = true
+
+[outputFormats.RSS]
+  baseName = "rss"
+
+[permalinks]
+  post = '/:year/:month/:day/:slug/'
+
+[frontmatter]
+  date = [":filename", ":default"]
+
+[menu]
+  [[menu.main]]
+  name = "Archive"
+  url = "/archive"
+  weight = 100
+
+  [[menu.main]]
+  name = "Talks"
+  url = "/talks"
+  weight = 110
+
+  [[menu.main]]
+  name = "Notes"
+  url = "/notes"
+  weight = 120
+
+  [[menu.main]]
+  name = "Tags"
+  url = "/tags"
+  weight = 130
+
+  [[menu.main]]
+  name = "Contact"
+  url = "/contact"
+  weight = 140
+
+  [[menu.main]]
+  name = "RSS"
+  url = "/rss.xml"
+  weight = 150
+
+
+[params]
+  DefaultTheme = "light"
+  ShowReadingTime = true
+  ShowPostNavLinks = true
+  ShowCodeCopyButtons = true
+  HideFooter = true
+
+[privacy.youtube]
+  disabled =  false
