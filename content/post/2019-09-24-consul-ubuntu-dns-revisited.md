@@ -155,7 +155,6 @@ I also want to test that the latter two cases work when Consul is **not** runnin
 
 So let's write a simple script to make sure these all work.  This way I can reuse the same script on other machines, and also with other VM providers to check DNS works as it should.  The entire script is here:
 
-{% raw %}
 ```bash
 local_domain=${1:-mshome.net}
 host_machine=${2:-spectre}
@@ -191,7 +190,6 @@ echo "==> Consul Stopped: Success!"
 
 exit 0
 ```
-{% endraw %}
 
 What this does is:
 

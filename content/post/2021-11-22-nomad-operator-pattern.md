@@ -349,7 +349,6 @@ docker run --rm -it --net=host operator:local
 
 Assuming we're happy, we can run the Operator container in our local Nomad instance without pushing it:
 
-{% raw %}
 ```bash
 task "operator" {
   driver = "docker"
@@ -373,7 +372,6 @@ EOF
   }
 }
 ```
-{% endraw %}
 
 ## Wrapping Up
 

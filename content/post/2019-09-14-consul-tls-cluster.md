@@ -154,7 +154,6 @@ EOF
 
 Lastly, we'll make a systemd service unit to start consul:
 
-{% raw %}
 ```bash
 (
 cat <<-EOF
@@ -177,7 +176,6 @@ sudo systemctl daemon-reload
 sudo systemctl enable consul.service
 sudo systemctl start consul
 ```
-{% endraw %}
 
 As the machines we are starting also have docker networks (and potentially others), our startup line specifies to bind to the `eth0` network, using a Consul Template.
 
@@ -199,14 +197,12 @@ Note, however, the if your root CA is self-signed, like mine is, some browsers (
 Now that we have our cluster seemingly running with TLS, what happens if we try to connect a Consul client _without_ TLS to it?  On the host machine, I just run a single node, and tell it to connect to one of the cluster nodes:
 
 
-{% raw %}
 ```bash
 consul agent \
   -join consul1.tecra.xyz \
   -bind '{{ GetInterfaceIP "eth0" }}' \
   -data-dir /tmp/consul
 ```
-{% endraw %}
 
 The result of this is a refusal to connect, as the cluster has TLS configured, but this instance does not:
 

@@ -121,7 +121,6 @@ Packer is configured with a single json file, in this case, named `logstash.json
 
 The `variables` property is for all configuration that you can pass to Packer.  Their values can come from Environment Variables, CLI parameters, Consul, Vault, [and others](https://www.packer.io/docs/templates/user-variables.html).  In the LogStash example, there are three variables:
 
-{% raw %}
 ```json
 {
   "variables": {
@@ -131,7 +130,6 @@ The `variables` property is for all configuration that you can pass to Packer.  
   }
 }
 ```
-{% endraw %}
 
 The `aws_access_key` and `aws_secret_key` are known names - unless we specify some value, they will automatically be read from your AWS config (in `~/.aws/`), or if running on EC2, from the EC2 machine profile.
 
@@ -142,7 +140,6 @@ The `ami_users` is a custom variable which will read the `AMI_ACCOUNTS` environm
 
 Packer can build [many different kinds](https://www.packer.io/docs/builders/index.html) of machine image, but for this, we only need one: `amazon-ebs`.
 
-{% raw %}
 ```json
 {
   "builders": [
@@ -168,7 +165,6 @@ Packer can build [many different kinds](https://www.packer.io/docs/builders/inde
   ]
 }
 ```
-{% endraw %}
 
 The two most interesting properties of this are `source_ami_filter` and `ami_users`.  The `source_ami_filter` works in a very similar manner to the AWS CLI's `describe-images` `--filters` parameter, albeit in a more readable format.  In this case, I am specifying that I want an `ubuntu-xenial` base, and I want it to be an official Canonical image, so specify their Account ID as the `owner`.  I also specify the `most_recent` property, as this filter will return all versions of this AMI which Canonical publish.
 
@@ -278,7 +274,6 @@ describe("ami builder", () => {
 
 I also test that certain variables (`ami_users`) have been defined, and have been used in the right place:
 
-{% raw %}
 ```javascript
 describe("variables", () => {
   it("should have a variable for who can use the ami", () => {
@@ -306,7 +301,6 @@ describe("ami builder", () => {
   });
 })
 ```
-{% endraw %}
 
 Other tests you might want to add are that the base AMI is under a certain age, or that your AMI has certain tags included, or that it is named in a specific manner.
 
