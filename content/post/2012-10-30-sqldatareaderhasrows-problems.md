@@ -1,6 +1,6 @@
 ---
 date: "2012-10-30T00:00:00Z"
-tags: bug sql
+tags: ["bug", "sql"]
 title: SqlDataReader.HasRows Problems
 ---
 

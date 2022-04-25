@@ -1,6 +1,6 @@
 ---
 date: "2014-02-18T00:00:00Z"
-tags: design c# solid
+tags: ["design", "c#", "solid"]
 title: SOLID Principles - SRP
 ---
 

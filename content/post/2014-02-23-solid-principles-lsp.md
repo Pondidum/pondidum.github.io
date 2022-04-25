@@ -1,6 +1,6 @@
 ---
 date: "2014-02-23T00:00:00Z"
-tags: design c# solid
+tags: ["design", "c#", "solid"]
 title: SOLID Principles - LSP
 ---
 

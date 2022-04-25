@@ -1,6 +1,6 @@
 ---
 date: "2021-05-27T00:00:00Z"
-tags: observability honeycomb opentelemetry infrastructure vault
+tags: ["observability", "honeycomb", "opentelemetry", "infrastructure", "vault"]
 title: Adding Observability to Vault
 ---
 

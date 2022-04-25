@@ -1,6 +1,6 @@
 ---
 date: "2017-07-28T00:00:00Z"
-tags: c# structuremap simpleinjector di ioc
+tags: ["c#", "structuremap", "simpleinjector", "di", "ioc"]
 title: Serilog LogContext with StructureMap and SimpleInjector
 ---
 

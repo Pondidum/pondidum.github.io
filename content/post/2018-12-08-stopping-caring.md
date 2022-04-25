@@ -1,6 +1,6 @@
 ---
 date: "2018-12-08T00:00:00Z"
-tags: code books health
+tags: ["code", "books", "health"]
 title: Stopping Caring...
 ---
 

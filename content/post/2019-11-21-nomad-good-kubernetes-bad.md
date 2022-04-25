@@ -1,6 +1,6 @@
 ---
 date: "2019-11-21T00:00:00Z"
-tags: nomad infrastructure kubernetes
+tags: ["nomad", "infrastructure", "kubernetes"]
 title: Nomad Good, Kubernetes Bad
 ---
 

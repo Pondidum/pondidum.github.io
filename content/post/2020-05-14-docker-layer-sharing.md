@@ -1,6 +1,6 @@
 ---
 date: "2020-05-14T00:00:00Z"
-tags: docker
+tags: ["docker"]
 title: Sharing Docker Layers Between Build Agents
 ---
 

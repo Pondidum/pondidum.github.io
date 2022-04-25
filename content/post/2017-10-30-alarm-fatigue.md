@@ -1,6 +1,6 @@
 ---
 date: "2017-10-30T00:00:00Z"
-tags: support alarms oncall
+tags: ["support", "alarms", "oncall"]
 title: Alarm Fatigue
 ---
 

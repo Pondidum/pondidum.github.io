@@ -1,6 +1,6 @@
 ---
 date: "2014-07-22T00:00:00Z"
-tags: design c# typing sql database orm
+tags: ["design", "c#", "typing", "sql", "database", "orm"]
 title: Configuring Dapper to work with custom types
 ---
 

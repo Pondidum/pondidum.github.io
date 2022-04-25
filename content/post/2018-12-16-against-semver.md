@@ -1,6 +1,6 @@
 ---
 date: "2018-12-16T00:00:00Z"
-tags: code ci cd
+tags: ["code", "ci", "cd"]
 title: Against SemVer
 ---
 

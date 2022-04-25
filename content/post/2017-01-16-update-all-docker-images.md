@@ -1,6 +1,6 @@
 ---
 date: "2017-01-16T00:00:00Z"
-tags: docker bash git
+tags: ["docker", "bash", "git"]
 title: Update all Docker images
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2009-12-15T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: Functionality and Seperation of Concerns
 ---
 

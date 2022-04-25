@@ -1,6 +1,6 @@
 ---
 date: "2018-02-26T00:00:00Z"
-tags: c# testing
+tags: ["c#", "testing"]
 title: Test Expressiveness
 ---
 

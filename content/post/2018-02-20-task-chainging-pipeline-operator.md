@@ -1,6 +1,6 @@
 ---
 date: "2018-02-20T00:00:00Z"
-tags: c#
+tags: ["c#"]
 title: Task Chaining and the Pipeline Operator
 ---
 

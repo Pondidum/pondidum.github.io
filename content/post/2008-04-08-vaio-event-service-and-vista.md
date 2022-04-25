@@ -1,6 +1,6 @@
 ---
 date: "2008-04-08T00:00:00Z"
-tags: bug
+tags: ["bug"]
 title: Vaio Event Service and Vista
 ---
 

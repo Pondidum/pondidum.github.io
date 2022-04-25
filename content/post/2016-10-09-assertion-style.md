@@ -1,6 +1,6 @@
 ---
 date: "2016-10-09T00:00:00Z"
-tags: c# nunit testing shouldly assert
+tags: ["c#", "nunit", "testing", "shouldly", "assert"]
 title: 'Shouldly: Why would you assert any other way?'
 ---
 

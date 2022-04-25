@@ -1,6 +1,6 @@
 ---
 date: "2018-09-10T00:00:00Z"
-tags: sketchnotes conference
+tags: ["sketchnotes", "conference"]
 title: 'SketchNotes: Finding Your Service Boundaries'
 ---
 

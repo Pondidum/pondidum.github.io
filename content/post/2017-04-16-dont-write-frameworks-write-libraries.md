@@ -1,6 +1,6 @@
 ---
 date: "2017-04-16T00:00:00Z"
-tags: architecture code
+tags: ["architecture", "code"]
 title: Don't write Frameworks, write Libraries
 ---
 

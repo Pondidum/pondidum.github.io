@@ -1,6 +1,6 @@
 ---
 date: "2020-05-04T00:00:00Z"
-tags: microservices consul nomad
+tags: ["microservices", "consul", "nomad"]
 title: Service Mesh with Consul Connect (and Nomad)
 ---
 

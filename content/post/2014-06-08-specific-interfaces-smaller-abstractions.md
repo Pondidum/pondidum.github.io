@@ -1,6 +1,6 @@
 ---
 date: "2014-06-08T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: Specific Interfaces
 ---
 

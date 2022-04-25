@@ -1,6 +1,6 @@
 ---
 date: "2017-07-12T00:00:00Z"
-tags: aws terraform s3
+tags: ["aws", "terraform", "s3"]
 title: Terraform, Kinesis Streams, Lambda and IAM problems
 ---
 

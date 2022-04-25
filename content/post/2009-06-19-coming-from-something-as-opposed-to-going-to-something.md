@@ -1,6 +1,6 @@
 ---
 date: "2009-06-19T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: Coming From Something as opposed to Going To Something
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2018-08-26T00:00:00Z"
-tags: configuration c# strongtyping stronk validation
+tags: ["configuration", "c#", "strongtyping", "stronk", "validation"]
 title: Validate Your Configuration
 ---
 

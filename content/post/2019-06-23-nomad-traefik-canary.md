@@ -1,6 +1,6 @@
 ---
 date: "2019-06-23T00:00:00Z"
-tags: infrastructure vagrant nomad consul traefik
+tags: ["infrastructure", "vagrant", "nomad", "consul", "traefik"]
 title: Canary Routing with Traefik in Nomad
 ---
 

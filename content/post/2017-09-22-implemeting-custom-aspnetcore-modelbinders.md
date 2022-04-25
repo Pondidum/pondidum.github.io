@@ -1,6 +1,6 @@
 ---
 date: "2017-09-22T00:00:00Z"
-tags: design aspnetcore dotnetcore
+tags: ["design", "aspnetcore", "dotnetcore"]
 title: Implementing Custom Aspnet Core ModelBinders
 ---
 

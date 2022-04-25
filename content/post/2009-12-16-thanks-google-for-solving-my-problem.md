@@ -1,6 +1,6 @@
 ---
 date: "2009-12-16T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: Thanks Google for solving my problem!
 ---
 

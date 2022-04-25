@@ -1,6 +1,6 @@
 ---
 date: "2012-03-29T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: 'Model View Presenters: Composite Views'
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2015-11-19T00:00:00Z"
-tags: c# gulp
+tags: ["c#", "gulp"]
 title: Generating AssemblyInfo files with Gulp
 ---
 

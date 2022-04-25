@@ -1,6 +1,6 @@
 ---
 date: "2012-10-29T00:00:00Z"
-tags: design controls
+tags: ["design", "controls"]
 title: 'Winforms Design Time support: exposing sub designers'
 ---
 

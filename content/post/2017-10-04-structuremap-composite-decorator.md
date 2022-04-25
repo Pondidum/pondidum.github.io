@@ -1,6 +1,6 @@
 ---
 date: "2017-10-04T00:00:00Z"
-tags: structuremap di ioc
+tags: ["structuremap", "di", "ioc"]
 title: Composite Decorators with StructureMap
 ---
 

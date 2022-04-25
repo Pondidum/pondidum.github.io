@@ -1,6 +1,6 @@
 ---
 date: "2010-09-08T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: To mutate or not to mutate
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2019-12-30T00:00:00Z"
-tags: consul dns infrastructure
+tags: ["consul", "dns", "infrastructure"]
 title: Consul DNS Fowarding in Alpine, revisited
 ---
 

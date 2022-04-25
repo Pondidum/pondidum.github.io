@@ -1,6 +1,6 @@
 ---
 date: "2014-02-02T00:00:00Z"
-tags: design
+tags: ["design"]
 title: Specialising a General Application
 ---
 

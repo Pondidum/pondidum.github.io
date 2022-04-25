@@ -1,6 +1,6 @@
 ---
 date: "2018-06-23T00:00:00Z"
-tags: vault security microservices
+tags: ["vault", "security", "microservices"]
 title: Locking Vault Down with Policies
 ---
 

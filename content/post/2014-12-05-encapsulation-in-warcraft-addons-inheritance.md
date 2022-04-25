@@ -1,6 +1,6 @@
 ---
 date: "2014-12-05T00:00:00Z"
-tags: design lua warcraft
+tags: ["design", "lua", "warcraft"]
 title: Encapsulation in Warcraft Addons - Inheritance
 ---
 

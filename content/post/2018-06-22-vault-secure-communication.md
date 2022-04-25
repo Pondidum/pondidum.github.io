@@ -1,6 +1,6 @@
 ---
 date: "2018-06-22T00:00:00Z"
-tags: vault security microservices
+tags: ["vault", "security", "microservices"]
 title: Secure Communication with Vault
 ---
 

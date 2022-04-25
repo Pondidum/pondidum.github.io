@@ -1,6 +1,6 @@
 ---
 date: "2009-05-18T00:00:00Z"
-tags: design code
+tags: ["design", "code"]
 title: Finally, I have used a Model View Controller!
 ---
 

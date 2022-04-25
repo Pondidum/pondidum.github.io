@@ -1,6 +1,6 @@
 ---
 date: "2008-04-17T00:00:00Z"
-tags: bug
+tags: ["bug"]
 title: 'Conflicting Unrelated Options: Alps Trackpad vs Microsoft Mouse'
 ---
 

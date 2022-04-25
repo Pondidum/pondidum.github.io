@@ -1,6 +1,6 @@
 ---
 date: "2014-11-23T00:00:00Z"
-tags: design lua warcraft
+tags: ["design", "lua", "warcraft"]
 title: Good Design in Warcraft Addons/Lua
 ---
 

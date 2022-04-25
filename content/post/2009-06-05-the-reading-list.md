@@ -1,6 +1,6 @@
 ---
 date: "2009-06-05T00:00:00Z"
-tags: books
+tags: ["books"]
 title: The Reading List
 ---
 

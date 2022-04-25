@@ -1,6 +1,6 @@
 ---
 date: "2012-04-23T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: Designing the EventDistributor
 ---
 

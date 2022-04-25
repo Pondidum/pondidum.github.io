@@ -1,6 +1,6 @@
 ---
 date: "2017-01-07T00:00:00Z"
-tags: c# cqs cqrs mediatr
+tags: ["c#", "cqs", "cqrs", "mediatr"]
 title: MediatR and Magic
 ---
 

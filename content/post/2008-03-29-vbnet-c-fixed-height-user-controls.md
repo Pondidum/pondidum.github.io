@@ -1,6 +1,6 @@
 ---
 date: "2008-03-29T00:00:00Z"
-tags: design controls c#
+tags: ["design", "controls", "c#"]
 title: VB.NET &amp; C# Fixed height User Controls
 ---
 

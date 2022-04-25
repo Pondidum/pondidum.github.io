@@ -1,6 +1,6 @@
 ---
 date: "2018-09-08T00:00:00Z"
-tags: configuration c# strongtyping stronk validation
+tags: ["configuration", "c#", "strongtyping", "stronk", "validation"]
 title: 'Semantic Configuration Validation: Earlier'
 ---
 

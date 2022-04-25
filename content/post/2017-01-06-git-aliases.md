@@ -1,6 +1,6 @@
 ---
 date: "2017-01-06T00:00:00Z"
-tags: git environment bash
+tags: ["git", "environment", "bash"]
 title: Git Aliases
 ---
 

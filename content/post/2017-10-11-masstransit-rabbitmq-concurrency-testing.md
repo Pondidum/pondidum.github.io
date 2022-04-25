@@ -1,6 +1,6 @@
 ---
 date: "2017-10-11T00:00:00Z"
-tags: masstransit rabbitmq testing
+tags: ["masstransit", "rabbitmq", "testing"]
 title: Testing RabbitMQ Concurrency in MassTransit
 ---
 

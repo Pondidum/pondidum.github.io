@@ -1,6 +1,6 @@
 ---
 date: "2017-03-17T00:00:00Z"
-tags: c# nodejs aws terraform lambda apigateway rest
+tags: ["c#", "nodejs", "aws", "terraform", "lambda", "apigateway", "rest"]
 title: Using Terraform to setup AWS API-Gateway and Lambda
 ---
 

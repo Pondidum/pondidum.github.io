@@ -1,6 +1,6 @@
 ---
 date: "2014-05-04T00:00:00Z"
-tags: design c# domain ddd
+tags: ["design", "c#", "domain", "ddd"]
 title: Writing Rich Domain Models
 ---
 

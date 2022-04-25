@@ -1,6 +1,6 @@
 ---
 date: "2019-01-01T00:00:00Z"
-tags: logstash microservices infrastructure vagrant packer aws testing
+tags: ["logstash", "microservices", "infrastructure", "vagrant", "packer", "aws", "testing"]
 title: Testing Immutable Infrastructure
 ---
 

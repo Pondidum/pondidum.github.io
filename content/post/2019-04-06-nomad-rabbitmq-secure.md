@@ -1,6 +1,6 @@
 ---
 date: "2019-04-06T00:00:00Z"
-tags: infrastructure vagrant nomad consul rabbitmq vault
+tags: ["infrastructure", "vagrant", "nomad", "consul", "rabbitmq", "vault"]
 title: Running a Secure RabbitMQ Cluster in Nomad
 ---
 

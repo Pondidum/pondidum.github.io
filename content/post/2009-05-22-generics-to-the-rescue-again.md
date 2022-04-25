@@ -1,6 +1,6 @@
 ---
 date: "2009-05-22T00:00:00Z"
-tags: design generics c#
+tags: ["design", "generics", "c#"]
 title: Generics to the rescue! Again!
 ---
 

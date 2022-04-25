@@ -1,6 +1,6 @@
 ---
 date: "2018-06-18T00:00:00Z"
-tags: git docker bash windows
+tags: ["git", "docker", "bash", "windows"]
 title: Fixing Docker volume paths on Git Bash on Windows
 ---
 

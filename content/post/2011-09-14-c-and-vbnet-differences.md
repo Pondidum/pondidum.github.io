@@ -1,6 +1,6 @@
 ---
 date: "2011-09-14T00:00:00Z"
-tags: c#
+tags: ["c#"]
 title: C# and Vb.Net Differences
 ---
 

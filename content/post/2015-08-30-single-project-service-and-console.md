@@ -1,6 +1,6 @@
 ---
 date: "2015-08-30T00:00:00Z"
-tags: design overseer microservices console cli
+tags: ["design", "overseer", "microservices", "console", "cli"]
 title: A single project Windows Service and Console
 ---
 

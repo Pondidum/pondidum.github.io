@@ -1,6 +1,6 @@
 ---
 date: "2015-04-01T00:00:00Z"
-tags: design postgres sql architecture
+tags: ["design", "postgres", "sql", "architecture"]
 title: Don't Let The Database Dictate Your Design
 ---
 

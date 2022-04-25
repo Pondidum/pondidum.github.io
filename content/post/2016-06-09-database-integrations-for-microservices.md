@@ -1,6 +1,6 @@
 ---
 date: "2016-06-09T00:00:00Z"
-tags: c# microservices integration eventsourcing
+tags: ["c#", "microservices", "integration", "eventsourcing"]
 title: Database Integrations for MicroServices
 ---
 

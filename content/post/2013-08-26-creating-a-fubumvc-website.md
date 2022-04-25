@@ -1,6 +1,6 @@
 ---
 date: "2013-08-26T00:00:00Z"
-tags: c#
+tags: ["c#"]
 title: Creating a FubuMvc website
 ---
 

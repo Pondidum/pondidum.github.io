@@ -1,6 +1,6 @@
 ---
 date: "2016-03-18T00:00:00Z"
-tags: c# rabbitmq xunit
+tags: ["c#", "rabbitmq", "xunit"]
 title: RabbitMQ integration tests in XUnit
 ---
 

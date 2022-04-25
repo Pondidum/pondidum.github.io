@@ -1,6 +1,6 @@
 ---
 date: "2015-09-05T00:00:00Z"
-tags: design microservices docker mono
+tags: ["design", "microservices", "docker", "mono"]
 title: Running microservices in Docker with Mono
 ---
 

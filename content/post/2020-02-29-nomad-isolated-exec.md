@@ -1,6 +1,6 @@
 ---
 date: "2020-02-29T00:00:00Z"
-tags: infrastructure nomad docker
+tags: ["infrastructure", "nomad", "docker"]
 title: Nomad Isolated Exec
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2016-12-06T00:00:00Z"
-tags: c# strongtyping configuration stronk
+tags: ["c#", "strongtyping", "configuration", "stronk"]
 title: Strong Type All The Configurations
 ---
 

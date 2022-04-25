@@ -1,6 +1,6 @@
 ---
 date: "2009-07-14T00:00:00Z"
-tags: ci
+tags: ["ci"]
 title: 'CI: Thoughts on CC.Net and Hudson'
 ---
 

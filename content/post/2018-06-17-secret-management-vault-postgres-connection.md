@@ -1,6 +1,6 @@
 ---
 date: "2018-06-17T00:00:00Z"
-tags: vault security microservices postgres
+tags: ["vault", "security", "microservices", "postgres"]
 title: Managing Postgres Connection Strings with Vault
 ---
 

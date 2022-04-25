@@ -1,6 +1,6 @@
 ---
 date: "2011-03-17T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: (Miss)Use of Narrowing-Implicit Operators
 ---
 

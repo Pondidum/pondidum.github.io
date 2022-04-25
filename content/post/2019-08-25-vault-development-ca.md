@@ -1,6 +1,6 @@
 ---
 date: "2019-08-25T00:00:00Z"
-tags: vault security tls
+tags: ["vault", "security", "tls"]
 title: Using Vault as a Development CA
 ---
 

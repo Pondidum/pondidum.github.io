@@ -1,6 +1,6 @@
 ---
 date: "2019-03-22T00:00:00Z"
-tags: vagrant docker hyperv networking
+tags: ["vagrant", "docker", "hyperv", "networking"]
 title: Hyper-V, Docker, and Networking Drama
 ---
 

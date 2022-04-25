@@ -1,6 +1,6 @@
 ---
 date: "2016-03-19T00:00:00Z"
-tags: c# cqs cqrs mediatr
+tags: ["c#", "cqs", "cqrs", "mediatr"]
 title: CQS with Mediatr
 ---
 

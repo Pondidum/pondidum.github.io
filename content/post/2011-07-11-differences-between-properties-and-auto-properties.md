@@ -1,6 +1,6 @@
 ---
 date: "2011-07-11T00:00:00Z"
-tags: c#
+tags: ["c#"]
 title: Differences between Properties and Auto Properties
 ---
 

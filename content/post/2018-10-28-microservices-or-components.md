@@ -1,6 +1,6 @@
 ---
 date: "2018-10-28T00:00:00Z"
-tags: architecture microservices design
+tags: ["architecture", "microservices", "design"]
 title: Microservices or Components
 ---
 

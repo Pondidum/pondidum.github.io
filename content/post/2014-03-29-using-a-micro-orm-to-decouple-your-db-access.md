@@ -1,6 +1,6 @@
 ---
 date: "2014-03-29T00:00:00Z"
-tags: design c# automapper sql memento
+tags: ["design", "c#", "automapper", "sql", "memento"]
 title: Using a Micro ORM to decouple your DB Access
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2018-08-07T00:00:00Z"
-tags: microservices consul terraform 12factor
+tags: ["microservices", "consul", "terraform", "12factor"]
 title: Managing AppSettings in Consul
 ---
 

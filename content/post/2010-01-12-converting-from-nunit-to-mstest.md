@@ -1,6 +1,6 @@
 ---
 date: "2010-01-12T00:00:00Z"
-tags: c#
+tags: ["c#"]
 title: Converting from NUnit to MSTest
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2014-08-04T00:00:00Z"
-tags: design c# typing sql database orm
+tags: ["design", "c#", "typing", "sql", "database", "orm"]
 title: Edge.js for Embedded Webuis
 ---
 

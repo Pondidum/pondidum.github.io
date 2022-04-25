@@ -1,6 +1,6 @@
 ---
 date: "2021-03-12T00:00:00Z"
-tags: observability opentelemetry nodejs zipkin
+tags: ["observability", "opentelemetry", "nodejs", "zipkin"]
 title: Getting NodeJS OpenTelemetry data into NewRelic
 ---
 

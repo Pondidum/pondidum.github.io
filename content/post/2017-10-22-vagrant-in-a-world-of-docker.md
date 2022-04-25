@@ -1,6 +1,6 @@
 ---
 date: "2017-10-22T00:00:00Z"
-tags: docker vagrant testing
+tags: ["docker", "vagrant", "testing"]
 title: Vagrant in the world of Docker
 ---
 

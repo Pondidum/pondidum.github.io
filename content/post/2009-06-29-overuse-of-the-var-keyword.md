@@ -1,6 +1,6 @@
 ---
 date: "2009-06-29T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: Overuse of the Var keyword
 ---
 

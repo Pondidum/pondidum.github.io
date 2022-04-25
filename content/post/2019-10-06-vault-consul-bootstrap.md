@@ -1,6 +1,6 @@
 ---
 date: "2019-10-06T00:00:00Z"
-tags: consul vault infrastructure security tls
+tags: ["consul", "vault", "infrastructure", "security", "tls"]
 title: Creating a Vault instance with a TLS Consul Cluster
 ---
 

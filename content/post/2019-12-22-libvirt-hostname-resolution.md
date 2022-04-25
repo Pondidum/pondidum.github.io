@@ -1,6 +1,6 @@
 ---
 date: "2019-12-22T00:00:00Z"
-tags: libvirt vagrant dns
+tags: ["libvirt", "vagrant", "dns"]
 title: Libvirt Hostname Resolution
 ---
 

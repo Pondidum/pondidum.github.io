@@ -1,6 +1,6 @@
 ---
 date: "2015-09-21T00:00:00Z"
-tags: c# webapi
+tags: ["c#", "webapi"]
 title: Posting PlainText to Asp WebApi
 ---
 

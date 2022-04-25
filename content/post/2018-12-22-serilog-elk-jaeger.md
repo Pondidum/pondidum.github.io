@@ -1,6 +1,6 @@
 ---
 date: "2018-12-22T00:00:00Z"
-tags: jaeger logstash microservices infrastructure
+tags: ["jaeger", "logstash", "microservices", "infrastructure"]
 title: Code-free tracing with LogStash and Jaeger
 ---
 

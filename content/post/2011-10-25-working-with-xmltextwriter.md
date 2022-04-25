@@ -1,6 +1,6 @@
 ---
 date: "2011-10-25T00:00:00Z"
-tags: c#
+tags: ["c#"]
 title: Working with XmlTextWriter
 ---
 

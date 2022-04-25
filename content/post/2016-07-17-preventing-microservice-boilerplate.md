@@ -1,6 +1,6 @@
 ---
 date: "2016-07-17T00:00:00Z"
-tags: c# microservices consul structuremap kibana boilerplate
+tags: ["c#", "microservices", "consul", "structuremap", "kibana", "boilerplate"]
 title: Preventing MicroService Boilerplate
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2017-10-02T00:00:00Z"
-tags: dotnetcore rabbitmq docker testing
+tags: ["dotnetcore", "rabbitmq", "docker", "testing"]
 title: Integration Testing with Dotnet Core, Docker and RabbitMQ
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2015-03-25T00:00:00Z"
-tags: design api
+tags: ["design", "api"]
 title: Communicating Intent in APIs
 ---
 

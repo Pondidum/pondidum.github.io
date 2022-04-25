@@ -1,6 +1,6 @@
 ---
 date: "2019-01-28T00:00:00Z"
-tags: infrastructure vagrant nomad consul rabbitmq
+tags: ["infrastructure", "vagrant", "nomad", "consul", "rabbitmq"]
 title: RabbitMQ clustering with Consul in Nomad
 ---
 

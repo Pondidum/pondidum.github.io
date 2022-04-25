@@ -1,6 +1,6 @@
 ---
 date: "2017-12-09T00:00:00Z"
-tags: design process
+tags: ["design", "process"]
 title: Tweaking Processes to Remove Errors
 ---
 

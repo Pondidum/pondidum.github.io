@@ -1,6 +1,6 @@
 ---
 date: "2010-10-20T00:00:00Z"
-tags: controls bug c#
+tags: ["controls", "bug", "c#"]
 title: Databinding to a DataGridView - The order of columns
 ---
 

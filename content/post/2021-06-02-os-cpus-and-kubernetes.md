@@ -1,6 +1,6 @@
 ---
 date: "2021-06-02T00:00:00Z"
-tags: kubernetes nodejs infrastructure
+tags: ["kubernetes", "nodejs", "infrastructure"]
 title: The Problem with CPUs and Kubernetes
 ---
 

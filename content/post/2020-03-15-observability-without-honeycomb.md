@@ -1,6 +1,6 @@
 ---
 date: "2020-03-15T00:00:00Z"
-tags: observability honeycomb elk monitoring
+tags: ["observability", "honeycomb", "elk", "monitoring"]
 title: Observability Without Honeycomb
 ---
 

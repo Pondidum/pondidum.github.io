@@ -1,6 +1,6 @@
 ---
 date: "2009-05-29T00:00:00Z"
-tags: design generics controls c#
+tags: ["design", "generics", "controls", "c#"]
 title: Microcontrollers for MenuItems
 ---
 

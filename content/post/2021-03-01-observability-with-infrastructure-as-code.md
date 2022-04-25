@@ -1,6 +1,6 @@
 ---
 date: "2021-03-01T00:00:00Z"
-tags: observability honeycomb pulumi infrastructure aws
+tags: ["observability", "honeycomb", "pulumi", "infrastructure", "aws"]
 title: Observability with Infrastructure as Code
 ---
 

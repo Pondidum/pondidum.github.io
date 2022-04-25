@@ -1,6 +1,6 @@
 ---
 date: "2010-03-24T00:00:00Z"
-tags: bug c#
+tags: ["bug", "c#"]
 title: Multilining If statements conditions should be banned. now.
 ---
 

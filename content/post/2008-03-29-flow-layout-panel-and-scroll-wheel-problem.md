@@ -1,6 +1,6 @@
 ---
 date: "2008-03-29T00:00:00Z"
-tags: bug
+tags: ["bug"]
 title: Flow Layout Panel and Scroll Wheel Problem
 ---
 

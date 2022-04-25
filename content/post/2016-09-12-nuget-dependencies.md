@@ -1,6 +1,6 @@
 ---
 date: "2016-09-12T00:00:00Z"
-tags: c# nuget graphviz dependencies
+tags: ["c#", "nuget", "graphviz", "dependencies"]
 title: Visualising NuGet Dependencies
 ---
 

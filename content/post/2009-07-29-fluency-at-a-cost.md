@@ -1,6 +1,6 @@
 ---
 date: "2009-07-29T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: Fluency at a cost?
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2011-10-22T00:00:00Z"
-tags: design
+tags: ["design"]
 title: Noticing Changes
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2017-11-09T00:00:00Z"
-tags: configuration design architecture c# strongtyping stronk
+tags: ["configuration", "design", "architecture", "c#", "strongtyping", "stronk"]
 title: Strong Configuration Composition
 ---
 

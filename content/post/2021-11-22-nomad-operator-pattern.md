@@ -1,6 +1,6 @@
 ---
 date: "2021-11-22T00:00:00Z"
-tags: infrastructure nomad kubernetes
+tags: ["infrastructure", "nomad", "kubernetes"]
 title: The Operator Pattern in Nomad
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2017-09-17T00:00:00Z"
-tags: design structuremap testing
+tags: ["design", "structuremap", "testing"]
 title: Testing Containers or Test Behaviour, Not Implementation
 ---
 

@@ -1,6 +1,6 @@
 ---
 date: "2011-08-09T00:00:00Z"
-tags: c#
+tags: ["c#"]
 title: c# Enum casting
 ---
 

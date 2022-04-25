@@ -1,6 +1,6 @@
 ---
 date: "2019-09-14T00:00:00Z"
-tags: vault security tls consul
+tags: ["vault", "security", "tls", "consul"]
 title: Creating a TLS enabled Consul cluster
 ---
 

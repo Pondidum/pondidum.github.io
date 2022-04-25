@@ -1,6 +1,6 @@
 ---
 date: "2014-07-17T00:00:00Z"
-tags: design c# typing sql database orm
+tags: ["design", "c#", "typing", "sql", "database", "orm"]
 title: Strong Type your entity IDs.
 ---
 

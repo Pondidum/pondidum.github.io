@@ -1,6 +1,6 @@
 ---
 date: "2017-11-17T00:00:00Z"
-tags: design architecture process
+tags: ["design", "architecture", "process"]
 title: Evolutionary Development
 ---
 

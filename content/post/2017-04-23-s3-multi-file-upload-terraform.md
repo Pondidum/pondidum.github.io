@@ -1,6 +1,6 @@
 ---
 date: "2017-04-23T00:00:00Z"
-tags: aws terraform s3
+tags: ["aws", "terraform", "s3"]
 title: S3 Multi-File upload with Terraform
 ---
 

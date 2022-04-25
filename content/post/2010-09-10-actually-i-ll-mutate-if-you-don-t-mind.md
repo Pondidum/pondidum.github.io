@@ -1,6 +1,6 @@
 ---
 date: "2010-09-10T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: Actually, I'll mutate if you don't mind
 ---
 

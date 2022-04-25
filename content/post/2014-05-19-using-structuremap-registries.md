@@ -1,6 +1,6 @@
 ---
 date: "2014-05-19T00:00:00Z"
-tags: design c# structuremap separation testing
+tags: ["design", "c#", "structuremap", "separation", "testing"]
 title: Using StructureMap Registries for better separation
 ---
 

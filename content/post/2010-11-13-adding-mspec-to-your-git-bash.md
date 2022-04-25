@@ -1,6 +1,6 @@
 ---
 date: "2010-11-13T00:00:00Z"
-tags: c# git
+tags: ["c#", "git"]
 title: Adding MSpec to your Git Bash
 ---
 

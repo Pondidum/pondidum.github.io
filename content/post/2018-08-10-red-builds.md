@@ -1,6 +1,6 @@
 ---
 date: "2018-08-10T00:00:00Z"
-tags: rant git ci process productivity testing
+tags: ["rant", "git", "ci", "process", "productivity", "testing"]
 title: Branching and Red Builds
 ---
 

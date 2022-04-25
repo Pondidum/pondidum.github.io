@@ -1,6 +1,6 @@
 ---
 date: "2011-02-09T00:00:00Z"
-tags: design c#
+tags: ["design", "c#"]
 title: Expression Rules, Version 2
 ---
 

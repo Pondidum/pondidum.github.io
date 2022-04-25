@@ -1,6 +1,6 @@
 ---
 date: "2018-09-06T00:00:00Z"
-tags: microservices consul featuretoggles architecture
+tags: ["microservices", "consul", "featuretoggles", "architecture"]
 title: Feature Toggles with Consul
 ---
 

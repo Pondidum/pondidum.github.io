@@ -1,6 +1,6 @@
 ---
 date: "2010-08-31T00:00:00Z"
-tags: c#
+tags: ["c#"]
 title: Using Visual Studio's Regex Find and Replace
 ---
 

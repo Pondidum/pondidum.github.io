@@ -1,6 +1,6 @@
 ---
 date: "2017-07-15T00:00:00Z"
-tags: productivity
+tags: ["productivity"]
 title: Getting Things Done
 ---
 

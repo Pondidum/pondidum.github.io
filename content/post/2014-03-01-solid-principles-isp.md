@@ -1,6 +1,6 @@
 ---
 date: "2014-03-01T00:00:00Z"
-tags: design c# solid
+tags: ["design", "c#", "solid"]
 title: SOLID Principles - ISP
 ---
 
