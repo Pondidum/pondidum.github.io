@@ -10,7 +10,7 @@ When using the [Pulumi Automation API](https://www.pulumi.com/blog/tag/automatio
 
 One of the applications I work on creates a VPC and Bastion host and then stores the credentials into a Vault instance.  The problem is that the “create infrastructure” part is an opaque blob, in that I can see it takes 129 seconds to create, but I can’t see what it’s doing, or why it takes this amount of time.
 
-![honeycomb traces of one pulumi stack resource](images/pulumi-observability-before.png)
+![honeycomb traces of one pulumi stack resource](/images/pulumi-observability-before.png)
 
 So can I do better?
 
@@ -156,7 +156,7 @@ Now when I run this program again, I can see a lot more information in my Honeyc
 
 
 
-![honeycomb traces of all infrastructure resources in the pulumi stack](images/pulumi-observability-after.png)
+![honeycomb traces of all infrastructure resources in the pulumi stack](/images/pulumi-observability-after.png)
 
 
 In the future, I want to expand this to cover far more details, such as including the reasons resources were created/modified/destroyed and including as much information as possible about what caused a resource to fail.
