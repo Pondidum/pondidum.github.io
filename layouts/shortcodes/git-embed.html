@@ -1,0 +1,40 @@
+{{- $user := .Get "user" -}}
+{{- $repo := .Get "repo" -}}
+{{- $ref := .Get "ref" -}}
+{{- $file := .Get "file" -}}
+
+
+{{- $source := printf "https://github.com/%s/%s/blob/%s/%s" $user $repo $ref $file -}}
+{{- $url := printf "https://raw.githubusercontent.com/%s/%s/%s/%s" $user $repo $ref $file -}}
+{{- $remote := resources.GetRemote $url -}}
+
+{{ $all_lines := split $remote.Content "\n" -}}
+
+{{- $start := 1 -}}
+{{- if isset .Params "start" -}}
+  {{- $start = (.Get "start") | int -}}
+{{- end -}}
+
+{{- $finish := len $all_lines -}}
+{{- if isset .Params "finish" -}}
+  {{ $finish = (.Get "finish") | int -}}
+{{- end -}}
+
+{{- $start = math.Max $start 1 -}}
+{{- $finish = math.Min $finish (len $all_lines) -}}
+
+{{- $lines := slice -}}
+{{- range $index, $num := (seq (add $start -1) (add $finish -1)) -}}
+  {{- $lines = $lines | append (index $all_lines $num) -}}
+{{- end -}}
+
+{{- $lang := strings.TrimPrefix "." (path.Ext $file) -}}
+{{- if isset .Params "lang" -}}
+  {{- $lang = .Get "lang" -}}
+{{- end -}}
+
+{{- highlight ( delimit $lines "\n") $lang -}}
+
+<footer>
+  <small>Source: <a href="{{- $source -}}">{{- $source -}}</a></small>
+</footer>
