@@ -33,8 +33,13 @@
   {{- $lang = .Get "lang" -}}
 {{- end -}}
 
-{{- highlight ( delimit $lines "\n") $lang -}}
+{{- $options := "" -}}
+{{- if isset .Params "options" -}}
+  {{- $options = .Get "options" -}}
+{{- end -}}
 
-<footer>
-  <small>Source: <a href="{{- $source -}}">{{- $source -}}</a></small>
+{{- highlight ( delimit $lines "\n") $lang $options -}}
+
+<footer style="margin: 10px auto;">
+  <small><a href="{{- $source -}}">Source</a></small>
 </footer>
