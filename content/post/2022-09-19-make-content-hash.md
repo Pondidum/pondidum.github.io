@@ -32,10 +32,10 @@ Spoiler: it is!
 The first question is how to hash all our source files reliably.  It turns out you can do all of this with `sha356sum` in a one-liner:
 
 ```shell  {linenos=table}
-find src -iname "*.ts" \
+find src -iname "*.ts" -print0 \
+  | xargs -0 sha256sum \
   | LC_ALL=C sort \
-  | xargs md5sum \
-  | md5sum \
+  | sha256sum \
   | cut -d" " -f 1
 ```
 
