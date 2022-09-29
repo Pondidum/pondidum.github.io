@@ -29,7 +29,7 @@ Spoiler: it is!
 
 ## Hashing
 
-The first question is how to hash all our source files reliably.  It turns out you can do all of this with `sha356sum` in a one-liner:
+The first question is how to hash all our source files reliably.  It turns out you can do all of this with `sha256sum` in a one-liner:
 
 ```shell  {linenos=table}
 find src -iname "*.ts" -print0 \
