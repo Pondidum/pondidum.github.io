@@ -4,6 +4,9 @@ languageCode = "en-gb"
 title = "Andy Dote"
 theme = "PaperMod"
 
+[markup.goldmark.renderer]
+  unsafe = true
+
 enableRobotsTXT = true
 
 [outputFormats.RSS]
