@@ -1,6 +1,6 @@
 ---
 date: "2019-06-11T00:00:00Z"
-tags: ["featuretoggles", "c#", "di", "microservices"]
+tags: ["feature flags", "c#", "di", "microservices"]
 title: 'Feature Toggles: Reducing Coupling'
 ---
 

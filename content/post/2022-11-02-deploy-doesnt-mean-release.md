@@ -1,6 +1,6 @@
 ---
 title: "Deploy != Release"
-tags: ["communication", "ci", "featuretoggles"]
+tags: ["communication", "ci", "feature flags"]
 ---
 
 Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.
