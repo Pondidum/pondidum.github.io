@@ -75,6 +75,9 @@
 {{- $mermaid := slice (resources.Get "js/mermaid.min.js") | resources.Concat "assets/js/mermaid.js" | minify | fingerprint }}
 <script defer crossorigin="anonymous" src="{{ $mermaid.RelPermalink }}" integrity="{{ $mermaid.Data.Integrity }}"></script>
 
+{{- $tabs := resources.Get "js/tabs.js" | minify | fingerprint }}
+<script defer crossorigin="anonymous" src="{{ $tabs.RelPermalink }}" integrity="{{ $tabs.Data.Integrity }}"></script>
+
 {{- /* Highlight.js */}}
 {{- $isHLJSdisabled := (site.Params.assets.disableHLJS | default .Params.disableHLJS ) }}
 {{- if (and (eq .Kind "page") (ne .Layout "archives") (ne .Layout "search") (not $isHLJSdisabled)) }}

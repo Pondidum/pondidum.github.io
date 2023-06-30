@@ -1,0 +1,32 @@
+.tab-nav-button {
+  background-color: #ddd;
+  border: 1px solid #ccc;
+
+  float: left;
+  position: relative;
+  bottom: -1px;
+  padding-left: 1em;
+  padding-right: 1em;
+}
+
+.tab-nav-button.active {
+  border-bottom: 1px solid white;
+  background: white;
+}
+
+.tab-content {
+  clear: both;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #ccc;
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+}
+
+.tab-content .tab-item {
+  display: none;
+}
+
+.tab-content .tab-item.active {
+  display: block;
+}
