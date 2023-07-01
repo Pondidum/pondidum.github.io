@@ -1,0 +1,1 @@
+function switchTab(e,t){const n=document.querySelectorAll(`[data-tab-group="${e}"]`),s=document.querySelectorAll(`[data-tab-group="${e}"][data-tab-item="${t}"]`);n.forEach(e=>e.classList.remove("active")),s.forEach(e=>e.classList.add("active"))}
