@@ -18,14 +18,14 @@ nameserver 192.168.121.1
 </span></span><span style=display:flex><span> <span style=color:#f92672>stub-addr</span>: <span style=color:#ae81ff>127.0.0.1</span>@<span style=color:#ae81ff>8600</span>
 </span></span><span style=display:flex><span><span style=color:#f92672>include</span>: <span style=color:#e6db74>&#34;/etc/unbound/forward.conf&#34;</span>
 </span></span></code></pre></div><h3 id=dhclient>Dhclient<a hidden class=anchor aria-hidden=true href=#dhclient>#</a></h3><p>Next, we install <code>dhclient</code> so that we can make use of it&rsquo;s hooks feature to generate our additional unbound config file.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span>apk add dhclient
-</span></span></code></pre></div><p>Create a config file for dhclient (<code>/etc/dhcp/dhclient.conf</code>), which again is almost the same as the previous post, but this time doesn&rsquo;t specify <code>prepend domain-name-servers</code>:</p><pre tabindex=0><code class=language-conf data-lang=conf>option rfc3442-classless-static-routes code 121 = array of unsigned integer 8;
-send host-name = gethostname();
-request subnet-mask, broadcast-address, time-offset, routers,
- domain-name, domain-name-servers, domain-search, host-name,
- dhcp6.name-servers, dhcp6.domain-search, dhcp6.fqdn, dhcp6.sntp-servers,
- netbios-name-servers, netbios-scope, interface-mtu,
- rfc3442-classless-static-routes, ntp-servers;
-</code></pre><p>Now we can write two hooks. The first is an enter hook, which we can use to write the <code>forward.conf</code> file out.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span>touch /etc/dhclient-enter-hooks
+</span></span></code></pre></div><p>Create a config file for dhclient (<code>/etc/dhcp/dhclient.conf</code>), which again is almost the same as the previous post, but this time doesn&rsquo;t specify <code>prepend domain-name-servers</code>:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-conf data-lang=conf><span style=display:flex><span><span style=color:#66d9ef>option</span> rfc3442-classless-static-routes code 121 <span style=color:#f92672>=</span> array of unsigned integer 8;
+</span></span><span style=display:flex><span>send <span style=color:#66d9ef>host</span>-name <span style=color:#f92672>=</span> <span style=color:#a6e22e>gethostname</span>();
+</span></span><span style=display:flex><span>request <span style=color:#66d9ef>subnet</span>-mask, broadcast-address, time-offset, routers,
+</span></span><span style=display:flex><span> domain-name, domain-name-servers, domain-search, <span style=color:#66d9ef>host</span>-name,
+</span></span><span style=display:flex><span> dhcp6.name-servers, dhcp6.domain-search, dhcp6.fqdn, dhcp6.sntp-servers,
+</span></span><span style=display:flex><span> netbios-name-servers, netbios-scope, interface-mtu,
+</span></span><span style=display:flex><span> rfc3442-classless-static-routes, ntp-servers;
+</span></span></code></pre></div><p>Now we can write two hooks. The first is an enter hook, which we can use to write the <code>forward.conf</code> file out.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span>touch /etc/dhclient-enter-hooks
 </span></span><span style=display:flex><span>chmod +x /etc/dhclient-enter-hooks
 </span></span></code></pre></div><p>The content is a single statement to write the <code>new_domain_name_servers</code> value into a <code>forward-zone</code> for unbound:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#75715e>#!/bin/sh
 </span></span></span><span style=display:flex><span><span style=color:#75715e></span>
