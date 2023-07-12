@@ -1,8 +1,9 @@
----
-date: "2015-04-01T00:00:00Z"
-tags: ["design", "postgres", "sql", "architecture"]
-title: Don't Let The Database Dictate Your Design
----
++++
+date = '2015-04-01T00:00:00Z'
+tags = ['design', 'postgres', 'sql', 'architecture']
+title = "Don't Let The Database Dictate Your Design"
+
++++
 
 I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases.  An example of this is the design of a system which stores data about people, specifically for this, their email addresses.  A cut down version of the structure is this:
 

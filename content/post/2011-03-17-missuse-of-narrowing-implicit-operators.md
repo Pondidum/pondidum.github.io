@@ -1,8 +1,9 @@
----
-date: "2011-03-17T00:00:00Z"
-tags: ["design", "c#"]
-title: (Miss)Use of Narrowing-Implicit Operators
----
++++
+date = '2011-03-17T00:00:00Z'
+tags = ['design', 'c#']
+title = '(Miss)Use of Narrowing-Implicit Operators'
+
++++
 
 I have covered a use of Narrowing/Implicit Operators before, but I was thinking the other day about use of Fluent Interfaces, and if it was possible to have one on a cache/repository type class, that would allow you to chain options together, but stop at any point and have the result.
 

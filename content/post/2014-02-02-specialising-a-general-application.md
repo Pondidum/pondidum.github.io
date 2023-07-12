@@ -1,8 +1,9 @@
----
-date: "2014-02-02T00:00:00Z"
-tags: ["design"]
-title: Specialising a General Application
----
++++
+date = '2014-02-02T00:00:00Z'
+tags = ['design']
+title = 'Specialising a General Application'
+
++++
 
 Currently our application at work is used by all employees - sales staff, legal team, marketing, accounts etc.  This means we have one very large, and general fit application.  It covers everyone's needs *just*, and the largest group of users (sales in this case) have an application which closely matches what they need.  This is at the expense of the other teams having an application that is not quite right - close, but could be better.
 

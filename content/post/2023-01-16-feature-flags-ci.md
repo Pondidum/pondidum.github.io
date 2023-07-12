@@ -1,7 +1,8 @@
----
-title: Feature Flags in a CI Pipeline
-tags: [ "cli", "feature flags", "ci" ]
----
++++
+tags = ['cli', 'feature flags', 'ci']
+title = 'Feature Flags in a CI Pipeline'
+
++++
 
 Feature flags are a great tool for helping software development; they provide controlled feature rollouts, facilitate A/B testing, and help decouple [deployment from release][deploy-not-release].  So when it comes to building our software, why do we treat the CI pipeline without the same level of engineering as the production code?
 

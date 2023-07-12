@@ -1,8 +1,9 @@
----
-date: "2012-10-30T00:00:00Z"
-tags: ["bug", "sql"]
-title: SqlDataReader.HasRows Problems
----
++++
+date = '2012-10-30T00:00:00Z'
+tags = ['bug', 'sql']
+title = 'SqlDataReader.HasRows Problems'
+
++++
 
 For the last 6 years or so at work, we have had an intermittent bug.  In this case, intermittent means around once in 6 months or so.  A little background to the problem first:
 

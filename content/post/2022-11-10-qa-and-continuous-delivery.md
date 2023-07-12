@@ -1,7 +1,8 @@
----
-title: "QA and Continuous Delivery"
-tags: ["communication", "cd", "feature flags", "process", "productivity"]
----
++++
+tags = ['communication', 'cd', 'feature flags', 'process', 'productivity']
+title = 'QA and Continuous Delivery'
+
++++
 
 When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.
 

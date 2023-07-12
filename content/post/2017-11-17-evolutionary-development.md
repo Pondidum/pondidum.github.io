@@ -1,8 +1,9 @@
----
-date: "2017-11-17T00:00:00Z"
-tags: ["design", "architecture", "process"]
-title: Evolutionary Development
----
++++
+date = '2017-11-17T00:00:00Z'
+tags = ['design', 'architecture', 'process']
+title = 'Evolutionary Development'
+
++++
 
 Having recently finished reading the [Building Evolutionary Architectures: Support Constant Change book](https://www.goodreads.com/book/show/35755822-building-evolutionary-architectures), I got to thinking about a system which was fairly representative of an architecture which was fine for it's initial version, but it's usage had outgrown the architecture.
 

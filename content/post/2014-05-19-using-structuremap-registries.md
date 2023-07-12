@@ -1,8 +1,9 @@
----
-date: "2014-05-19T00:00:00Z"
-tags: ["design", "c#", "structuremap", "separation", "testing"]
-title: Using StructureMap Registries for better separation
----
++++
+date = '2014-05-19T00:00:00Z'
+tags = ['design', 'c#', 'structuremap', 'separation', 'testing']
+title = 'Using StructureMap Registries for better separation'
+
++++
 
 When it comes to configuring StructureMap, it supports the use of [Registries][structuremap-registries].  Registries support everything that the standard configure method does(`new Container(c => { /* */});`).
 

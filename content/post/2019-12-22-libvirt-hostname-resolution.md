@@ -1,8 +1,9 @@
----
-date: "2019-12-22T00:00:00Z"
-tags: ["libvirt", "vagrant", "dns"]
-title: Libvirt Hostname Resolution
----
++++
+date = '2019-12-22T00:00:00Z'
+tags = ['libvirt', 'vagrant', 'dns']
+title = 'Libvirt Hostname Resolution'
+
++++
 
 I use [Vagrant](http://vagrantup.com/) when testing new machines and experimenting locally with clusters, and since moving (mostly) to Linux, I have been using the [LibVirt Plugin](https://github.com/vagrant-libvirt/vagrant-libvirt) to create the virtual machines. Not only is it significantly faster than Hyper-V was on windows, but it also means I don't need to use Oracle products, so it's win-win really.
 

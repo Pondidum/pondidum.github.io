@@ -1,8 +1,9 @@
----
-date: "2019-09-14T00:00:00Z"
-tags: ["vault", "security", "tls", "consul"]
-title: Creating a TLS enabled Consul cluster
----
++++
+date = '2019-09-14T00:00:00Z'
+tags = ['vault', 'security', 'tls', 'consul']
+title = 'Creating a TLS enabled Consul cluster'
+
++++
 
 
 This post is going to go through how to set up a [Consul](https://www.consul.io/) cluster to communicate over TLS.  I will be using [Vagrant](https://www.vagrantup.com/) to create three machines locally, which will form my cluster, and in the provisioning step will use Vault to generate the certificates needed.

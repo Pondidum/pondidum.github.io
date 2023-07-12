@@ -1,8 +1,9 @@
----
-date: "2021-05-27T00:00:00Z"
-tags: ["observability", "honeycomb", "opentelemetry", "infrastructure", "vault"]
-title: Adding Observability to Vault
----
++++
+date = '2021-05-27T00:00:00Z'
+tags = ['observability', 'honeycomb', 'opentelemetry', 'infrastructure', 'vault']
+title = 'Adding Observability to Vault'
+
++++
 
 One of the things I like to do when setting up a Vault cluster is to visualise all the operations Vault is performing, which helps see usage patterns changing, whether there are lots of failed requests coming in, and what endpoints are receiving the most traffic.
 

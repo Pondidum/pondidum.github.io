@@ -1,8 +1,9 @@
----
-date: "2011-09-14T00:00:00Z"
-tags: ["c#"]
-title: C# and Vb.Net Differences
----
++++
+date = '2011-09-14T00:00:00Z'
+tags = ['c#']
+title = 'C# and Vb.Net Differences'
+
++++
 
 So I have been doing some work that involves C# and VB libraries and apps using each other, and have noticed a lot of subtle differences between the two languages.
 

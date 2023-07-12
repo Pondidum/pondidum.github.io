@@ -1,8 +1,9 @@
----
-date: "2017-01-16T00:00:00Z"
-tags: ["docker", "bash", "git"]
-title: Update all Docker images
----
++++
+date = '2017-01-16T00:00:00Z'
+tags = ['docker', 'bash', 'git']
+title = 'Update all Docker images'
+
++++
 
 My work's wifi is *much* faster than my 4G connection, so periodically I want to update all my docker images on my personal laptop while at work.
 

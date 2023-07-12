@@ -1,8 +1,9 @@
----
-date: "2014-02-18T00:00:00Z"
-tags: ["design", "c#", "solid"]
-title: SOLID Principles - SRP
----
++++
+date = '2014-02-18T00:00:00Z'
+tags = ['design', 'c#', 'solid']
+title = 'SOLID Principles - SRP'
+
++++
 
 ## Single Responsibility Principle
 

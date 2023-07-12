@@ -1,7 +1,8 @@
----
-title: Observability Driven CI
-tags: [ "ci", "feature flags", "otel", "tracing" ]
----
++++
+tags = ['ci', 'feature flags', 'otel', 'tracing']
+title = 'Observability Driven CI'
+
++++
 
 Tracking where the time goes in your CI pipeline is an important step towards being able to make it go even faster.  Up until somewhat recently, the only way of tracking how long tasks took in CI was either hoping people had wrapped all their commands in `time ...`, or by reading a timestamped build log and calculating the difference between numbers.  Which isn't great or fun, if we're being honest.
 

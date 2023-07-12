@@ -1,7 +1,8 @@
----
-title: "Deploy != Release"
-tags: ["communication", "ci", "feature flags"]
----
++++
+tags = ['communication', 'ci', 'feature flags']
+title = 'Deploy != Release'
+
++++
 
 Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.
 

@@ -1,8 +1,9 @@
----
-date: "2020-02-29T00:00:00Z"
-tags: ["infrastructure", "nomad", "docker"]
-title: Nomad Isolated Exec
----
++++
+date = '2020-02-29T00:00:00Z'
+tags = ['infrastructure', 'nomad', 'docker']
+title = 'Nomad Isolated Exec'
+
++++
 
 One of the many features of [Nomad](https://nomadproject.io) that I like is the ability to run things other than Docker containers.  It has built-in support for Java, QEMU, and Rkt, although the latter is deprecated.  Besides these inbuilt "Task Drivers" there are community maintained ones too, covering Podman, LXC, Firecraker and BSD Jails, amongst others.
 

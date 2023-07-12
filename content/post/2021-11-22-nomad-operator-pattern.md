@@ -1,8 +1,9 @@
----
-date: "2021-11-22T00:00:00Z"
-tags: ["infrastructure", "nomad", "kubernetes"]
-title: The Operator Pattern in Nomad
----
++++
+date = '2021-11-22T00:00:00Z'
+tags = ['infrastructure', 'nomad', 'kubernetes']
+title = 'The Operator Pattern in Nomad'
+
++++
 
 The [Operator Pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) from Kubernetes is an excellent way of handling tasks in a cluster in an automated way, for example, provisioning applications, running backups, requesting certificates, and injecting chaos testing.
 

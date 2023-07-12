@@ -1,8 +1,9 @@
----
-date: "2008-04-13T00:00:00Z"
-tags: ["design", "controls", "c#"]
-title: Creating Non resizable controls
----
++++
+date = '2008-04-13T00:00:00Z'
+tags = ['design', 'controls', 'c#']
+title = 'Creating Non resizable controls'
+
++++
 
 A control I was recently developing required being non-resizable when on the form.  When the application is running, this would be easy enough, just set its `AutoSize` property to False, and don't dock the control.
 

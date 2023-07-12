@@ -1,8 +1,9 @@
----
-date: "2020-08-28T00:00:00Z"
-tags: ["bash"]
-title: Better BASHing Through Technology
----
++++
+date = '2020-08-28T00:00:00Z'
+tags = ['bash']
+title = 'Better BASHing Through Technology'
+
++++
 
 I write a lot of bash scripts for both my day job and my personal projects, and while they are functional, bash scripts always seem to lack that structure that I want, especially when compared to writing something in Go or C#. The main problem I have with bash scripts is that when I use functions, I lose the ability to log things.
 

@@ -1,8 +1,9 @@
----
-date: "2010-03-24T00:00:00Z"
-tags: ["bug", "c#"]
-title: Multilining If statements conditions should be banned. now.
----
++++
+date = '2010-03-24T00:00:00Z'
+tags = ['bug', 'c#']
+title = 'Multilining If statements conditions should be banned. now.'
+
++++
 
 Multilining if statement conditions is bad.  I was modifying some code and came across this:
 

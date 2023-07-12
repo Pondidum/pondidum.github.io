@@ -1,8 +1,9 @@
----
-date: "2019-05-31T00:00:00Z"
-tags: ["infrastructure", "consul", "alpine", "dns"]
-title: Configuring Consul DNS Forwarding in Alpine Linux
----
++++
+date = '2019-05-31T00:00:00Z'
+tags = ['infrastructure', 'consul', 'alpine', 'dns']
+title = 'Configuring Consul DNS Forwarding in Alpine Linux'
+
++++
 
 # DEPRECATED - This has a race condition!
 

@@ -1,8 +1,9 @@
----
-date: "2009-06-05T00:00:00Z"
-tags: ["books"]
-title: The Reading List
----
++++
+date = '2009-06-05T00:00:00Z'
+tags = ['books']
+title = 'The Reading List'
+
++++
 
 I have been meaning to write my own version of Jeff Atwood's [Reading List][reading-list] for a while now, and have finally managed to find some time to write about the books I have read.
 

@@ -1,8 +1,9 @@
----
-date: "2015-08-30T00:00:00Z"
-tags: ["design", "overseer", "microservices", "console", "cli"]
-title: A single project Windows Service and Console
----
++++
+date = '2015-08-30T00:00:00Z'
+tags = ['design', 'overseer', 'microservices', 'console', 'cli']
+title = 'A single project Windows Service and Console'
+
++++
 
 I have found that when developing MicroServices, I often want to run them from within Visual Studio, or just as a console application, and not have to bother with the hassle of installing as windows services.
 

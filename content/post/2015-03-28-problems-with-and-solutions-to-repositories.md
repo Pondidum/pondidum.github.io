@@ -1,8 +1,9 @@
----
-date: "2015-03-28T00:00:00Z"
-tags: ["design", "cqrs", "architecture"]
-title: The problems with and solutions to Repositories
----
++++
+date = '2015-03-28T00:00:00Z'
+tags = ['design', 'cqrs', 'architecture']
+title = 'The problems with and solutions to Repositories'
+
++++
 
 
 Repositories are a design pattern which I have never been a huge fan of.  I can see the use of them as a good layer boundary, but too often I see them being used all over the place instead of at an infrastructure level in a code base.

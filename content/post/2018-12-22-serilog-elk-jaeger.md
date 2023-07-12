@@ -1,8 +1,9 @@
----
-date: "2018-12-22T00:00:00Z"
-tags: ["jaeger", "logstash", "microservices", "infrastructure"]
-title: Code-free tracing with LogStash and Jaeger
----
++++
+date = '2018-12-22T00:00:00Z'
+tags = ['jaeger', 'logstash', 'microservices', 'infrastructure']
+title = 'Code-free tracing with LogStash and Jaeger'
+
++++
 
 I wanted to show request charts (similar to the network tab in firefox) for requests across our microservices but wanted to do so in the least invasive way possible.
 

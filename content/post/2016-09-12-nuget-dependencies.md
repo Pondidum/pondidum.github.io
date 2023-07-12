@@ -1,8 +1,9 @@
----
-date: "2016-09-12T00:00:00Z"
-tags: ["c#", "nuget", "graphviz", "dependencies"]
-title: Visualising NuGet Dependencies
----
++++
+date = '2016-09-12T00:00:00Z'
+tags = ['c#', 'nuget', 'graphviz', 'dependencies']
+title = 'Visualising NuGet Dependencies'
+
++++
 
 My new place of work has a lot of nuget packages, and I wanted to understand the dependencies between them.  To do this I wrote a simple shell script to find all the `packages.config` files on my machine, and output all the relationships in a way which I could view them.
 

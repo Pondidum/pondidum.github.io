@@ -1,8 +1,9 @@
----
-date: "2010-11-13T00:00:00Z"
-tags: ["c#", "git"]
-title: Adding MSpec to your Git Bash
----
++++
+date = '2010-11-13T00:00:00Z'
+tags = ['c#', 'git']
+title = 'Adding MSpec to your Git Bash'
+
++++
 
 My workflow involves Visual Studio, Notepad++ and Git Bash.  I don't use much Visual Studio integration, and prefer to run most things from the command line.
 

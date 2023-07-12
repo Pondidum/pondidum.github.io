@@ -1,8 +1,9 @@
----
-date: "2017-10-02T00:00:00Z"
-tags: ["dotnetcore", "rabbitmq", "docker", "testing"]
-title: Integration Testing with Dotnet Core, Docker and RabbitMQ
----
++++
+date = '2017-10-02T00:00:00Z'
+tags = ['dotnetcore', 'rabbitmq', 'docker', 'testing']
+title = 'Integration Testing with Dotnet Core, Docker and RabbitMQ'
+
++++
 
 When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.
 

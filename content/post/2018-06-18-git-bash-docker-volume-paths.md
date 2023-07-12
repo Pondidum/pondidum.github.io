@@ -1,8 +1,9 @@
----
-date: "2018-06-18T00:00:00Z"
-tags: ["git", "docker", "bash", "windows"]
-title: Fixing Docker volume paths on Git Bash on Windows
----
++++
+date = '2018-06-18T00:00:00Z'
+tags = ['git', 'docker', 'bash', 'windows']
+title = 'Fixing Docker volume paths on Git Bash on Windows'
+
++++
 
 My normal development laptop runs Windows, but like a lot of developers, I make huge use of Docker, which I run under Hyper-V.  I also heavily use the git bash terminal on windows to work.
 

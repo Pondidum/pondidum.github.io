@@ -1,8 +1,9 @@
----
-date: "2009-06-19T00:00:00Z"
-tags: ["design", "c#"]
-title: Coming From Something as opposed to Going To Something
----
++++
+date = '2009-06-19T00:00:00Z'
+tags = ['design', 'c#']
+title = 'Coming From Something as opposed to Going To Something'
+
++++
 
 Over the last week I have noticed myself preferring methods being called IntegerFromString rather than StringToInteger.  Is sometimes takes me a little longer to read (only a few milliseconds, mind) but I think I am getting more used to it, and I do think it enhances readability.
 

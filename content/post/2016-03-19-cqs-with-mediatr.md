@@ -1,8 +1,9 @@
----
-date: "2016-03-19T00:00:00Z"
-tags: ["c#", "cqs", "cqrs", "mediatr"]
-title: CQS with Mediatr
----
++++
+date = '2016-03-19T00:00:00Z'
+tags = ['c#', 'cqs', 'cqrs', 'mediatr']
+title = 'CQS with Mediatr'
+
++++
 
 This article is some extra thoughts I had on api structure after reading [Derek Comartin][derek-comartin-thin-controllers].
 

@@ -1,8 +1,9 @@
----
-date: "2012-01-26T00:00:00Z"
-tags: ["design", "c#"]
-title: 'Model View Presenters: Introduction'
----
++++
+date = '2012-01-26T00:00:00Z'
+tags = ['design', 'c#']
+title = 'Model View Presenters: Introduction'
+
++++
 
 Table of Contents
 ----------------------------------

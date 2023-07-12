@@ -1,8 +1,9 @@
----
-date: "2018-06-17T00:00:00Z"
-tags: ["vault", "security", "microservices", "postgres"]
-title: Managing Postgres Connection Strings with Vault
----
++++
+date = '2018-06-17T00:00:00Z'
+tags = ['vault', 'security', 'microservices', 'postgres']
+title = 'Managing Postgres Connection Strings with Vault'
+
++++
 
 One of the points I made in my recent NDC talk on 12 Factor microservices, was that you shouldn't be storing sensitive data, such as API keys, usernames, passwords etc. in the environment variables.
 

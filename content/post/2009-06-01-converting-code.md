@@ -1,7 +1,8 @@
----
-date: "2009-06-01T00:00:00Z"
-title: Converting Code
----
++++
+date = '2009-06-01T00:00:00Z'
+title = 'Converting Code'
+
++++
 
 Quite often (well ok, not that often) I am asked why I convert most C# code I find into VB.Net.  The main reason is I find that it helps me to understand the code.
 

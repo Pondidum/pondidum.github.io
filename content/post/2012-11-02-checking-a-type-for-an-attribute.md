@@ -1,7 +1,8 @@
----
-date: "2012-11-02T00:00:00Z"
-title: Checking a Type for an Attribute
----
++++
+date = '2012-11-02T00:00:00Z'
+title = 'Checking a Type for an Attribute'
+
++++
 
 I needed to be able to detect at run time if an Enum has a specific Attribute on it.  Generalizing it, I came up with this:
 

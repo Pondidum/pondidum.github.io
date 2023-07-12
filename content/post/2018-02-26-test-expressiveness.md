@@ -1,8 +1,9 @@
----
-date: "2018-02-26T00:00:00Z"
-tags: ["c#", "testing"]
-title: Test Expressiveness
----
++++
+date = '2018-02-26T00:00:00Z'
+tags = ['c#', 'testing']
+title = 'Test Expressiveness'
+
++++
 
 We have a test suite at work which tests a retry decorator class works as expected.  One of the tests checks that when the inner implementation throws an exception, it will log the number of times it has failed:
 

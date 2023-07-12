@@ -1,8 +1,9 @@
----
-date: "2017-07-12T00:00:00Z"
-tags: ["aws", "terraform", "s3"]
-title: Terraform, Kinesis Streams, Lambda and IAM problems
----
++++
+date = '2017-07-12T00:00:00Z'
+tags = ['aws', 'terraform', 's3']
+title = 'Terraform, Kinesis Streams, Lambda and IAM problems'
+
++++
 
 I hit an problem the recently with Terraform, when I was trying to hook up a Lambda Trigger to a Kinesis stream.  Both the lambda itself, and the stream creation succeeded within Terraform, but the trigger would just stay stuck on "creating..." for at least 5 minutes, before I got bored of waiting and killed the process.  Several attempts at doing this had the same issue.
 

@@ -1,8 +1,9 @@
----
-date: "2015-11-19T00:00:00Z"
-tags: ["c#", "gulp"]
-title: Generating AssemblyInfo files with Gulp
----
++++
+date = '2015-11-19T00:00:00Z'
+tags = ['c#', 'gulp']
+title = 'Generating AssemblyInfo files with Gulp'
+
++++
 
 When changing a project's build script over to [Gulpjs][gulp], I ran into a problem with one step - creating an `AssemblyInfo.cs` file.
 

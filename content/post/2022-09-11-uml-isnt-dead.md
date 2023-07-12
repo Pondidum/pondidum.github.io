@@ -1,7 +1,8 @@
----
-tags: ["uml", "design"]
-title: The reports of UML's death are greatly exaggerated
----
++++
+tags = ['uml', 'design']
+title = "The reports of UML's death are greatly exaggerated"
+
++++
 
 This is in response to the [recent](https://buttondown.email/hillelwayne/archive/why-uml-really-died/) [posts](https://garba.org/posts/2021/uml/) about the death of UML;  while I think some parts of UML have fallen ill, the remaining parts are still alive, and useful to this day.
 

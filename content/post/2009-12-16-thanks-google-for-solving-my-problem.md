@@ -1,8 +1,9 @@
----
-date: "2009-12-16T00:00:00Z"
-tags: ["design", "c#"]
-title: Thanks Google for solving my problem!
----
++++
+date = '2009-12-16T00:00:00Z'
+tags = ['design', 'c#']
+title = 'Thanks Google for solving my problem!'
+
++++
 
 Following on from [yesterday's][1] post about separation on concerns and where to put some undefined logic for a multi state checkbox, I did a fair amount of research.
 

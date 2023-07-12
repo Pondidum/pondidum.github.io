@@ -1,8 +1,9 @@
----
-date: "2021-03-01T00:00:00Z"
-tags: ["observability", "honeycomb", "pulumi", "infrastructure", "aws"]
-title: Observability with Infrastructure as Code
----
++++
+date = '2021-03-01T00:00:00Z'
+tags = ['observability', 'honeycomb', 'pulumi', 'infrastructure', 'aws']
+title = 'Observability with Infrastructure as Code'
+
++++
 
 > This article was originally published on the [Pulumi blog](https://www.pulumi.com/blog/observability-with-infrastructure-as-code/).
 

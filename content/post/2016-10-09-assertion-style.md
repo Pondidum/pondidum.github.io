@@ -1,8 +1,9 @@
----
-date: "2016-10-09T00:00:00Z"
-tags: ["c#", "nunit", "testing", "shouldly", "assert"]
-title: 'Shouldly: Why would you assert any other way?'
----
++++
+date = '2016-10-09T00:00:00Z'
+tags = ['c#', 'nunit', 'testing', 'shouldly', 'assert']
+title = 'Shouldly: Why would you assert any other way?'
+
++++
 
 I like to make my development life as easy as possible - and removing small irritations is a great way of doing this.  Having used [Shouldly](http://docs.shouldly-lib.net/v2.4.0/docs) in anger for a long time, I have to say I feel a little hamstrung when going back to just using NUnit's assertions.
 

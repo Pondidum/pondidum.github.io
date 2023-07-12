@@ -1,7 +1,8 @@
----
-date: "2009-05-19T00:00:00Z"
-title: Using Laziness
----
++++
+date = '2009-05-19T00:00:00Z'
+title = 'Using Laziness'
+
++++
 
 As I do a lot of forms development, I end up writing something like this a lot:
 

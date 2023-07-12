@@ -1,8 +1,9 @@
----
-date: "2011-10-22T00:00:00Z"
-tags: ["design"]
-title: Noticing Changes
----
++++
+date = '2011-10-22T00:00:00Z'
+tags = ['design']
+title = 'Noticing Changes'
+
++++
 
 I work on a piece of software that has been around for about 6 years now, which looks something like this:
 

@@ -1,8 +1,9 @@
----
-date: "2019-06-11T00:00:00Z"
-tags: ["feature flags", "c#", "di", "microservices"]
-title: 'Feature Toggles: Reducing Coupling'
----
++++
+date = '2019-06-11T00:00:00Z'
+tags = ['feature flags', 'c#', 'di', 'microservices']
+title = 'Feature Toggles: Reducing Coupling'
+
++++
 
 One of the points I make in my [Feature Toggles talk](https://www.youtube.com/watch?v=r7VI5x2XKXw) is that you shouldn't be querying a toggle's status all over your codebase.  Ideally, each toggle gets checked in as few places as possible - preferably only one place.  The advantage of doing this is that very little of your codebase needs to be coupled to the toggles (either the toggle itself or the library/system for managing toggles itself).
 

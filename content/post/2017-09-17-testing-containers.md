@@ -1,8 +1,9 @@
----
-date: "2017-09-17T00:00:00Z"
-tags: ["design", "structuremap", "testing"]
-title: Testing Containers or Test Behaviour, Not Implementation
----
++++
+date = '2017-09-17T00:00:00Z'
+tags = ['design', 'structuremap', 'testing']
+title = 'Testing Containers or Test Behaviour, Not Implementation'
+
++++
 
 The trouble with testing containers is that usually the test ends up very tightly coupled to the implementation.
 

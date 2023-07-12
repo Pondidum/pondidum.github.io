@@ -1,8 +1,9 @@
----
-date: "2014-08-04T00:00:00Z"
-tags: ["design", "c#", "typing", "sql", "database", "orm"]
-title: Edge.js for Embedded Webuis
----
++++
+date = '2014-08-04T00:00:00Z'
+tags = ['design', 'c#', 'typing', 'sql', 'database', 'orm']
+title = 'Edge.js for Embedded Webuis'
+
++++
 
 We work we have a number of windows services which each have a lot of stats they could expose.  Currently they are only interrogatable by the logfiles and from any notifications we receive.
 

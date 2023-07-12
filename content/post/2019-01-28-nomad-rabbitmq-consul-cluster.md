@@ -1,8 +1,9 @@
----
-date: "2019-01-28T00:00:00Z"
-tags: ["infrastructure", "vagrant", "nomad", "consul", "rabbitmq"]
-title: RabbitMQ clustering with Consul in Nomad
----
++++
+date = '2019-01-28T00:00:00Z'
+tags = ['infrastructure', 'vagrant', 'nomad', 'consul', 'rabbitmq']
+title = 'RabbitMQ clustering with Consul in Nomad'
+
++++
 
 **Update** If you want a secure version of this cluster, see [Running a Secure RabbitMQ Cluster in Nomad](/2019/04/06/nomad-rabbitmq-secure/).
 

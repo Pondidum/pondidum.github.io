@@ -1,8 +1,9 @@
----
-date: "2015-09-15T00:00:00Z"
-tags: ["design", "microservices", "docker", "mono"]
-title: Running pre-compiled microservices in Docker with Mono
----
++++
+date = '2015-09-15T00:00:00Z'
+tags = ['design', 'microservices', 'docker', 'mono']
+title = 'Running pre-compiled microservices in Docker with Mono'
+
++++
 
 Last time we went through [creating a Dockerfile for a microservice][blog-docker], with the service being compiled on creation of the container image, using xbuild.
 

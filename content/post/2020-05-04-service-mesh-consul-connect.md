@@ -1,8 +1,9 @@
----
-date: "2020-05-04T00:00:00Z"
-tags: ["microservices", "consul", "nomad"]
-title: Service Mesh with Consul Connect (and Nomad)
----
++++
+date = '2020-05-04T00:00:00Z'
+tags = ['microservices', 'consul', 'nomad']
+title = 'Service Mesh with Consul Connect (and Nomad)'
+
++++
 
 When it comes to implementing a new feature in an application's ecosystem, I [don't like spending my innovation tokens](https://mcfunley.com/choose-boring-technology) unless I have to, so I try not to add new tools to my infrastructure unless I _really_ need them.
 

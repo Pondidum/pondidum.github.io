@@ -1,8 +1,9 @@
----
-date: "2011-08-09T00:00:00Z"
-tags: ["c#"]
-title: c# Enum casting
----
++++
+date = '2011-08-09T00:00:00Z'
+tags = ['c#']
+title = 'c# Enum casting'
+
++++
 
 I am all for strong typing, and explicit casts, but some things in C# do seem to be a bit over-wordy.  For instance, I would quite often have code that looks like the following in VB.Net:
 

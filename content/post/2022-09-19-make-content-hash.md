@@ -1,7 +1,8 @@
----
-tags: ["make", "ci"]
-title: Content based change detection with Make
----
++++
+tags = ['make', 'ci']
+title = 'Content based change detection with Make'
+
++++
 
 On several occasions when building complex projects, I have been tempted to set up [Bazel] to help speed up the build process; after all, it has a lot to offer: only building what has changed, caching built artifacts, and sharing that cache between machines for even more speed.
 

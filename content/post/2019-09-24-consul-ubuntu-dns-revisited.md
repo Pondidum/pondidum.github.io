@@ -1,8 +1,9 @@
----
-date: "2019-09-24T00:00:00Z"
-tags: ["consul", "dns", "infrastructure"]
-title: Consul DNS Fowarding in Ubuntu, revisited
----
++++
+date = '2019-09-24T00:00:00Z'
+tags = ['consul', 'dns', 'infrastructure']
+title = 'Consul DNS Fowarding in Ubuntu, revisited'
+
++++
 
 I was recently using my [Hashibox](https://github.com/pondidum/hashibox) for a test, and I noticed the DNS resolution didn't seem to work.  This was a bit worrying, as I have written about how to do [DNS resolution with Consul forwarding in Ubuntu](/2019/05/29/consul-dns-forwarding/), and apparently something is wrong with how I do it.  Interestingly, the [Alpine version](/2019/05/31/consul-dns-forwarding-alpine/) works fine, so it appears there is something not quite working with how I am configuring Systemd-resolved.
 

@@ -1,8 +1,9 @@
----
-title: Talks
-url: "/talks/"
-summary: "talks"
----
++++
+summary = 'talks'
+title = 'Talks'
+url = '/talks/'
+
++++
 
 ## Feature Toggles: The Good, The Bad and The Ugly
 A Talk on how Feature Toggles can be a great asset or terrible curse. Examples of how the go wrong/right, and what to do about it.

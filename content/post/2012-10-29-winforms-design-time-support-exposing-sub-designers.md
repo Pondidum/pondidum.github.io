@@ -1,8 +1,9 @@
----
-date: "2012-10-29T00:00:00Z"
-tags: ["design", "controls"]
-title: 'Winforms Design Time support: exposing sub designers'
----
++++
+date = '2012-10-29T00:00:00Z'
+tags = ['design', 'controls']
+title = 'Winforms Design Time support: exposing sub designers'
+
++++
 
 When writing a [UserControl][1], it is often desired to expose one or more of the sub-controls design-time support to the user of your control.  It is reasonably straight forward to do, and here is a rundown of how:
 

@@ -1,7 +1,8 @@
----
-date: "2013-11-17T00:00:00Z"
-title: Analysis of Frames in World of Warcraft
----
++++
+date = '2013-11-17T00:00:00Z'
+title = 'Analysis of Frames in World of Warcraft'
+
++++
 
 In this post we will be looking at how the `Frame` and associated objects are (probably) constructed behind the scenes.  This will all be done via inspection in lua from the games scripting engine.
 

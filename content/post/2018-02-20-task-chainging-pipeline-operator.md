@@ -1,8 +1,9 @@
----
-date: "2018-02-20T00:00:00Z"
-tags: ["c#"]
-title: Task Chaining and the Pipeline Operator
----
++++
+date = '2018-02-20T00:00:00Z'
+tags = ['c#']
+title = 'Task Chaining and the Pipeline Operator'
+
++++
 
 Since I have been trying to learn a functional language (Elixir), I have noticed how grating it is when in C# I need to call a few methods in a row, passing the results of one to the next.
 

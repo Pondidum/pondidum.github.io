@@ -1,7 +1,8 @@
----
-date: "2009-10-07T00:00:00Z"
-title: Software Fuzzying maybe?
----
++++
+date = '2009-10-07T00:00:00Z'
+title = 'Software Fuzzying maybe?'
+
++++
 
 This morning I read [this post][1] by [Alfred Thompson][2] about whether we are Software Engineers or something else.  I can't help but agree with him, as I don't feel we are engineers (yet), our discipline is a little fuzzy to be classified as engineering I think.
 

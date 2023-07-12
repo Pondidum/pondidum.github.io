@@ -1,8 +1,9 @@
----
-date: "2010-01-12T00:00:00Z"
-tags: ["c#"]
-title: Converting from NUnit to MSTest
----
++++
+date = '2010-01-12T00:00:00Z'
+tags = ['c#']
+title = 'Converting from NUnit to MSTest'
+
++++
 
 While this is not something I personally would want to do, we (for whatever reason...) are to use MSTest at work (I think it is due to the whole "Its Microsoft, so it's supported" argument).
 

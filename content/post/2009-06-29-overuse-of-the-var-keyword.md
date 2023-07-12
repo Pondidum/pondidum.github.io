@@ -1,8 +1,9 @@
----
-date: "2009-06-29T00:00:00Z"
-tags: ["design", "c#"]
-title: Overuse of the Var keyword
----
++++
+date = '2009-06-29T00:00:00Z'
+tags = ['design', 'c#']
+title = 'Overuse of the Var keyword'
+
++++
 
 When I first got hold of VS2008, and had a play with the new version of C# I loved the Var keyword.  To me the most amazing thing was no more declarations like this:
 

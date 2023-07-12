@@ -1,8 +1,9 @@
----
-date: "2020-05-14T00:00:00Z"
-tags: ["docker"]
-title: Sharing Docker Layers Between Build Agents
----
++++
+date = '2020-05-14T00:00:00Z'
+tags = ['docker']
+title = 'Sharing Docker Layers Between Build Agents'
+
++++
 
 Recently, I noticed that when we pull a new version of our application's docker container, it fetches all layers, not just the ones that change.
 

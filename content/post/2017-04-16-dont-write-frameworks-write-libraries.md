@@ -1,8 +1,9 @@
----
-date: "2017-04-16T00:00:00Z"
-tags: ["architecture", "code"]
-title: Don't write Frameworks, write Libraries
----
++++
+date = '2017-04-16T00:00:00Z'
+tags = ['architecture', 'code']
+title = "Don't write Frameworks, write Libraries"
+
++++
 
 Programmers have a fascination with writing frameworks for some reason.  There are many problems with writing frameworks:
 

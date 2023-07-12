@@ -1,8 +1,9 @@
----
-date: "2019-08-25T00:00:00Z"
-tags: ["vault", "security", "tls"]
-title: Using Vault as a Development CA
----
++++
+date = '2019-08-25T00:00:00Z'
+tags = ['vault', 'security', 'tls']
+title = 'Using Vault as a Development CA'
+
++++
 
 Often when developing or testing some code, I need (or want) to use SSL, and one of the easiest ways to do that is to use [Vault](https://www.vaultproject.io/).  However, it gets pretty annoying having to generate a new CA for each project, and import the CA cert into windows (less painful in Linux, but still annoying), especially as I forget which cert is in use, and accidentally clean up the wrong ones.
 

@@ -1,8 +1,9 @@
----
-date: "2014-02-19T00:00:00Z"
-tags: ["design", "c#", "solid"]
-title: SOLID Principles - OCP
----
++++
+date = '2014-02-19T00:00:00Z'
+tags = ['design', 'c#', 'solid']
+title = 'SOLID Principles - OCP'
+
++++
 
 ## Open Closed Principle
 

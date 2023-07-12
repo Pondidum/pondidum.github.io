@@ -1,7 +1,8 @@
----
-tags: ["aws", "pulumi", "honeycomb"]
-title: Pulumi Conditional Infrastructure for Speed
----
++++
+tags = ['aws', 'pulumi', 'honeycomb']
+title = 'Pulumi Conditional Infrastructure for Speed'
+
++++
 
 One of the reasons I prefer [Pulumi] over [Terraform] is the additional control I have over my processes due to the fact that it's a programming language.
 

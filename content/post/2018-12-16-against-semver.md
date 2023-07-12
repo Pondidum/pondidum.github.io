@@ -1,8 +1,9 @@
----
-date: "2018-12-16T00:00:00Z"
-tags: ["code", "ci", "cd"]
-title: Against SemVer
----
++++
+date = '2018-12-16T00:00:00Z'
+tags = ['code', 'ci', 'cd']
+title = 'Against SemVer'
+
++++
 
 Well, for Applications & Services at least.  For libraries, SemVer is the way to go, assuming you can agree on what a breaking change is defined as.
 

@@ -1,8 +1,9 @@
----
-date: "2020-11-03T00:00:00Z"
-tags: ["docker"]
-title: Forking Multi Container Docker Builds
----
++++
+date = '2020-11-03T00:00:00Z'
+tags = ['docker']
+title = 'Forking Multi Container Docker Builds'
+
++++
 
 Following on from [my last post on Isolated Multistage Docker Builds](/2020/11/01/docker-multistage-containers/), I thought it would be useful to cover another advantage to splitting your dockerfiles: building different output containers from a common base.
 

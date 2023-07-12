@@ -1,8 +1,9 @@
----
-date: "2017-10-22T00:00:00Z"
-tags: ["docker", "vagrant", "testing"]
-title: Vagrant in the world of Docker
----
++++
+date = '2017-10-22T00:00:00Z'
+tags = ['docker', 'vagrant', 'testing']
+title = 'Vagrant in the world of Docker'
+
++++
 
 I gave a little talk at work recently on my use of Vagrant, what it is, and why it is still useful in a world full of Docker containers.
 

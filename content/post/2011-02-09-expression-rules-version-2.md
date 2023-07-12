@@ -1,8 +1,9 @@
----
-date: "2011-02-09T00:00:00Z"
-tags: ["design", "c#"]
-title: Expression Rules, Version 2
----
++++
+date = '2011-02-09T00:00:00Z'
+tags = ['design', 'c#']
+title = 'Expression Rules, Version 2'
+
++++
 
 Recently I have written a rules engine for a very large menu system in an application I work on.  Many of the rules apply many items, so I didn't wish to have to express the same rule many times.  To avoid this, the rule engine DSL was born:
 

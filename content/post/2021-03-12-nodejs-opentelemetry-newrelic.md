@@ -1,8 +1,9 @@
----
-date: "2021-03-12T00:00:00Z"
-tags: ["observability", "opentelemetry", "nodejs", "zipkin"]
-title: Getting NodeJS OpenTelemetry data into NewRelic
----
++++
+date = '2021-03-12T00:00:00Z'
+tags = ['observability', 'opentelemetry', 'nodejs', 'zipkin']
+title = 'Getting NodeJS OpenTelemetry data into NewRelic'
+
++++
 
 I had the need to get some OpenTelemetry data out of a NodeJS application, and into NewRelic's distributed tracing service, but found that there is no way to do it directly, and in this use case, adding a separate collector is more hassle than it's worth.
 

@@ -1,8 +1,9 @@
----
-date: "2015-09-21T00:00:00Z"
-tags: ["c#", "webapi"]
-title: Posting PlainText to Asp WebApi
----
++++
+date = '2015-09-21T00:00:00Z'
+tags = ['c#', 'webapi']
+title = 'Posting PlainText to Asp WebApi'
+
++++
 
 Recently I have been writing a WebApi project which needs to accept plaintext via the body of a PUT request, and did the logical thing of using the `FromBodyAttribute`
 

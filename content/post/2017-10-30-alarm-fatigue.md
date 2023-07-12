@@ -1,8 +1,9 @@
----
-date: "2017-10-30T00:00:00Z"
-tags: ["support", "alarms", "oncall"]
-title: Alarm Fatigue
----
++++
+date = '2017-10-30T00:00:00Z'
+tags = ['support', 'alarms', 'oncall']
+title = 'Alarm Fatigue'
+
++++
 
 I've been on-call for work over the last week for the first time, and while it wasn't as alarming (heh) as I thought it might be, I have had a few thoughts on it.
 

@@ -1,8 +1,9 @@
----
-title: Contact
-url: "/contact/"
-summary: "contact"
----
++++
+summary = 'contact'
+title = 'Contact'
+url = '/contact/'
+
++++
 
 I’m usually pretty easy to get hold of, here’s how I use different channels to communicate with people and how best to contact me.
 

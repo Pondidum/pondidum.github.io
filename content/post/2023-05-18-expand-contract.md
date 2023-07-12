@@ -1,7 +1,8 @@
----
-title: Expand Contract for Databases and Services
-tags: [ "database", "feature flags", "microservices", "architecture" ]
----
++++
+tags = ['database', 'feature flags', 'microservices', 'architecture']
+title = 'Expand Contract for Databases and Services'
+
++++
 
 I haven't seen Expand-Contract written about in some years, and I think it is a great way of performing database schema migrations without the need for application downtime.  I also realised that it also applies to microservices and service-to-service communication in general.
 

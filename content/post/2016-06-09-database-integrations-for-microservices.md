@@ -1,8 +1,9 @@
----
-date: "2016-06-09T00:00:00Z"
-tags: ["c#", "microservices", "integration", "eventsourcing"]
-title: Database Integrations for MicroServices
----
++++
+date = '2016-06-09T00:00:00Z'
+tags = ['c#', 'microservices', 'integration', 'eventsourcing']
+title = 'Database Integrations for MicroServices'
+
++++
 
 This is a follow up post after seeing [Michal Franc][michal-franc-ndc]'s NDC talk on migrating from Monolithic architectures.
 

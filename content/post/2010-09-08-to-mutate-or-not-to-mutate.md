@@ -1,8 +1,9 @@
----
-date: "2010-09-08T00:00:00Z"
-tags: ["design", "c#"]
-title: To mutate or not to mutate
----
++++
+date = '2010-09-08T00:00:00Z'
+tags = ['design', 'c#']
+title = 'To mutate or not to mutate'
+
++++
 
 I have been working on a project recently that involves a lot of work with Flags Enums.  To aid with this I created a set of Extension Methods:
 

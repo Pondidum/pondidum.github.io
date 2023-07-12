@@ -1,8 +1,9 @@
----
-date: "2019-04-06T00:00:00Z"
-tags: ["infrastructure", "vagrant", "nomad", "consul", "rabbitmq", "vault"]
-title: Running a Secure RabbitMQ Cluster in Nomad
----
++++
+date = '2019-04-06T00:00:00Z'
+tags = ['infrastructure', 'vagrant', 'nomad', 'consul', 'rabbitmq', 'vault']
+title = 'Running a Secure RabbitMQ Cluster in Nomad'
+
++++
 
 Last time I wrote about running a RabbitMQ cluster in Nomad, one of the main pieces of feedback I received was about the (lack) of security of the setup, so I decided to revisit this, and write about how to launch as secure RabbitMQ node in Nomad.
 

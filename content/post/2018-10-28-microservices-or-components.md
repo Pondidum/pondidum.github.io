@@ -1,8 +1,9 @@
----
-date: "2018-10-28T00:00:00Z"
-tags: ["architecture", "microservices", "design"]
-title: Microservices or Components
----
++++
+date = '2018-10-28T00:00:00Z'
+tags = ['architecture', 'microservices', 'design']
+title = 'Microservices or Components'
+
++++
 
 One of the reasons people list for using MicroServices is that it helps enforce separation of concerns.  This is usually achieved by adding a network boundary between the services.  While this is useful, it's not without costs; namely that you've added a set of new failure modes: the network. We can achieve the same separation of concerns within the same codebase if we put our minds to it.  In fact, this is what [Simon Brown](https://www.simonbrown.je/) calls a [Modular Monolith](https://www.codingthearchitecture.com/presentations/sa2015-modular-monoliths), and [DHH](https://twitter.com/dhh) calls the [Majestic Monolith](https://m.signalvnoise.com/the-majestic-monolith-29166d022228).
 

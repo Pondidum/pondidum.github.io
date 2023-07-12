@@ -1,8 +1,9 @@
----
-date: "2020-03-15T00:00:00Z"
-tags: ["observability", "honeycomb", "elk", "monitoring"]
-title: Observability Without Honeycomb
----
++++
+date = '2020-03-15T00:00:00Z'
+tags = ['observability', 'honeycomb', 'elk', 'monitoring']
+title = 'Observability Without Honeycomb'
+
++++
 
 
 Before I start on this, I want to make it clear that if you can buy [Honeycomb](https://honeycomb.io), you **should**.  Outlined below is how I started to add observability to an existing codebase which already had the [ELK stack](https://www.elastic.co/what-is/elk-stack) available, and was unable to use Honeycomb.  My hope, in this case, is that I can demonstrate how much value observability gives, and also show how much *more* value you would get with an excellent tool, such as Honeycomb.

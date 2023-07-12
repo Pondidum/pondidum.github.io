@@ -1,8 +1,9 @@
----
-date: "2018-09-06T00:00:00Z"
-tags: ["microservices", "consul", "feature flags", "architecture"]
-title: Feature Toggles with Consul
----
++++
+date = '2018-09-06T00:00:00Z'
+tags = ['microservices', 'consul', 'feature flags', 'architecture']
+title = 'Feature Toggles with Consul'
+
++++
 
 Feature Toggles are a great way of helping to deliver working software, although there are a few things which could go wrong.  See my talk [Feature Toggles: The Good, The Bad and The Ugly](https://www.youtube.com/watch?v=r7VI5x2XKXw) for some interesting stories and insights on it!
 

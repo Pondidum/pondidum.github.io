@@ -1,7 +1,8 @@
----
-title: Changelog Driven Versioning
-tags: [ "cli", "process", "ci" ]
----
++++
+tags = ['cli', 'process', 'ci']
+title = 'Changelog Driven Versioning'
+
++++
 
 Versioning is one of the many hard problems when it comes to writing software.  There is no one correct way to do it, and all have various tradeoffs.
 

@@ -1,8 +1,9 @@
----
-date: "2014-03-15T00:00:00Z"
-tags: ["design", "c#", "solid"]
-title: SOLID Principles - DIP
----
++++
+date = '2014-03-15T00:00:00Z'
+tags = ['design', 'c#', 'solid']
+title = 'SOLID Principles - DIP'
+
++++
 
 
 [Single Responsibility][blog-solid-srp] | [Open Closed][blog-solid-ocp] | [Liskov Substitution][blog-solid-lsp] | [Interface Segregation][blog-solid-isp] | [Dependency Inversion][blog-solid-dip]

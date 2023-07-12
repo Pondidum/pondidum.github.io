@@ -1,8 +1,9 @@
----
-date: "2021-11-10T00:00:00Z"
-tags: ["docker", "architecture"]
-title: How do you tag docker images?
----
++++
+date = '2021-11-10T00:00:00Z'
+tags = ['docker', 'architecture']
+title = 'How do you tag docker images?'
+
++++
 
 An interesting question came up at work today: how do you tag your Docker images?  In previous projects, I've always used a short git sha, or sometimes a semver, but with no great consistency.
 

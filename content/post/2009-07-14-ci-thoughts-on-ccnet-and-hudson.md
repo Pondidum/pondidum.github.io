@@ -1,8 +1,9 @@
----
-date: "2009-07-14T00:00:00Z"
-tags: ["ci"]
-title: 'CI: Thoughts on CC.Net and Hudson'
----
++++
+date = '2009-07-14T00:00:00Z'
+tags = ['ci']
+title = 'CI: Thoughts on CC.Net and Hudson'
+
++++
 
 I have been a fan of CI (Continuous Integration) for a long time now, and ever since I started with CI I have been using [CruiseControl.Net][1]. CCNet is incredibly powerful; you can make to do practically anything, and writing plugins for it is a breeze.
 

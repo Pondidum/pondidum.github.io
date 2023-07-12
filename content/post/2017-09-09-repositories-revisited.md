@@ -1,8 +1,9 @@
----
-date: "2017-09-09T00:00:00Z"
-tags: ["design", "cqrs", "architecture"]
-title: Repositories Revisited (and why CQRS is better)
----
++++
+date = '2017-09-09T00:00:00Z'
+tags = ['design', 'cqrs', 'architecture']
+title = 'Repositories Revisited (and why CQRS is better)'
+
++++
 
 **TLDR:** I still don't like Repositories!
 
