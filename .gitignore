@@ -1,2 +1,4 @@
 _drafts
-public
+public/
+drafts/
+.hugo_build.lock
