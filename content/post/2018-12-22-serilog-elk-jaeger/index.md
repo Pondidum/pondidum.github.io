@@ -7,11 +7,11 @@ title = 'Code-free tracing with LogStash and Jaeger'
 
 I wanted to show request charts (similar to the network tab in firefox) for requests across our microservices but wanted to do so in the least invasive way possible.
 
-![Firefox network timeline](/images/firefox-network-timeline.png)
+![Firefox network timeline](firefox-network-timeline.png)
 
 We already use [LogStash](https://www.elastic.co/products/logstash) to collect logs from multiple hosts (via [FileBeat](https://www.elastic.co/products/beats/filebeat)) and forward them on to [ElasticSearch](https://www.elastic.co/products/elasticsearch), so perhaps I can do something to also output from LogStash to a tracing service.
 
-![app to filebeat to logstash to elasticsearch and opentracing](/images/logstash-jaeger.png)
+![app to filebeat to logstash to elasticsearch and opentracing](logstash-jaeger.png)
 
 There are a number of tracing services available ([AppDash](https://github.com/sourcegraph/appdash), [Jaeger](https://www.jaegertracing.io/), [Zipkin](https://zipkin.io/)), but unfortunately LogStash doesn't have plugins for any of them or for [OpenTracing](https://opentracing.io/).  I picked Jaeger, as it seemed to be the easiest to get up and running, and also had a "Zipkin compatible" API too if you didn't want to use the Jaeger one.
 

@@ -13,7 +13,7 @@ So everyone basically agrees on this point I think.  The problem is that I mean 
 
 Currently, I work on a number of projects which uses small(ish) feature branches.  The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.  Once the feature branch is completed, it's deployed and merged to master.  We'll ignore the fact that Trunk Based Development is just better for now.
 
-![branching, developers working on small tasks being merged into a feature branch](/images/branching-features.png)
+![branching, developers working on small tasks being merged into a feature branch](branching-features.png)
 
 The problem occurs when one of the first tasks to be completed is writing behaviour (or acceptance) tests.  These are written in something like SpecFlow, and call out to stubbed methods which throw `NotImplementedException` s.  When this gets merged, the feature branch build goes red and stays red until all other tasks are done.  And probably for a little while afterwards too.  Nothing like "red-green-refactor" when your light can't change away from red!
 
@@ -26,7 +26,7 @@ The problem occurs when one of the first tasks to be completed is writing behavi
   * A developer has introduced an error, and no one has noticed yet
   * The build machine is playing up
 
-![branching, developers working on small tasks being merged into a feature branch showing everything as failed builds](/images/branching-features-builds.png)
+![branching, developers working on small tasks being merged into a feature branch showing everything as failed builds](branching-features-builds.png)
 
 ## Bad Solutions
 

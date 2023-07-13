@@ -102,7 +102,7 @@ Reading the variables from Octopus' API requires a bit of work as you don't appe
 
 Verifying the configuration at build time when your state is fetched from a remote store is not going to solve all your problems, as this little diagram illustrates:
 
-![test pass, a user changes value, deployment happens, startup fails](/images/versioning-time.png)
+![test pass, a user changes value, deployment happens, startup fails](versioning-time.png)
 
 You need to validate in both places: early on in your process, and on startup.  How you handle the configuration being invalid doesn't have to be the same in both places:
 

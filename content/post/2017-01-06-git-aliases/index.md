@@ -59,7 +59,7 @@ I also use these if I need to save my work to work on a bug fix on a different b
 
 Often I want commits I have pending, either to the local master, or a remote tracking branch.  These both give an output like this:
 
-![Git Pending](/images/git-pending.png)
+![Git Pending](git-pending.png)
 
 * `git pending` - shows the commits on the current branch compared to the `origin/master` branch
 

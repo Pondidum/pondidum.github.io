@@ -66,7 +66,7 @@ The changelog is embedded in the binary using the go `embed` package, and can th
   ```shell
   ./flagon version --changelog
   ```
-  ![flagon changelog as prettified markdown](/images/flagon-changelog.png)
+  ![flagon changelog as prettified markdown](flagon-changelog.png)
 
 - `--raw`: causes `--changelog` to print the markdown as written in the `changelog.md`
   ```shell

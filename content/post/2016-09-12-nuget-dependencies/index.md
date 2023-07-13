@@ -89,7 +89,7 @@ digraph Dependencies {
 
 Which renders into the following graph:
 
-![Nuget Graph](/images/nuget-graph.png)
+![Nuget Graph](nuget-graph.png)
 
 In the process of writing this though, I did have to go back into the projects and find out why the `Ledger.Tests` was referencing `RabbitMQ.Client` (example of appending events to a queue) and why `Ledger.Stores.Fs.Tests` referened `Structuremap` (it looks like I forgot to remove the reference after rewriting how Acceptance tests were setup).
 

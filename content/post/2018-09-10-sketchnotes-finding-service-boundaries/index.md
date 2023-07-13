@@ -11,4 +11,4 @@ I’ve never done one before, but it was pretty fun. I made it in OneNote, zoome
 
 Click for huuuuge!
 
-[![sketchnotes - finding your service boundaries](/images/sketchnotes-ndc-oslo-2018-serviceboundaries-preview.png)](/images/sketchnotes-ndc-oslo-2018-serviceboundaries.png)
+[![sketchnotes - finding your service boundaries](sketchnotes-ndc-oslo-2018-serviceboundaries-preview.png)](sketchnotes-ndc-oslo-2018-serviceboundaries.png)

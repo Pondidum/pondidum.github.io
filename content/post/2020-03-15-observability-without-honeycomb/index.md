@@ -153,7 +153,7 @@ There are no message fields for you to read, but you can see everything which ha
 
 Now if we push that into ElasticSearch, we can filter by any of the values in the event; in this case, I filtered by `user_id` and added columns for all the cache properties.
 
-![Kibana Screenshot](/images/observability-elk.png)
+![Kibana Screenshot](observability-elk.png)
 
 Now everything is in one place; you can slice and dice your data and figure out what exactly is going on.  You can even write some metrics off your event queries if you want!
 

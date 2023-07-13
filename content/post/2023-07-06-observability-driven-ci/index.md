@@ -8,7 +8,7 @@ Tracking where the time goes in your CI pipeline is an important step towards be
 
 What if we could create graphs of what parts of the build took time?  Something like this?
 
-![a graph of a single build showing each task as a horizontal box denoting start and durations](/images/trace-build.png)
+![a graph of a single build showing each task as a horizontal box denoting start and durations](trace-build.png)
 
 Being someone who cares about build pipelines and speed, I decided to add OpenTelemetry to our builds, and see what information we could get.  It turns out that there is far more useful information available than just timings.  For example:
 

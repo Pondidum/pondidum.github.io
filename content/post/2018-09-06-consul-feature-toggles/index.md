@@ -25,7 +25,7 @@ There are also some downsides to consider too:
 
 So what would our system look like?
 
-![write to consul kv store, results distributed to other consul instances](/images/consul-feature-toggles.png)
+![write to consul kv store, results distributed to other consul instances](consul-feature-toggles.png)
 
 It's pretty straightforward.  We already have a Consul Cluster, and then there are several machines with Consul clients running on them, as well as a Container Host with Consul too.
 

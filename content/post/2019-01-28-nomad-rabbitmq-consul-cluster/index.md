@@ -123,7 +123,7 @@ The `group` is used to hold a collection of `task`s, and when allocating a job, 
 
 So for example, if you had a 2 node Nomad cluster, and 3 instances of a group which contained 3 tasks (e.g. API, varnish, and nginx containers), Nomad might distribute the groups like so:
 
-![image of several nodes with groups of containers](/images/nomad-allocation.png)
+![image of several nodes with groups of containers](nomad-allocation.png)
 
 Within the group, we can specify the number of instances we want with the `count` property, and we also specify that for both updates and migrations, only one group can be changed at a time.  This means that if you decide to upgrade the container used by the job, Nomad won't stop all instances at once, destroying your service's availability!
 
@@ -291,7 +291,7 @@ nomad job run rabbit/rabbit.nomad
 
 After a few moments, we can visit any of the Nomad hosts, and log in to the RabbitMQ UI (`http://SOME_SERVER_IP:15672`) and you should be greeted with a running cluster with three nodes:
 
-![rabbitmq cluster dashboard](/images/rabbitmq-cluster.png)
+![rabbitmq cluster dashboard](rabbitmq-cluster.png)
 
 ## Homework
 

@@ -13,7 +13,7 @@ So we want to set up a [Vault](https://www.vaultproject.io/) instance, and have 
 4. Start a permanent Vault instance, with Consul as the store
 5. Reprovision the Consul cluster with certificates from the new Vault instance
 
-![Sequence diagram of the previous numbered list](/images/consul-vault-bootstrap.png)
+![Sequence diagram of the previous numbered list](consul-vault-bootstrap.png)
 
 There is a [repository on Github with all the scripts](https://github.com/Pondidum/vault-consul-bootstrap-demo) used, and a few more details on some options.
 

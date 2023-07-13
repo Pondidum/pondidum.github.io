@@ -9,11 +9,11 @@ One of the reasons people list for using MicroServices is that it helps enforce 
 
 We recently needed to expand an existing service to have some new functionality.  The current process looks something like this, where the user has done something which will eventually return them a URL which can be clicked to get to a web page to see the results.
 
-![api call does some work, returns a result_url which points to a web interface](/images/microservice-existing.png)
+![api call does some work, returns a result_url which points to a web interface](microservice-existing.png)
 
 The new process is an additional authentication challenge which the user will need to complete before they can get to the final results page.  The new process looks like this:
 
-![api call does work, makes a request to challenge API, passing the result_url as an argument.  The challenge-response returns a challenge_url, which is returned to the user instead of the return_url](/images/microservice-challenge.png)
+![api call does work, makes a request to challenge API, passing the result_url as an argument.  The challenge-response returns a challenge_url, which is returned to the user instead of the return_url](microservice-challenge.png)
 
 ## Design Decisions
 

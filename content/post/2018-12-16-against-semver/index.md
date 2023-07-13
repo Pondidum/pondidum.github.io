@@ -20,7 +20,7 @@ These are all hard questions to answer, and I imagine there are many many edge c
 
 The next problem stems from the fact that we don't (often) do Trunk Based Development for applications.  We have a long-lived (1-2 weeks) feature branch, which might get pushed to a test environment multiple times as tasks are completed.  If we SemVer these deployments, when a bug fix happens on the master branch, we can end up with a version clash, and can't deploy.
 
-![branching, showing a clash of SemVer by having concurrent branches](/images/semver-clash.png)
+![branching, showing a clash of SemVer by having concurrent branches](semver-clash.png)
 
 While this is a problem, we can solve it easily - we can use the `-pre` or `-beta` suffix for the feature branch, and then remove the suffix and increment the version number when the feature is fully deployed.  This, however, is adding a little more complexity to the process - mostly on the human side of things this time.
 

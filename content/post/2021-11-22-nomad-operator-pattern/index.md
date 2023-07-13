@@ -236,7 +236,7 @@ Will cause the following output in the operator's terminal:
 
 We can also check the Nomad UI, running on http://localhost:4646, which shows our two jobs:
 
-![nomad jobs showing the example service and the backup periodic job](/images/nomad-backup-jobs.png)
+![nomad jobs showing the example service and the backup periodic job](nomad-backup-jobs.png)
 
 Note how the `example` job is a `service`, which continuously runs, and the `backup-example` is a `periodic` job, scheduled to run daily.
 

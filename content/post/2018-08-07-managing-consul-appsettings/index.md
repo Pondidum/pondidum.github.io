@@ -19,7 +19,7 @@ Step 2 is very straightforward - you query the local instance of Consul's HTTP A
 
 The question is though, how does the configuration get into Consul in the first place? Obviously, we don't want this to be a manual process, and as Consul's HTTP API supports writing too, it doesn't have to be!  But where is the master copy of the configuration data stored?  Where it should be! In the repository with your code for the application.
 
-![repository structure, config.json, config.test.json and config.prod.json in the root](/images/repository-with-config.png)
+![repository structure, config.json, config.test.json and config.prod.json in the root](repository-with-config.png)
 
 By default, all your configuration values should be going into the base configuration (`config.json`), and only use the environment specific versions (e.g. `config.test.json` and `config.prod.json`) when a value needs to differ in some environments.
 
@@ -43,7 +43,7 @@ The final piece of this is that you know the value in production will match the 
 
 Now we just need to get the configuration from the file, and into Consul whenever it changes.  As I use [Terraform](https://terraform.io/) for deploying changes, I just need to update it to write to Consul also.
 
-![deployment pipeline - git to AppVeyor to Terraform.  Terraform writes to consul and updates ECS cluster](/images/deployment-pipeline-consul.png)
+![deployment pipeline - git to AppVeyor to Terraform.  Terraform writes to consul and updates ECS cluster](deployment-pipeline-consul.png)
 
 Terraform supports [writing to Consul](https://www.terraform.io/docs/providers/consul/r/key_prefix.html) out of the box, however, Terraform can't directly read parse json files, but we can use the [`external`](https://www.terraform.io/docs/providers/external/index.html) provider to get around that limitation:
 

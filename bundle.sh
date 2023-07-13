@@ -21,7 +21,7 @@ rg --files-with-matches --fixed-strings "(/images/" ./content/post | sort | whil
     echo "    - $image_name"
 
     mv "./static$image_path" "$dir_path" || true
-    sed -i "s,($image_path),(passive-view.png),g" "$file"
+    sed -i "s,($image_path),($image_name),g" "$file"
 
   done
 
@@ -29,5 +29,4 @@ rg --files-with-matches --fixed-strings "(/images/" ./content/post | sort | whil
   echo "    move file"
   mv "$file" "$dir_path/index.md"
 
-  exit 0
 done

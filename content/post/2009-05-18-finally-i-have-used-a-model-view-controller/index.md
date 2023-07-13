@@ -9,7 +9,7 @@ Today I actually managed to use a Model View Controller in an application.  I ha
 
 The type of MVC I like most (so far) is the [Passive View][fowler-passive-view] type, where the View does almost nothing, and has no link to the Model:
 
-!["Passive View" Model View Presenter](/images/passive-view.png)<br />
+!["Passive View" Model View Presenter](passive-view.png)<br />
 Image Source: [Microsoft][ms-passive-view]
 
 There are two main ways of wiring your View to the Presenter/Controller: Events and Interfaces.  The advantage of using an Interface is that they are easier to test (using [Rhino Mocks][rhino-mocks]), but as work does not do unit testing (I'm working on it!), that didn't matter too much.  I used events in this case simply because I prefer them.

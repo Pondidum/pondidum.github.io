@@ -22,13 +22,13 @@ The first is our `Unbound` instance which handles the forwarding to Consul, and 
 
 When running in a glibc based system, queries go to the first `nameserver`, and then if that can't resolve the request, it is then sent to the next `nameserver`, and so forth. As Alpine Linux uses muslc, it makes the requests in parallel and uses the response from whichever response comes back first.
 
-![sequence diagram, showing parallel DNS requests](/images/muslc-dns.png)
+![sequence diagram, showing parallel DNS requests](muslc-dns.png)
 
 When the DHCP DNS server is a network hop away, the latency involved means our resolution usually works, as the queries will hit the local DNS and get a response first. However, when the DHCP DNS is not that far away, for example when it is the DNS server that libvirt runs in the virtual network the machine is attached to, it becomes much more likely to get a response from that DNS server first, causing the failures I was seeing.
 
 The solution to this is to change the setup so that all requests go to Unbound, which can then decide where to send them on to.  This also has the additional benefits of making all DNS requests work the same on all systems; regardless of glibc or muslc being used.
 
-![sequence diagram, showing all DNS requests going through unbound](/images/unbound-dns.png)
+![sequence diagram, showing all DNS requests going through unbound](unbound-dns.png)
 
 ## Rebuilding DNS Resolution
 

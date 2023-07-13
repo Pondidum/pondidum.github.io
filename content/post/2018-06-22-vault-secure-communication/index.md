@@ -19,7 +19,7 @@ The summary is this:
 
 Or, in picture form:
 
-![vault token flow](/images/vault-flow.png)
+![vault token flow](vault-flow.png)
 
 So let's see how we can go about doing this.
 

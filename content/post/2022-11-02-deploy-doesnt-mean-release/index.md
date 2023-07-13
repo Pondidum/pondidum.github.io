@@ -15,7 +15,7 @@ As with all things, agreeing on definitions or understanding what someone means 
 
 To start with, a picture helps in my experience:
 
-![definitons](/images/definitions.jpg)
+![definitons](definitions.jpg)
 
 ## TLDR
 

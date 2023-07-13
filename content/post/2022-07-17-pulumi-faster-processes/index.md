@@ -16,7 +16,7 @@ For example, I have a CLI, that creates a cluster of machines for a user; the ma
 
 The CLI can't write the configuration to Vault before the machines boot, as the configuration values are from the same infrastructure stack as the machines themselves.  You can see the process in the [Honeycomb] trace UI (with more details about what infra is created thanks to my [pulumi-honeycomb stream adaptor](/2021/03/01/observability-with-infrastructure-as-code/)):
 
-![pulumi trace showing execution time of 175 seconds](/images/pulumi-infra-slow.png)
+![pulumi trace showing execution time of 175 seconds](pulumi-infra-slow.png)
 
 
 I don't want to make two separate stacks for this, one containing IAM Roles and other configuration data, the other containing all the other infrastructure (load balancers, auto-scale groups, etc.)  But what if I could dynamically change what the stack does?
@@ -63,7 +63,7 @@ Now that the stack can be run to create only partial infrastructure, the process
 
 But is the new process faster?  I had hoped it would be a little faster, as waiting for cloud-init and SSH can take a while, and thankfully, it is significantly faster.  It takes on average 98 seconds, so around 77 seconds faster.
 
-![pulumi trace showing execution time of 98 seconds](/images/pulumi-infra-fast.png)
+![pulumi trace showing execution time of 98 seconds](pulumi-infra-fast.png)
 
 
 Comparing the before and after traces, I can see that the additional pulumi call adds 20 seconds to the processes, but the `consul_configure` span drops from 100 seconds to 3.5, which is quite the speed increase.
