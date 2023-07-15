@@ -2,7 +2,7 @@
 
 set -eu
 
-rg --files-with-matches --fixed-strings "(/images/" ./content/post | sort | while read -r file; do
+rg --files-with-matches --fixed-strings "/images/" ./content/post | sort | while read -r file; do
   echo "==> $file"
 
   dir_name=$(basename "$file" ".md")
@@ -11,7 +11,7 @@ rg --files-with-matches --fixed-strings "(/images/" ./content/post | sort | whil
   echo "    dir path: $dir_path"
   mkdir -p "$dir_path"
 
-  echo "    inline references"
+  echo "    inline images"
 
   rg --only-matching "\(/images/.*\)" --no-line-number "$file" | tr -d "()" | uniq | while read -r image_path; do
     echo "    - $image_path"
@@ -22,6 +22,19 @@ rg --files-with-matches --fixed-strings "(/images/" ./content/post | sort | whil
 
     mv "./static$image_path" "$dir_path" || true
     sed -i "s,($image_path),($image_name),g" "$file"
+
+  done
+
+  echo "    referenced images"
+  rg --only-matching "]: /images/.*" --no-line-number "$file" | sed -n 's/]: \(.*\)/\1/p' | uniq | while read -r image_path; do
+    echo "    - $image_path"
+
+    image_name=$(basename "$image_path")
+
+    echo "    - $image_name"
+
+    mv "./static$image_path" "$dir_path" || true
+    sed -i "s,]: $image_path,]: $image_name,g" "$file"
 
   done
 

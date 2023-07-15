@@ -28,7 +28,7 @@ If this was a web application, you could even make it work out which UI to displ
 Mockups were made using [Moqups.com][mocking-tool]
 Names generated with [Behind THe Name][name-gen]
 
-[ui-sales]: /images/specialised-sales.png
-[ui-legal]: /images/specialised-legal.png
+[ui-sales]: specialised-sales.png
+[ui-legal]: specialised-legal.png
 [name-gen]: http://www.behindthename.com/random/
 [mocking-tool]: https://moqups.com/

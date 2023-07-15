@@ -97,7 +97,7 @@ My only solution to this is: **Don't tick that box**. I don't think I have ever 
 
 Using this method means less code and projects to maintain, and a very easy path to go from running a service as a desktop application to service.
 
-[vs-new-project]: /images/service-new.png
-[vs-project-type]: /images/service-project-type.png
-[service-logon]: /images/service-interact.png
+[vs-new-project]: service-new.png
+[vs-project-type]: service-project-type.png
+[service-logon]: service-interact.png
 [serilog]: http://serilog.net/

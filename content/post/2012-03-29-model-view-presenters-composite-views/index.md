@@ -171,4 +171,4 @@ Out of the three methods outlined, Method 2 is my personal preference, especiall
 [1]: /model-view-presenter-introduction
 [2]: /model-view-presenters-presenter-to-view-communication
 [3]: /model-view-presenters-view-to-presenter-communication
-[4]: /images/mvp-sub-view-diagram.jpg
+[4]: mvp-sub-view-diagram.jpg

@@ -60,6 +60,6 @@ As you can see, the two control's ToolStrips contents is unique, and we have the
 
 
 [1]: http://msdn.microsoft.com/en-us/library/system.windows.forms.usercontrol.aspx
-[2]: /images/sub-designer-control.png
+[2]: sub-designer-control.png
 [3]: http://msdn.microsoft.com/en-us/library/system.windows.forms.design.controldesigner.aspx
-[4]: /images/sub-designer-designtime.png
+[4]: sub-designer-designtime.png

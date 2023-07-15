@@ -64,4 +64,4 @@ AppDomain.CurrentDomain.SetData("APPBASE", currDir);
 Hope that helps everyone who has to do this kind of conversion.
 
 [1]: http://social.msdn.microsoft.com/Forums/en/vststest/thread/433e4860-b61f-44fd-bef9-a569fb32d244
-[2]: /images/unblock-file.jpg
+[2]: unblock-file.jpg

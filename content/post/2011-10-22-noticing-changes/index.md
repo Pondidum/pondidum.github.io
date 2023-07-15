@@ -17,4 +17,4 @@ Now while I have no problem in making the change, I do however wonder what cause
 
 Another thing is that while it is a very minor change, it must have been causing user friction for the last 6 years or so, and no one has mentioned it?  Maybe they just didn't think it was changeable, or that it just wasn't that bothersome compared to some other issue they had?
 
-[1]: /images/form-validation.jpg
+[1]: form-validation.jpg

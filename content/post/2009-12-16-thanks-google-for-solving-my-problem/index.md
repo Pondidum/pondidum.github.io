@@ -20,4 +20,4 @@ The moral of the story?  If in doubt, copy Google.
 [1]: /functionality-and-seperation-of-concerns
 [2]: http://quince.infragistics.com
 [3]: http://www.welie.com
-[4]: /images/gmail-selection.jpg
+[4]: gmail-selection.jpg
