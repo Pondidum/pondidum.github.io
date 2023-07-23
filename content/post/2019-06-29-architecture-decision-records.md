@@ -1,6 +1,6 @@
 +++
 date = '2019-06-29T00:00:00Z'
-tags = ['architecture', 'process', 'design']
+tags = ['architecture', 'process', 'design', 'adr']
 title = 'Architecture Decision Records'
 
 +++

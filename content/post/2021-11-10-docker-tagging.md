@@ -1,6 +1,6 @@
 +++
 date = '2021-11-10T00:00:00Z'
-tags = ['docker', 'architecture']
+tags = ['docker', 'architecture', 'adr']
 title = 'How do you tag docker images?'
 
 +++
