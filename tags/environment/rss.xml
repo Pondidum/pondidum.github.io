@@ -1,3 +1,54 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>environment on Andy Dote</title><link>https://andydote.co.uk/tags/environment/</link><description>Recent content in environment on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Fri, 06 Jan 2017 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/environment/rss.xml" rel="self" type="application/rss+xml"/><item><title>Git Aliases</title><link>https://andydote.co.uk/2017/01/06/git-aliases/</link><pubDate>Fri, 06 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/06/git-aliases/</guid><description>Git is great, but creating some git aliases is a great way to make your usages even more efficient.
 To add any of these you can either copy and paste into the [alias] section of your .gitconfig file or run git config --global alias.NAME 'COMMAND' replacing NAME with the alias to use, and COMMAND with what to run.
-So without further ado, here are the ones I have created and use on a very regular basis.</description></item></channel></rss>
+So without further ado, here are the ones I have created and use on a very regular basis.</description><content:encoded><![CDATA[<p>Git is great, but creating some git aliases is a great way to make your usages even more efficient.</p>
+<p>To add any of these you can either copy and paste into the <code>[alias]</code> section of your <code>.gitconfig</code> file or run <code>git config --global alias.NAME 'COMMAND'</code> replacing <code>NAME</code> with the alias to use, and <code>COMMAND</code> with what to run.</p>
+<p>So without further ado, here are the ones I have created and use on a very regular basis.</p>
+<h1 id="constant-usage">Constant usage</h1>
+<ul>
+<li>
+<p><code>git s</code> - an alias for <code>git status</code>.  Have to save those 5 keypresses!</p>
+<pre tabindex="0"><code>s = status
+</code></pre></li>
+<li>
+<p><code>git cm &quot;some commit message&quot;</code> - shorthand for commit with a message</p>
+<pre tabindex="0"><code>cm = commit -m
+</code></pre></li>
+<li>
+<p><code>git dc</code> - diff files staged for commit</p>
+<pre tabindex="0"><code>dc = diff --cached
+</code></pre></li>
+<li>
+<p><code>git scrub</code> - deletes everything not tracked by git (<code>git clean -dxf</code>) except the <code>packages</code> and <code>node_modules</code> directories</p>
+<pre tabindex="0"><code>scrub = clean -dxf --exclude=packages --exclude=node_modules
+</code></pre></li>
+</ul>
+<h1 id="context-switching-rebasing-on-dirty-head">Context switching, rebasing on dirty HEAD</h1>
+<p>I rebase my changes onto the current branches often, but rebasing requires a clean repository to work on.  The following two aliases are used something like this: <code>git save &amp;&amp; git pull --rebase &amp;&amp; git undo</code></p>
+<ul>
+<li>
+<p><code>git save</code> - adds and commits everything in the repository, with the commit message <code>SAVEPOINT</code></p>
+<pre tabindex="0"><code>save = !git add -A &amp;&amp; git commit -m &#39;SAVEPOINT&#39;
+</code></pre></li>
+<li>
+<p><code>git undo</code> - undoes the last commit, leaving everything as it was before committing.  Mostly used to undo a <code>git save</code> call</p>
+<pre tabindex="0"><code>undo = reset HEAD~1 --mixed
+</code></pre></li>
+</ul>
+<p>I also use these if I need to save my work to work on a bug fix on a different branch.</p>
+<h1 id="what-have-i-done">What have I done?</h1>
+<p>Often I want commits I have pending, either to the local master, or a remote tracking branch.  These both give an output like this:</p>
+<p><img loading="lazy" src="git-pending.png" alt="Git Pending"  />
+</p>
+<ul>
+<li>
+<p><code>git pending</code> - shows the commits on the current branch compared to the <code>origin/master</code> branch</p>
+<pre tabindex="0"><code>pending = log origin/master..HEAD --pretty=oneline --abbrev-commit --format=&#39;%Cgreen%cr:%Creset %C(auto)%h%Creset %s&#39;
+</code></pre></li>
+<li>
+<p><code>git pendingup</code> - shows the commits on the current branch compared to its tracking branch</p>
+<pre tabindex="0"><code>pendingup = &#34;!git log origin/\&#34;$(git rev-parse --abbrev-ref HEAD)\&#34;..HEAD --pretty=oneline --abbrev-commit --format=&#39;%Cgreen%cr:%Creset %C(auto)%h%Creset %s&#39;&#34;
+</code></pre></li>
+</ul>
+<h1 id="more">More?</h1>
+<p>I have some others not documented here, but are in my <a href="https://github.com/Pondidum/config/blob/master/configs/.gitconfig">config repo</a> on Github.</p>
+]]></content:encoded></item></channel></rss>

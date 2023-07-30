@@ -1,5 +1,210 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>postgres on Andy Dote</title><link>https://andydote.co.uk/tags/postgres/</link><description>Recent content in postgres on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 17 Jun 2018 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/postgres/rss.xml" rel="self" type="application/rss+xml"/><item><title>Managing Postgres Connection Strings with Vault</title><link>https://andydote.co.uk/2018/06/17/secret-management-vault-postgres-connection/</link><pubDate>Sun, 17 Jun 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/06/17/secret-management-vault-postgres-connection/</guid><description>One of the points I made in my recent NDC talk on 12 Factor microservices, was that you shouldn&amp;rsquo;t be storing sensitive data, such as API keys, usernames, passwords etc. in the environment variables.
 Don&amp;rsquo;t Store Sensitive Data in the Environment
 My reasoning is that when you were accessing Environment Variables in Heroku&amp;rsquo;s platform, you were actually accessing some (probably) secure key-value store, rather than actual environment variables.
-While you can use something like Consul&amp;rsquo;s key-value store for this, it&amp;rsquo;s not much better as it still stores all the values in plaintext, and has no auditing or logging.</description></item><item><title>Don't Let The Database Dictate Your Design</title><link>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</link><pubDate>Wed, 01 Apr 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</guid><description>I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases. An example of this is the design of a system which stores data about people, specifically for this, their email addresses. A cut down version of the structure is this:
-table people id serial primary key firstname varchar(50) lastname varchar(50) table emails id serial primary key person_id int =&amp;gt; people.</description></item></channel></rss>
+While you can use something like Consul&amp;rsquo;s key-value store for this, it&amp;rsquo;s not much better as it still stores all the values in plaintext, and has no auditing or logging.</description><content:encoded><![CDATA[<p>One of the points I made in my recent NDC talk on 12 Factor microservices, was that you shouldn&rsquo;t be storing sensitive data, such as API keys, usernames, passwords etc. in the environment variables.</p>
+<blockquote>
+<p>Don&rsquo;t Store Sensitive Data in the Environment</p>
+</blockquote>
+<p>My reasoning is that when you were accessing Environment Variables in Heroku&rsquo;s platform, you were actually accessing some (probably) secure key-value store, rather than actual environment variables.</p>
+<p>While you can use something like Consul&rsquo;s key-value store for this, it&rsquo;s not much better as it still stores all the values in plaintext, and has no auditing or logging.</p>
+<h2 id="enter-vault">Enter Vault</h2>
+<p>Vault is a secure secret management application, which not only can store static values, but also generate credentials on the fly, and automatically expire them after usage or after a time period.  We&rsquo;re going to look at setting up Vault to generate Postgres connection strings.</p>
+<h2 id="what-youll-need">What you&rsquo;ll need</h2>
+<ol>
+<li>Docker, as we&rsquo;ll be running both Vault and Postgres in containers</li>
+<li>A SQL client (for a GUI, I recommend <a href="https://dbeaver.io/">DBeaver</a>, for CLI <a href="https://www.postgresql.org/download/">PSQL</a> included in the Postgres download is fine.)</li>
+<li>The <a href="https://www.vaultproject.io/downloads.html">Vault executable</a></li>
+</ol>
+<h2 id="what-well-do">What we&rsquo;ll do</h2>
+<ol>
+<li>Setup Postgres and create a SQL user for Vault to use</li>
+<li>Setup Vault</li>
+<li>Setup Vault&rsquo;s database functionality</li>
+<li>Fetch and renew credentials from Vault.</li>
+</ol>
+<h2 id="1-setup-a-postgres-container">1. Setup a Postgres container</h2>
+<p>When running on my local machine, I like to use the Alpine variant of the <a href="https://hub.docker.com/_/postgres/">official Postgres</a> container, as it&rsquo;s pretty small, and does everything I&rsquo;ve needed so far.</p>
+<p>We&rsquo;ll run a copy of the image, configure it to listen on the default port, and use the super secure password of <code>postgres</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker run <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -d <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --name postgres_demo <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -p 5432:5432 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -e <span style="color:#e6db74">&#39;POSTGRES_PASSWORD=postgres&#39;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  postgres:alpine
+</span></span></code></pre></div><p>Next up, we need to create a user for Vault to use when generating credentials.  You can execute this SQL in any SQL editor which can connect to postgres, or use the PSQL command line interface:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>psql --username postgres --dbname postgres   <span style="color:#75715e"># it will prompt for password</span>
+</span></span><span style="display:flex;"><span>psql&gt; create role VaultAdmin with Login password <span style="color:#e6db74">&#39;vault&#39;</span> CreateRole;
+</span></span><span style="display:flex;"><span>psql&gt; grant connect on database postgres to vaultadmin;
+</span></span></code></pre></div><p>You can verify this has worked by running another instance of psql as the new user:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>psql --username VaultAdmin --dbname postgres   <span style="color:#75715e"># it will prompt for password</span>
+</span></span></code></pre></div><h2 id="2-setting-up-the-vault-container">2. Setting up the Vault container</h2>
+<p>The official Vault container image will by default run in <code>dev</code> mode, which means it will startup unsealed, and will use whatever token you specify for authentication.  However, it won&rsquo;t persist any information across container restarts, which is a bit irritating, so instead, we will run it in server mode, and configure file storage to give us (semi) persistent storage.</p>
+<p>The configuration, when written out and appropriately formatted, looks as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>backend <span style="color:#e6db74">&#34;file&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    path <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/vault/file&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>listener <span style="color:#e6db74">&#34;tcp&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    address <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;0.0.0.0:8200&#34;</span>
+</span></span><span style="display:flex;"><span>    tls_disable <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>ui <span style="color:#f92672">=</span> true
+</span></span></code></pre></div><p>We are binding the listener to all interfaces on the container, disabling SSL (don&rsquo;t do this in production environments!) and enabling the UI.  To pass this through to the container, we can set the <code>VAULT_LOCAL_CONFIG</code> environment variable:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker run <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -d <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --name vault_demo <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --cap-add<span style="color:#f92672">=</span>IPC_LOCK <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 8200:8200 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -e <span style="color:#e6db74">&#39;VAULT_LOCAL_CONFIG=backend &#34;file&#34; { path = &#34;/vault/file&#34; } listener &#34;tcp&#34; { address = &#34;0.0.0.0:8200&#34; tls_disable = 1 } ui = true&#39;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    vault server
+</span></span></code></pre></div><p>When we use the Vault CLI to interact with a Vault server, it want&rsquo;s to use TLS, but as we are running without TLS, we need to override this default.  Luckily it&rsquo;s just a case of setting the <code>VAULT_ADDR</code> environment variable:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>export VAULT_ADDR<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;http://localhost:8200&#34;</span>
+</span></span></code></pre></div><p>You can run <code>vault status</code> to check you can communicate with the container successfully.</p>
+<p>Before we can start configuring secret engines in Vault, it needs initialising.  By default, the <code>init</code> command will generate five key shares, of which you will need any three to unseal Vault.  The reason for Key Shares is so that you can distribute the keys to different people so that no one person has access to unseal Vault on their own.  While this is great for production, for experimenting locally, one key is enough.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault operator init -key-shares<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> -key-threshold<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>
+</span></span></code></pre></div><p>The output will amongst other things give you two lines, one with the Unseal Key, and one with the Initial Root Token:</p>
+<blockquote>
+<p>Unseal Key 1: sk+C4xJihsMaa+DCBHHgoGVozz+dMC4Kd/ijX8oMcrQ=
+Initial Root Token: addaaeed-d387-5eab-128d-60d6e92b0757</p>
+</blockquote>
+<p>We&rsquo;ll need the Unseal key to unseal Vault so we can configure it and generate secrets, and the Root Token so we can authenticate with Vault itself.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span> vault operator unseal <span style="color:#e6db74">&#34;sk+C4xJihsMaa+DCBHHgoGVozz+dMC4Kd/ijX8oMcrQ=&#34;</span>
+</span></span></code></pre></div><p>To make life a bit easier, we can also set an environment variable with our token so that we don&rsquo;t have to specify it on all the subsequent requests:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>export VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;addaaeed-d387-5eab-128d-60d6e92b0757&#34;</span>
+</span></span></code></pre></div><h2 id="3-configure-vaults-database-secret-engine">3. Configure Vault&rsquo;s Database Secret Engine</h2>
+<p>First off we need to enable the database secret engine.  This engine supports many different databases, such as Postgres, MSSQL, Mysql, MongoDB and Cassandra amongst others.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault secrets enable database
+</span></span></code></pre></div><p>Next, we need to configure how vault will connect to the database.  You will need to substitute the IPAddress in the connection string for your docker host IP (in my case, the network is called <code>DockerNAT</code>, and my machine&rsquo;s IP is <code>10.0.75.1</code>, yours will probably be different.)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault write database/config/postgres_demo <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    plugin_name<span style="color:#f92672">=</span>postgresql-database-plugin <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    allowed_roles<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;*&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    connection_url<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;postgresql://{{username}}:{{password}}@10.0.75.1:5432/postgres?sslmode=disable&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    username<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;VaultAdmin&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    password<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;vault&#34;</span>
+</span></span></code></pre></div><p>To explain more of the command:  We can limit what roles can be granted by this database backend by specifying a CSV of roles (which we will define next).  In our case, however, we are using the allow anything wildcard (<code>*</code>).</p>
+<p>Next, we need to define a role which our applications can request.  In this case, I am creating a role which only allows reading of data, so it&rsquo;s named <code>reader</code>.  We also specify the <code>default_ttl</code> which controls how long the user is valid for, and the <code>max_ttl</code> which specifies for how long we can renew a user&rsquo;s lease.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault write database/roles/reader <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    db_name<span style="color:#f92672">=</span>postgres_demo <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    creation_statements<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;CREATE ROLE \&#34;{{name}}\&#34; WITH LOGIN PASSWORD &#39;{{password}}&#39; VALID UNTIL &#39;{{expiration}}&#39;; \
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        GRANT SELECT ON ALL TABLES IN SCHEMA public TO \&#34;{{name}}\&#34;;&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    default_ttl<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;10m&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    max_ttl<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;1h&#34;</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault read database/creds/reader
+</span></span><span style="display:flex;"><span>&gt; Key                Value
+</span></span><span style="display:flex;"><span>&gt; ---                -----
+</span></span><span style="display:flex;"><span>&gt; lease_id           database/creds/reader/15cf95eb-a2eb-c5ba-5111-8c0c48ae30a6
+</span></span><span style="display:flex;"><span>&gt; lease_duration     10m
+</span></span><span style="display:flex;"><span>&gt; lease_renewable    true
+</span></span><span style="display:flex;"><span>&gt; password           A1a-3gkMQpmoh3gbj2aM
+</span></span><span style="display:flex;"><span>&gt; username           v-root-reader-tgl6FSXHZaC5LZOK4q0u-1529138525
+</span></span></code></pre></div><p>We can now use the username and password to connect to postgres, but only for 10 minutes, after which, the user will be deleted (Note, Vault sets the expiry of the user in Postgres, but will also remove the user when it expires.)</p>
+<p>Verify the user can connect using PSQL again:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>psql --username v-root-reader-tgl6FSXHZaC5LZOK4q0u-1529138525 --dbname postgres
+</span></span></code></pre></div><p>If we want to keep using our credentials, we can run the renew command passing in the <code>lease_id</code>, which will increase the current lease timeout by the value of <code>default_ttl</code>.  You can provide the <code>-increment</code> value to request a different duration extension in seconds, but you cannot go further than the <code>max_ttl</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault lease renew database/creds/reader/15cf95eb-a2eb-c5ba-5111-8c0c48ae30a6
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># or</span>
+</span></span><span style="display:flex;"><span>vault lease renew database/creds/reader/15cf95eb-a2eb-c5ba-5111-8c0c48ae30a6 -increment <span style="color:#ae81ff">360</span>
+</span></span></code></pre></div><h2 id="done">Done!</h2>
+<p>There are a lot more options and things you can do with Vault, but hopefully, this will give you an idea of how to start out.</p>
+]]></content:encoded></item><item><title>Don't Let The Database Dictate Your Design</title><link>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</link><pubDate>Wed, 01 Apr 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</guid><description>I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases. An example of this is the design of a system which stores data about people, specifically for this, their email addresses. A cut down version of the structure is this:
+table people id serial primary key firstname varchar(50) lastname varchar(50) table emails id serial primary key person_id int =&amp;gt; people.</description><content:encoded><![CDATA[<p>I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases.  An example of this is the design of a system which stores data about people, specifically for this, their email addresses.  A cut down version of the structure is this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">table</span> people
+</span></span><span style="display:flex;"><span>id serial <span style="color:#66d9ef">primary</span> <span style="color:#66d9ef">key</span>
+</span></span><span style="display:flex;"><span>firstname varchar(<span style="color:#ae81ff">50</span>)
+</span></span><span style="display:flex;"><span>lastname varchar(<span style="color:#ae81ff">50</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">table</span> emails
+</span></span><span style="display:flex;"><span>id serial <span style="color:#66d9ef">primary</span> <span style="color:#66d9ef">key</span>
+</span></span><span style="display:flex;"><span>person_id int <span style="color:#f92672">=&gt;</span> people.id
+</span></span><span style="display:flex;"><span>address varchar(<span style="color:#ae81ff">100</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">type</span> int
+</span></span></code></pre></div><p>Which is represented in code like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Person</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> List&lt;Email&gt; Emails { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Person()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Emails = <span style="color:#66d9ef">new</span> List&lt;Email&gt;();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Email</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> PersonID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> EmailTypes Type { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>While this works, it is heavily influenced by the storage technology.  Email addresses by definition are unique already, so why do we need a primary key column? They are also associated with exactly one person, so the <code>person_id</code> column is only here to facilitate that.  Why not get rid of the emails table completely, and store the person&rsquo;s email addresses in a single column in the person table?  This could be done with a simple csv, but it would be more fore-thinking to use json, so we can associate a little more data with each email address.</p>
+<p>So before we get on to putting data in one column, what reasons we have to keep emails as a separate table?</p>
+<ul>
+<li>So they can be queried by ID.</li>
+<li>So we can put a constraint across <code>[person_id, address]</code> and <code>[person_id, type]</code>.</li>
+<li>So all emails of a given type can be found.</li>
+<li>So a person can be looked up by email.</li>
+<li>So we can attach rules to them.</li>
+</ul>
+<p>The first three can be answered easily: you never query for an email address by its primary key, only by the address itself.  The constraints are really just a safety net, and a nice to have at best - the collection which manages emails is well tested, implements all business rules properly, and everything which deals with emails uses it.  Getting all emails of a particular type is a legitamate requirement, but can be gotten around in several ways: selecting the entire email column in a sql query, and doing additional filtering client side for the specific email types, or if you are using a database which supports json querying (such as postgres), using that to narrow the results down.</p>
+<p>The final point is the most interesting, as it could be resolved with a few different designs.  The current design has one additional table:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">table</span> rules
+</span></span><span style="display:flex;"><span>id serial <span style="color:#66d9ef">primary</span> <span style="color:#66d9ef">key</span>
+</span></span><span style="display:flex;"><span>person_id int <span style="color:#f92672">=&gt;</span> people.id
+</span></span><span style="display:flex;"><span>target_type int <span style="color:#75715e">--e.g 1=email, 2=phone, 3=address etc
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>target_id int
+</span></span><span style="display:flex;"><span>active bool
+</span></span></code></pre></div><p>And the <code>Person</code> object has a method like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">bool</span> HasRuleInForce(Entity target)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> Rules
+</span></span><span style="display:flex;"><span>		.Where(rule =&gt; rule.TargetType == target.Type)
+</span></span><span style="display:flex;"><span>		.Where(rule =&gt; rule.TargetID == target.ID)
+</span></span><span style="display:flex;"><span>		.Where(rule =&gt; rule.Active)
+</span></span><span style="display:flex;"><span>		.Any();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>While this works, the design has a few problems:</p>
+<ul>
+<li>There is no foreign keying of <code>rules.target_id</code> available</li>
+<li>So you have to remember to delete rules when deleting any entity</li>
+<li>You have to remember if an entity is valid for rules to be attached to</li>
+<li>If normalisation was your argument for an <code>emails</code> table, explain this table relationship&hellip;</li>
+</ul>
+<p>There are two solutions to this problem:</p>
+<p>The first is to change the rules table to just have a <code>target</code> column, and put the unique data in there e.g. a rule for an email would have the email address in the <code>target</code> column, a rule for a phone number would have the actual phone number in the <code>target</code> column.  While this works, it doesn&rsquo;t really improve the design of the system; we still have the existing joins and &ldquo;remember to also&rdquo; problems of before.</p>
+<p>The second solution is to remove the <code>rules</code> table entirely and implement rules as small collections on each target entity, and make the <code>person.Rules</code> property a readonly aggregate.  This has a few advantages: each entity explicitly has a rule collection if applicable, and we no longer need to remember to check another collection for updates/deletes.</p>
+<p>The implementation of a <code>.Rules</code> property on each entity is trivial - just a standard list property:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Email</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> PersonID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> EmailTypes Type { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> List&lt;Rule&gt; Rules { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As we don&rsquo;t wish to repeat the logic on each collection of rules, we can add an extension method for checking if rules are in force:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RulesExtensions</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">bool</span> HasRuleInForce(<span style="color:#66d9ef">this</span> IEnumerable&lt;Rule&gt; self)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> self.Any(rule =&gt; rule.Active);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And finally on the <code>Person</code> object itself, we can make a simple aggregate property for all child entity&rsquo;s rules:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> IEnumerable&lt;Rule&gt; Rules
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">get</span>
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> all = <span style="color:#66d9ef">new</span>[]
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			Emails.SelectMany(e =&gt; e.Rules),
+</span></span><span style="display:flex;"><span>			Phones.SelectMany(p =&gt; p.Rules),
+</span></span><span style="display:flex;"><span>		};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> all.SelectMany(r =&gt; r);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Personally I prefer the 2nd form of this, as it makes domain modelling a lot more straight forward - however like all things, you should consider all your requirements carefully - and don&rsquo;t let the database (sql or nosql variety) dictate your model.</p>
+]]></content:encoded></item></channel></rss>

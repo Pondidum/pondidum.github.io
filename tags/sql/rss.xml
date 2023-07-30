@@ -1,10 +1,695 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>sql on Andy Dote</title><link>https://andydote.co.uk/tags/sql/</link><description>Recent content in sql on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Wed, 01 Apr 2015 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/sql/rss.xml" rel="self" type="application/rss+xml"/><item><title>Don't Let The Database Dictate Your Design</title><link>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</link><pubDate>Wed, 01 Apr 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</guid><description>I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases. An example of this is the design of a system which stores data about people, specifically for this, their email addresses. A cut down version of the structure is this:
-table people id serial primary key firstname varchar(50) lastname varchar(50) table emails id serial primary key person_id int =&amp;gt; people.</description></item><item><title>Edge.js for Embedded Webuis</title><link>https://andydote.co.uk/2014/08/04/edgejs-for-embedded-webuis/</link><pubDate>Mon, 04 Aug 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/08/04/edgejs-for-embedded-webuis/</guid><description>We work we have a number of windows services which each have a lot of stats they could expose. Currently they are only interrogatable by the logfiles and from any notifications we receive.
-I have been toying with the idea of hosting a website in-process which would give a simple dashboard ui and access to a live view of the log file. The idea first struck me when I was experimenting with FubuMvc, as they have an EmbeddedFubuMvcServer, which is very easy to use:</description></item><item><title>Configuring Dapper to work with custom types</title><link>https://andydote.co.uk/2014/07/22/configuring-dapper-to-work-with-custom-types/</link><pubDate>Tue, 22 Jul 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/07/22/configuring-dapper-to-work-with-custom-types/</guid><description>In the last post we looked at using custom ID types to help abstract the column type from the domain.
-This works well until you start trying to load and save entities using an ORM, as the ORM has not way to know how to map a column to a custom type. ORMs provide extension points to allow you to create these mappings. As I tend to favour using Dapper, we will go through setting it up to work with our custom ID types.</description></item><item><title>Strong Type your entity IDs.</title><link>https://andydote.co.uk/2014/07/17/strong-type-your-entity-ids/</link><pubDate>Thu, 17 Jul 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/07/17/strong-type-your-entity-ids/</guid><description>The Database is just an Implementation Detail A quote from Martin Fowler given during his Architecture talk stated that the Database in your application should just be an implementation detail. I agree on this wholeheartedly and find that its really not that difficult to achieve if you think about your architecture carefully.
-Having said that, I still see parts of the database implementation leaking out into the domain, mainly in the form of IDs.</description></item><item><title>Using a Micro ORM to decouple your DB Access</title><link>https://andydote.co.uk/2014/03/29/using-a-micro-orm-to-decouple-your-db-access/</link><pubDate>Sat, 29 Mar 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/03/29/using-a-micro-orm-to-decouple-your-db-access/</guid><description>One of the databases I use on a regular bases has a rather interesting column naming scheme; all columns have a prefix, based on the table name. For example, the table containing people would have the prefix PEO_, so you would have this:
-Select * from People PEO_PersonID, PEO_FirstName, PEO_LastName, PEO_DoB ----------------------------------------------------- 1 John Jones 1984-07-15 I believe the idea was so that when querying, you would not have any column name clashes.</description></item><item><title>SqlDataReader.HasRows Problems</title><link>https://andydote.co.uk/2012/10/30/sqldatareaderhasrows-problems/</link><pubDate>Tue, 30 Oct 2012 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2012/10/30/sqldatareaderhasrows-problems/</guid><description>For the last 6 years or so at work, we have had an intermittent bug. In this case, intermittent means around once in 6 months or so. A little background to the problem first:
+table people id serial primary key firstname varchar(50) lastname varchar(50) table emails id serial primary key person_id int =&amp;gt; people.</description><content:encoded><![CDATA[<p>I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases.  An example of this is the design of a system which stores data about people, specifically for this, their email addresses.  A cut down version of the structure is this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">table</span> people
+</span></span><span style="display:flex;"><span>id serial <span style="color:#66d9ef">primary</span> <span style="color:#66d9ef">key</span>
+</span></span><span style="display:flex;"><span>firstname varchar(<span style="color:#ae81ff">50</span>)
+</span></span><span style="display:flex;"><span>lastname varchar(<span style="color:#ae81ff">50</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">table</span> emails
+</span></span><span style="display:flex;"><span>id serial <span style="color:#66d9ef">primary</span> <span style="color:#66d9ef">key</span>
+</span></span><span style="display:flex;"><span>person_id int <span style="color:#f92672">=&gt;</span> people.id
+</span></span><span style="display:flex;"><span>address varchar(<span style="color:#ae81ff">100</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">type</span> int
+</span></span></code></pre></div><p>Which is represented in code like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Person</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> List&lt;Email&gt; Emails { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Person()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Emails = <span style="color:#66d9ef">new</span> List&lt;Email&gt;();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Email</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> PersonID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> EmailTypes Type { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>While this works, it is heavily influenced by the storage technology.  Email addresses by definition are unique already, so why do we need a primary key column? They are also associated with exactly one person, so the <code>person_id</code> column is only here to facilitate that.  Why not get rid of the emails table completely, and store the person&rsquo;s email addresses in a single column in the person table?  This could be done with a simple csv, but it would be more fore-thinking to use json, so we can associate a little more data with each email address.</p>
+<p>So before we get on to putting data in one column, what reasons we have to keep emails as a separate table?</p>
+<ul>
+<li>So they can be queried by ID.</li>
+<li>So we can put a constraint across <code>[person_id, address]</code> and <code>[person_id, type]</code>.</li>
+<li>So all emails of a given type can be found.</li>
+<li>So a person can be looked up by email.</li>
+<li>So we can attach rules to them.</li>
+</ul>
+<p>The first three can be answered easily: you never query for an email address by its primary key, only by the address itself.  The constraints are really just a safety net, and a nice to have at best - the collection which manages emails is well tested, implements all business rules properly, and everything which deals with emails uses it.  Getting all emails of a particular type is a legitamate requirement, but can be gotten around in several ways: selecting the entire email column in a sql query, and doing additional filtering client side for the specific email types, or if you are using a database which supports json querying (such as postgres), using that to narrow the results down.</p>
+<p>The final point is the most interesting, as it could be resolved with a few different designs.  The current design has one additional table:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">table</span> rules
+</span></span><span style="display:flex;"><span>id serial <span style="color:#66d9ef">primary</span> <span style="color:#66d9ef">key</span>
+</span></span><span style="display:flex;"><span>person_id int <span style="color:#f92672">=&gt;</span> people.id
+</span></span><span style="display:flex;"><span>target_type int <span style="color:#75715e">--e.g 1=email, 2=phone, 3=address etc
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>target_id int
+</span></span><span style="display:flex;"><span>active bool
+</span></span></code></pre></div><p>And the <code>Person</code> object has a method like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">bool</span> HasRuleInForce(Entity target)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> Rules
+</span></span><span style="display:flex;"><span>		.Where(rule =&gt; rule.TargetType == target.Type)
+</span></span><span style="display:flex;"><span>		.Where(rule =&gt; rule.TargetID == target.ID)
+</span></span><span style="display:flex;"><span>		.Where(rule =&gt; rule.Active)
+</span></span><span style="display:flex;"><span>		.Any();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>While this works, the design has a few problems:</p>
+<ul>
+<li>There is no foreign keying of <code>rules.target_id</code> available</li>
+<li>So you have to remember to delete rules when deleting any entity</li>
+<li>You have to remember if an entity is valid for rules to be attached to</li>
+<li>If normalisation was your argument for an <code>emails</code> table, explain this table relationship&hellip;</li>
+</ul>
+<p>There are two solutions to this problem:</p>
+<p>The first is to change the rules table to just have a <code>target</code> column, and put the unique data in there e.g. a rule for an email would have the email address in the <code>target</code> column, a rule for a phone number would have the actual phone number in the <code>target</code> column.  While this works, it doesn&rsquo;t really improve the design of the system; we still have the existing joins and &ldquo;remember to also&rdquo; problems of before.</p>
+<p>The second solution is to remove the <code>rules</code> table entirely and implement rules as small collections on each target entity, and make the <code>person.Rules</code> property a readonly aggregate.  This has a few advantages: each entity explicitly has a rule collection if applicable, and we no longer need to remember to check another collection for updates/deletes.</p>
+<p>The implementation of a <code>.Rules</code> property on each entity is trivial - just a standard list property:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Email</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> PersonID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> EmailTypes Type { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> List&lt;Rule&gt; Rules { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As we don&rsquo;t wish to repeat the logic on each collection of rules, we can add an extension method for checking if rules are in force:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RulesExtensions</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">bool</span> HasRuleInForce(<span style="color:#66d9ef">this</span> IEnumerable&lt;Rule&gt; self)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> self.Any(rule =&gt; rule.Active);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And finally on the <code>Person</code> object itself, we can make a simple aggregate property for all child entity&rsquo;s rules:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> IEnumerable&lt;Rule&gt; Rules
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">get</span>
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> all = <span style="color:#66d9ef">new</span>[]
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			Emails.SelectMany(e =&gt; e.Rules),
+</span></span><span style="display:flex;"><span>			Phones.SelectMany(p =&gt; p.Rules),
+</span></span><span style="display:flex;"><span>		};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> all.SelectMany(r =&gt; r);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Personally I prefer the 2nd form of this, as it makes domain modelling a lot more straight forward - however like all things, you should consider all your requirements carefully - and don&rsquo;t let the database (sql or nosql variety) dictate your model.</p>
+]]></content:encoded></item><item><title>Edge.js for Embedded Webuis</title><link>https://andydote.co.uk/2014/08/04/edgejs-for-embedded-webuis/</link><pubDate>Mon, 04 Aug 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/08/04/edgejs-for-embedded-webuis/</guid><description>We work we have a number of windows services which each have a lot of stats they could expose. Currently they are only interrogatable by the logfiles and from any notifications we receive.
+I have been toying with the idea of hosting a website in-process which would give a simple dashboard ui and access to a live view of the log file. The idea first struck me when I was experimenting with FubuMvc, as they have an EmbeddedFubuMvcServer, which is very easy to use:</description><content:encoded><![CDATA[<p>We work we have a number of windows services which each have a lot of stats they could expose.  Currently they are only interrogatable by the logfiles and from any notifications we receive.</p>
+<p>I have been toying with the idea of hosting a website in-process which would give a simple dashboard ui and access to a live view of the log file.  The idea first struck me when I was experimenting with FubuMvc, as they have an <code>EmbeddedFubuMvcServer</code>, which is very easy to use:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>FubuMvcPackageFacility.PhysicalRootPath = <span style="color:#e6db74">@&#34;Backend\&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> server = EmbeddedFubuMvcServer.For&lt;EmbeddedBackend&gt;(FubuMvcPackageFacility.PhysicalRootPath))
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Console.WriteLine(<span style="color:#e6db74">&#34;Some long running process, with a web-backend on :5500&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> p = server.Services.GetInstance&lt;IProcessor&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> t = <span style="color:#66d9ef">new</span> Task(p.Start);
+</span></span><span style="display:flex;"><span>    t.Start();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Console.ReadKey();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>But while I like this, FubuMvc embedded seems like overkill.</p>
+<p>Wouldn&rsquo;t it be nice if we could host an <code>expressjs</code> app inside our process?  They are very lightweight, and to get one setup is almost no coding (especially if you use the express commandline tool).</p>
+<h2 id="enter-edgejs">Enter Edgejs</h2>
+<p>The <a href="http://tjanczuk.github.io/edge/">Edge.js</a> project provides an in-process bridge between the .net and nodejs worlds, and allows for communication between the two&hellip;</p>
+<p>Steps:</p>
+<ul>
+<li>
+<p>Create a new application (eg: ServiceWithEdge)</p>
+</li>
+<li>
+<p>Create a subdirectory for the webui in your applications root (eg, next to the csproj file)</p>
+<ul>
+<li>ServiceWithEdge\ServiceWithEdge\webui</li>
+</ul>
+</li>
+<li>
+<p>If you don&rsquo;t have express-generator installed, get it:</p>
+<ul>
+<li><code>npm install -g express-generator</code></li>
+</ul>
+</li>
+<li>
+<p>Cd to your webui directory, and create an express application:</p>
+<ul>
+<li><code>express</code> - there are some options if you want, see <a href="http://expressjs.com/guide.html#executable">the guide</a></li>
+</ul>
+</li>
+<li>
+<p>In visual studio, include the webui directory</p>
+<ul>
+<li>Mark all files as <code>content</code> and <code>copy if newer</code></li>
+</ul>
+</li>
+<li>
+<p>Add a new js file in your webui root:</p>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> options;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>exports.<span style="color:#66d9ef">set</span> = function (m) {
+</span></span><span style="display:flex;"><span>    options = m;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>exports.getModel = function (modelName, action) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    options.getModel(modelName, function (error, result) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (error) <span style="color:#66d9ef">throw</span> error;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        action(result);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><ul>
+<li>
+<p>add the edgejs package:</p>
+<ul>
+<li><code>PM&gt; install-package edge.js</code></li>
+</ul>
+</li>
+<li>
+<p>The following function will run the webui, and inject a callback for getting models from .net</p>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> RunWebui(ModelStore store)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> func = Edge.Func(<span style="color:#e6db74">@&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">		var app = require(&#39;../webui/app&#39;);
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">		var com = require(&#39;../webui/communicator&#39;);
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">		app.set(&#39;port&#39;, process.env.PORT || 3000);
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">		var server = app.listen(app.get(&#39;port&#39;));
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">		return function(options, callback) {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">			com.set(options);
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">		};
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">	&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> getModel = (Func&lt;<span style="color:#66d9ef">object</span>, Task&lt;<span style="color:#66d9ef">object</span>&gt;&gt;)(<span style="color:#66d9ef">async</span> (message) =&gt;
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> store.GetModel((<span style="color:#66d9ef">string</span>)message);
+</span></span><span style="display:flex;"><span>	});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	Task.Run(() =&gt; func(<span style="color:#66d9ef">new</span>
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		getModel
+</span></span><span style="display:flex;"><span>	}));
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><ul>
+<li>The last step to getting this to work is running <code>npm install</code> in the webui directory <strong>of the build output folder</strong>.  I use a rake file to build everything, so its just an extra task (see the entire Rakefile <a href="https://github.com/Pondidum/ServiceWithEdge/blob/master/Rakefile">here</a>):</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>task <span style="color:#e6db74">:npm</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>t<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Dir</span><span style="color:#f92672">.</span>chdir <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">#{</span>project_name<span style="color:#e6db74">}</span><span style="color:#e6db74">/bin/debug/webui&#34;</span> <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>		system <span style="color:#e6db74">&#39;npm&#39;</span>, <span style="color:#e6db74">&#39;install&#39;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><pre><code>ny route needing data from .net just needs to require the communicator file and call `getModel`:
+</code></pre>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-js" data-lang="js"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">com</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">require</span>(<span style="color:#e6db74">&#39;../communicator&#39;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">router</span>.<span style="color:#a6e22e">get</span>(<span style="color:#e6db74">&#39;/&#39;</span>, <span style="color:#66d9ef">function</span> (<span style="color:#a6e22e">req</span>, <span style="color:#a6e22e">res</span>) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">com</span>.<span style="color:#a6e22e">getModel</span>(<span style="color:#e6db74">&#34;index&#34;</span>, <span style="color:#66d9ef">function</span>(<span style="color:#a6e22e">value</span>) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">render</span>(<span style="color:#e6db74">&#39;index&#39;</span>, {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">title</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#39;Express&#39;</span>,
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">result</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">value</span>.<span style="color:#a6e22e">Iterations</span>
+</span></span><span style="display:flex;"><span>        });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>All the code is <a href="https://github.com/Pondidum/ServiceWithEdge">available on github</a>.</p>
+<h2 id="how-i-am-aiming-to-use-it">How I am aiming to use it</h2>
+<p>I am planning on constructing a nuget package to do all of this, so that all a developer needs to do is add the package, and configure which statistics they wish to show up on the web ui.</p>
+]]></content:encoded></item><item><title>Configuring Dapper to work with custom types</title><link>https://andydote.co.uk/2014/07/22/configuring-dapper-to-work-with-custom-types/</link><pubDate>Tue, 22 Jul 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/07/22/configuring-dapper-to-work-with-custom-types/</guid><description>In the last post we looked at using custom ID types to help abstract the column type from the domain.
+This works well until you start trying to load and save entities using an ORM, as the ORM has not way to know how to map a column to a custom type. ORMs provide extension points to allow you to create these mappings. As I tend to favour using Dapper, we will go through setting it up to work with our custom ID types.</description><content:encoded><![CDATA[<p>In the <a href="http://andydote.co.uk/strong-type-your-entity-ids">last post</a> we looked at using custom ID types to help abstract the column type from the domain.</p>
+<p>This works well until you start trying to load and save entities using an ORM, as the ORM has not way to know how to map a column to a custom type.  ORMs provide extension points to allow you to create these mappings.  As I tend to favour using <a href="https://github.com/StackExchange/dapper-dot-net">Dapper</a>, we will go through setting it up to work with our custom ID types.</p>
+<p>We need to be able to get the raw value out of the id type, but without exposing this to the outside world.  To do this we internal interface:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">internal</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IValueID</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">object</span> Value();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Then update our id struct with a private implementation of the interface, and also mark the only constructor as internal:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">PersonID</span> : IValueID
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Guid _id;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">internal</span> PersonID(Guid id)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_id = id;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">object</span> IValueID.Value()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _id;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We now can define a class which Dapper can use to do the mapping from uuid to id:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PersonIDHandler</span> : SqlMapper.TypeHandler&lt;PersonID&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> SetValue(IDbDataParameter parameter, PersonID <span style="color:#66d9ef">value</span>)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		parameter.Value = ((IValueID)<span style="color:#66d9ef">value</span>).Value();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> PersonID Parse(<span style="color:#66d9ef">object</span> <span style="color:#66d9ef">value</span>)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> PersonID((Guid)<span style="color:#66d9ef">value</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We then need to regiter the command with Dapper once on start up of our application:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>SqlMapper.AddTypeHandler(<span style="color:#66d9ef">new</span> PersonIDHandler());
+</span></span></code></pre></div><p>Now when Dapper loads an object with a property type of <code>PersonID</code> it will invoke the <code>Parse</code> method on <code>PersonIDHandler</code>, and populate the resulting object correctly.  It will also work when getting a value from the <code>PersonID</code> property, invoking the <code>SetValue</code> method on <code>PersonIDHandler</code>.</p>
+<h2 id="extension">Extension</h2>
+<p>While the <code>PersonIDHandler</code> works, I really don&rsquo;t want to be creating essentially the same class over and over again for each ID type.  We can fix this by using a generic id handler class, and some reflection magic.</p>
+<p>We start off by creating a generic class for id handling:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">CustomHandler</span>&lt;T&gt; : SqlMapper.TypeHandler&lt;T&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Func&lt;Object, T&gt; _createInstance;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> CustomHandler()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> ctor = <span style="color:#66d9ef">typeof</span>(T)
+</span></span><span style="display:flex;"><span>			.GetConstructors()
+</span></span><span style="display:flex;"><span>			.Single(c =&gt; c.GetParameters().Count() == <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> paramType = ctor
+</span></span><span style="display:flex;"><span>			.GetParameters()
+</span></span><span style="display:flex;"><span>			.First()
+</span></span><span style="display:flex;"><span>			.ParameterType;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_createInstance = (<span style="color:#66d9ef">value</span>) =&gt; (T)ctor.Invoke(<span style="color:#66d9ef">new</span>[] { Convert.ChangeType(<span style="color:#66d9ef">value</span>, paramType) });
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> SetValue(IDbDataParameter parameter, T <span style="color:#66d9ef">value</span>)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		parameter.Value = ((IValueID)<span style="color:#66d9ef">value</span>).Value();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> T Parse(<span style="color:#66d9ef">object</span> <span style="color:#66d9ef">value</span>)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _createInstance(<span style="color:#66d9ef">value</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The constructor of this class just finds a single constructor on our ID type with one argument, and creates a Func which will create an instance of the id passing in the value.   We put all this constructor discovery logic into the <code>CustomHandler</code>&rsquo;s constructor as this information only needs to be calculated once, and can then be used for every <code>Parse</code> call.</p>
+<p>We then need to write something to build an instance of this for each ID type in our system.  As all of our IDs need to implement <code>IValueID</code> to work, we can scan for all types in the assembly implementing this interface, and then operate on those.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">InitialiseDapper</span> : IApplicationStart
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Initialise()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> interfaceType = <span style="color:#66d9ef">typeof</span>(IValueID);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> idTypes = interfaceType
+</span></span><span style="display:flex;"><span>			.Assembly
+</span></span><span style="display:flex;"><span>			.GetTypes()
+</span></span><span style="display:flex;"><span>			.Where(t =&gt; t.IsInterface == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>			.Where(t =&gt; t.IsAbstract == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>			.Where(t =&gt; t.GetInterfaces().Contains(interfaceType));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> handler = <span style="color:#66d9ef">typeof</span>(CustomHandler&lt;&gt;);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">foreach</span> (<span style="color:#66d9ef">var</span> idType <span style="color:#66d9ef">in</span> idTypes)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">var</span> ctor = handler
+</span></span><span style="display:flex;"><span>				.MakeGenericType(<span style="color:#66d9ef">new</span>[] { idType })
+</span></span><span style="display:flex;"><span>				.GetConstructor(Type.EmptyTypes);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">var</span> instance = (SqlMapper.ITypeHandler)ctor.Invoke(<span style="color:#66d9ef">new</span> <span style="color:#66d9ef">object</span>[] { });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			SqlMapper.AddTypeHandler(idType, instance);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This class first scans the assembly containing <code>IValueID</code> for all types implementing <code>IValueID</code> which are not abstract, and not interfaces themselves.  It then goes through each of these types, and builds a new instance of <code>CustomHandler</code> for each type, and registers it with Dapper.</p>
+<p>You might notice this is in a class which implements <code>IApplicationStart</code> - In most of my larger projects, I tend to have an interface like this, which defines a single <code>void Initialise();</code> method.  Implementations of the interface get looked for on startup of the application, and their <code>Initialise</code> method called once each.</p>
+]]></content:encoded></item><item><title>Strong Type your entity IDs.</title><link>https://andydote.co.uk/2014/07/17/strong-type-your-entity-ids/</link><pubDate>Thu, 17 Jul 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/07/17/strong-type-your-entity-ids/</guid><description>The Database is just an Implementation Detail A quote from Martin Fowler given during his Architecture talk stated that the Database in your application should just be an implementation detail. I agree on this wholeheartedly and find that its really not that difficult to achieve if you think about your architecture carefully.
+Having said that, I still see parts of the database implementation leaking out into the domain, mainly in the form of IDs.</description><content:encoded><![CDATA[<h2 id="the-database-is-just-an-implementation-detail">The Database is just an Implementation Detail</h2>
+<p>A quote from Martin Fowler given during his Architecture talk stated that the Database in your application should just be an implementation detail.  I agree on this wholeheartedly and find that its really not that difficult to achieve if you think about your architecture carefully.</p>
+<p>Having said that, I still see parts of the database implementation leaking out into the domain, mainly in the form of IDs.  This might not seem like much of a leak, but it does cause a few problems, especially on larger systems.</p>
+<p>The first problem ocours when you have a function taking in an ID of some form, and the parameter name is not really forthcoming on what object&rsquo;s ID it&rsquo;s expecting.  This is especially problematic if your ID columns are int based, rather than uuids, as passing any int to the function will return data - just not necessarily the data you were expecting.</p>
+<p>The second problem is that it ties you to using the same ID type as the database is using.  If the database is just an implementation detail, then it definitely should not be dictating what types your domain should be using.</p>
+<p>For example, take the following two classes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Account</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">User</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Account&gt; Accounts { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The two classes on their own are not unreasonable, but the use of an <code>int</code> for the ID is problematic.  Given the following method:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> DateTime GetLastActiveDate(<span style="color:#66d9ef">int</span> userID)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> ...
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Both of the following calls are valid, and neither the code nor the compiler will tell you which one is correct (if any!):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> date1 = GetLastActiveDate(_user.ID);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> date2 = GetLastActiveDate(_user.Accounts.First().ID);
+</span></span></code></pre></div><h2 id="using-the-type-system-to-prevent-bad-arguments">Using the Type System to prevent bad arguments</h2>
+<p>We can fix this problem by using the Type System to force the correct ID type to be passed in.</p>
+<p>First we need to abstract the notion of an ID to be separate from what type its value is.  To do this we create some structs, one for each ID in our system:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">UserID</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> <span style="color:#66d9ef">int</span> _value;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> UserID(<span style="color:#66d9ef">int</span> <span style="color:#66d9ef">value</span>)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_value = <span style="color:#66d9ef">value</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">int</span> GetHashCode()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _value;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">bool</span> Equals(<span style="color:#66d9ef">object</span> obj)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> (obj <span style="color:#66d9ef">is</span> UserID) &amp;&amp; (((UserID)obj)._value == _value);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">AccountID</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> <span style="color:#66d9ef">int</span> _value;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> AccountID(<span style="color:#66d9ef">int</span> <span style="color:#66d9ef">value</span>)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_value = <span style="color:#66d9ef">value</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">int</span> GetHashCode()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _value;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">bool</span> Equals(<span style="color:#66d9ef">object</span> obj)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> obj <span style="color:#66d9ef">is</span> AccountID &amp;&amp; GetHashCode() == obj.GetHashCode();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Both of our structs store their values immutably so that they cannot be changed after creation, and we override <code>GetHashCode</code> and <code>Equals</code> so that separate instances can be compared for equality properly.  Note also that there is no inheritance between the two structs - we do not want the ability for a method to expect a <code>UserID</code> and find someone passing in an <code>AccountID</code> because it inherits.</p>
+<p>We can now update our objects to use these IDs:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Account</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> AccountID ID { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">User</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> UserID ID { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Account&gt; Accounts { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And update any method which expects an ID now gets the specific type:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> DateTime GetLastActiveDate(UserID userID)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> ...
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This means that when someone writes this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> date = GetLastActiveDate(_user.Accounts.First().ID);
+</span></span></code></pre></div><p>The compiler will complain with an error: <code>Unable to cast type 'AccountID</code> to type &lsquo;UserID``.</p>
+<h2 id="abstracting-column-type">Abstracting column type</h2>
+<p>By doing this work to use custom types instead of native types for our IDs gives us another benefit:  we can hide what type the database is using from the domain, meaning we could change our table&rsquo;s key to be a uuid, and the only place we would need to change in code would be the relevant ID class.</p>
+<h2 id="extra-functionality">Extra functionality</h2>
+<p>One more benefit that comes from this approach is that our IDs are now first class citizens in the type world, and we can imbue them with extra functionality.</p>
+<p>A system I use has a table with both a uuid column for the primary key, and an int based refnum column for displaying to users, something like this:</p>
+<pre><code>person:
+id : uuid, forename : varchar(50), surname : varchar(50), dateofbirth : date, refnum : int
+</code></pre>
+<p>As we have a <code>PersonID</code> type, we can make that hold both values, and override the <code>ToString</code> method so that when called it displays the user friendly ID:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">PersonID</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Guid _id;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> <span style="color:#66d9ef">int</span> _refnum;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> PersonID(Guid id, <span style="color:#66d9ef">int</span> refnum)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_id = id;
+</span></span><span style="display:flex;"><span>		_refnum = refnum;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">int</span> GetHashCode()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//http://stackoverflow.com/questions/263400/what-is-the-best-algorithm-for-an-overridden-system-object-gethashcode/263416#263416</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">unchecked</span>
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">int</span> hash = <span style="color:#ae81ff">17</span>;
+</span></span><span style="display:flex;"><span>			hash = hash * <span style="color:#ae81ff">23</span> + _id.GetHashCode();
+</span></span><span style="display:flex;"><span>			hash = hash * <span style="color:#ae81ff">23</span> + _refnum.GetHashCode();
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> hash;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">bool</span> Equals(<span style="color:#66d9ef">object</span> obj)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> (obj <span style="color:#66d9ef">is</span> PersonID) &amp;&amp; (((PersonID)obj)._id == _id) &amp;&amp; (((PersonID)obj)._refnum == _refnum);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">string</span> ToString()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _refnum.ToString()
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This means that if in the future we decided to convert to using the refnum as the primary key, and drop the uuid column, again all we would need to do would be to update the <code>PersonID</code> type, and the rest of our code base would be unaffected.</p>
+]]></content:encoded></item><item><title>Using a Micro ORM to decouple your DB Access</title><link>https://andydote.co.uk/2014/03/29/using-a-micro-orm-to-decouple-your-db-access/</link><pubDate>Sat, 29 Mar 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/03/29/using-a-micro-orm-to-decouple-your-db-access/</guid><description>One of the databases I use on a regular bases has a rather interesting column naming scheme; all columns have a prefix, based on the table name. For example, the table containing people would have the prefix PEO_, so you would have this:
+Select * from People PEO_PersonID, PEO_FirstName, PEO_LastName, PEO_DoB ----------------------------------------------------- 1 John Jones 1984-07-15 I believe the idea was so that when querying, you would not have any column name clashes.</description><content:encoded><![CDATA[<p>One of the databases I use on a regular bases has a rather interesting column naming scheme;  all columns have a prefix, based on the table name.  For example, the table containing people would have the prefix <code>PEO_</code>, so you would have this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">Select</span> <span style="color:#f92672">*</span> <span style="color:#66d9ef">from</span> People
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>PEO_PersonID, PEO_FirstName, PEO_LastName, PEO_DoB
+</span></span><span style="display:flex;"><span><span style="color:#75715e">-----------------------------------------------------
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#ae81ff">1</span>             John           Jones         <span style="color:#ae81ff">1984</span><span style="color:#f92672">-</span><span style="color:#ae81ff">07</span><span style="color:#f92672">-</span><span style="color:#ae81ff">15</span>
+</span></span></code></pre></div><p>I believe the idea was so that when querying, you would not have any column name clashes.  This of course breaks down if you have to join on the same table twice.</p>
+<p>This structure presents a problem when it comes to reading the tables into objects in code, as it removes the ability to use an orm - I have yet to see one which allows you to specify a prefix to be used on all columns in a table.</p>
+<p>The existing entities are all manually read, and follow the same pattern:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Entity</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> reader = SqlHelper.ExecuteReader(<span style="color:#e6db74">&#34;connectionstring&#34;</span>, ReadProcedureName))
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (reader.Read())
+</span></span><span style="display:flex;"><span>			{
+</span></span><span style="display:flex;"><span>				Read(reader);
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Person</span> : Entity
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime DoB { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> String ReadProcedureName { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;p_getPerson&#34;</span>; } }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Read(IDataReader reader)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		ID = reader.GetInt32(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>		FirstName = reader.GetString(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>		LastName = reader.GetString(<span style="color:#ae81ff">2</span>);
+</span></span><span style="display:flex;"><span>		DoB = reader.GetDateTime(<span style="color:#ae81ff">3</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note how columns are read in order, which means two things: you cannot use <code>select *</code> as your query, and you cannot change column order etc.</p>
+<p>To help split this so we can start using an ORM to do the mapping for us, we can utilise the <a href="http://www.dofactory.com/Patterns/PatternMemento.aspx">Memento Pattern</a>.  First we create a new object, which will be used to read and write from the database:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PersonDto</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> PEO_ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> PEO_FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> PEO_LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime PEO_DoB { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note the property names match the column names of the table in the db, our read method could then get changed to this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Entity</span>&lt;TDto&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">string</span> ReadProcedureName { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;&#34;</span>; } }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> results = _connection.Query&lt;TDto&gt;(ReadProcedureName).ToList();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (results.Any())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			Read(results.First());
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Read(TDto dto)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Person</span> : Entity&lt;PersonDto&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime DoB { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Read(PersonDto dto)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		ID = dto.PEO_ID;
+</span></span><span style="display:flex;"><span>		FirstName = dto.PEO_FirstName;
+</span></span><span style="display:flex;"><span>		LastName = dto.PEO_LastName;
+</span></span><span style="display:flex;"><span>		DoB = dto.PEO_DoB;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This gives us several benefits, in that we can change column naming and ordering freely without effecting the actual <code>Person</code> object, and we have made the class slightly more testable - we can pass it a faked <code>PersonDto</code> if we needed to load it with some data for a test.</p>
+<p>We can however make another improvement to this - namely in the <code>Read</code> method, as this is a prime candidate for <a href="http://automapper.org/">AutoMapper</a>.  To get this to work though, have two choices: the first is to manually specify the mappings of one object to the other, and the second is to write a profile which will do the work for us.  Unsurprisingly, I went with the second option:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PrefixProfile</span> : Profile
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDictionary&lt;Type, Type&gt; _typeMap;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> PrefixProfile(IDictionary&lt;Type, Type&gt; typeMap )
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_typeMap = typeMap;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">string</span> ProfileName
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;PrefixProfile&#34;</span>; }
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Configure()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">foreach</span> (<span style="color:#66d9ef">var</span> pair <span style="color:#66d9ef">in</span> _typeMap)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">var</span> prefix = GetPrefix(pair.Value.GetProperties());
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			RecognizeDestinationPrefixes(prefix);
+</span></span><span style="display:flex;"><span>			RecognizePrefixes(prefix);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			CreateMap(pair.Key, pair.Value);
+</span></span><span style="display:flex;"><span>			CreateMap(pair.Value, pair.Key);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">string</span> GetPrefix(IEnumerable&lt;PropertyInfo&gt; properties)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> properties
+</span></span><span style="display:flex;"><span>			.Select(GetPrefixFromProperty)
+</span></span><span style="display:flex;"><span>			.FirstOrDefault(p =&gt; String.IsNullOrWhiteSpace(p) == <span style="color:#66d9ef">false</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">string</span> GetPrefixFromProperty(PropertyInfo property)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> name = property.Name;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> name.IndexOf(<span style="color:#e6db74">&#34;_&#34;</span>, StringComparison.OrdinalIgnoreCase) &gt;= <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>			? name.Substring(<span style="color:#ae81ff">0</span>, name.IndexOf(<span style="color:#e6db74">&#34;_&#34;</span>, StringComparison.OrdinalIgnoreCase) + <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>			: String.Empty;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This class takes in a dictionary of types (in this case will be things like <code>Person</code> =&gt; <code>PersonDto</code>).  It goes through each pair in the list and determines the prefix for the destination class (the dto).  The <code>GetPrefixFromProperty</code> is virtual so that I can customise it for other uses later.</p>
+<p>To use this we just need to initialise AutoMapper with the class once on start up:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> map = <span style="color:#66d9ef">new</span> Dictionary&lt;Type, Type&gt;();
+</span></span><span style="display:flex;"><span>map.Add(<span style="color:#66d9ef">typeof</span> (Person), <span style="color:#66d9ef">typeof</span> (PersonDto));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Mapper.Initialize(config =&gt; config.AddProfile(<span style="color:#66d9ef">new</span> PrefixProfile(map)));
+</span></span></code></pre></div><p>This means our <code>Person</code> class becomes very small:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Person</span> : Entity&lt;PersonDto&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime DoB { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And the <code>Entity</code> class can take care of the mapping for us, but utilising AutoMapper&rsquo;s Type based Map method:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Entity</span>&lt;TDto&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">string</span> ReadProcedureName { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;&#34;</span>; } }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> _connection = <span style="color:#66d9ef">new</span> SqlConnection(<span style="color:#e6db74">&#34;&#34;</span>);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> results = _connection.Query&lt;TDto&gt;(ReadProcedureName).ToList();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (results.Any())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			Read(results.First());
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">void</span> Read(TDto dto)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Mapper.Map(dto, <span style="color:#66d9ef">this</span>, <span style="color:#66d9ef">typeof</span>(TDto), GetType());
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>While the design of having each entity responsible for saving and loading of itself is not the best design, it is what the existing system has in place (around 400 entities exist at last count).  By taking these steps we can remove a lot of boilerplate code from our codebase, which means when we wish to change to a different architecture (such as session or transaction objects in a similar style to RavenDB&rsquo;s ISession), it will be an easier transition.</p>
+]]></content:encoded></item><item><title>SqlDataReader.HasRows Problems</title><link>https://andydote.co.uk/2012/10/30/sqldatareaderhasrows-problems/</link><pubDate>Tue, 30 Oct 2012 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2012/10/30/sqldatareaderhasrows-problems/</guid><description>For the last 6 years or so at work, we have had an intermittent bug. In this case, intermittent means around once in 6 months or so. A little background to the problem first:
 Our data access is done via what was originally Microsoft&amp;rsquo;s SQLHelper class, passing in a stored procedure (and parameters), and our entities use the reader to load all their properties. Pretty straight forward stuff.
-The problemis, on the live system, every few months a sproc will stop returning results, for no apparent reason.</description></item><item><title>SQL Like statement</title><link>https://andydote.co.uk/2009/05/15/sql-like-statement/</link><pubDate>Fri, 15 May 2009 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2009/05/15/sql-like-statement/</guid><description>Today I learnt a few new (well to me) SQL commands. The Like statement can do some basic regex type things. It supports character specifiers like this:
+The problemis, on the live system, every few months a sproc will stop returning results, for no apparent reason.</description><content:encoded><![CDATA[<p>For the last 6 years or so at work, we have had an intermittent bug.  In this case, intermittent means around once in 6 months or so.  A little background to the problem first:</p>
+<p>Our data access is done via what was originally Microsoft&rsquo;s SQLHelper class, passing in a stored procedure (and parameters), and our entities use the reader to load all their properties.  Pretty straight forward stuff.</p>
+<p>The problemis, on the live system, every few months a sproc will stop returning results, for no apparent reason.  Calling the sproc from Sql Management Studio works fine.  We have tried many different fixes: re-applying the sproc, calling the sproc from a different database login, re-pointing to the dev or test systems.  None of it makes any difference, and then as suddenly as it stopped working, it starts working again.</p>
+<p>A few days ago, I was attempting to track down some inconsistent search results, this time based around an fts index.  Now this index is pretty large (at least, in my books it is) at around 1.5 million rows, and the column itself being a good few thousand words on average.</p>
+<p>The code used for this problem boils down to the following</p>
+<p>Sproc &ldquo;ftsSearch&rdquo;:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span>	<span style="color:#66d9ef">Select</span>	id
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">from</span>	ftsTable
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">where</span>	<span style="color:#66d9ef">contains</span>(<span style="color:#f92672">@</span>query, searchColumn)
+</span></span></code></pre></div><p>Reader Class:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">FtsSearch</span> : List&lt;<span style="color:#66d9ef">int</span>&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Search(String input)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Clear();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> param = <span style="color:#66d9ef">new</span> SqlParameter(<span style="color:#e6db74">&#34;@query&#34;</span>, SqlDbType.VarChar);
+</span></span><span style="display:flex;"><span>		param.Value = input;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> reader = SqlHelper.ExecuteReader(DbConnection, <span style="color:#e6db74">&#34;ftsSearch&#34;</span>, param))
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (reader.HasRows)
+</span></span><span style="display:flex;"><span>			{
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">while</span> (reader.Read())
+</span></span><span style="display:flex;"><span>				{
+</span></span><span style="display:flex;"><span>					Add(reader.GetInt32(<span style="color:#ae81ff">0</span>));
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Calling this function while the error is occurring, yields the following results:</p>
+<pre><code>Query:						Results:
+&quot;Project Management&quot;		20,000
+&quot;Project Manager&quot;			15,000
+&quot;Project Manage*&quot;			0
+</code></pre>
+<p>The first two queries are fine, the last however I would expect to bring back between 20,000 and ~35,000 results, and when we ran the sql from Management Studio, it brought back 29,000 results.</p>
+<p>Now when debugging the function, we double checked everything was being called correctly - correct DB, correct sproc, correct login, correct (parsed) parameter.</p>
+<p>Inspecting HasRows returns False.  So we forced a call to Read() anyway, just to see what happened.  An what do you know? Results, all there.</p>
+<p>The reason that HasRows was returning false was that the sproc was triggering sql server to also send back a warning - in this case one about too many results (afraid I have lost the exact error code).  Sadly this behaviour does not seem to be documented anywhere.</p>
+]]></content:encoded></item><item><title>SQL Like statement</title><link>https://andydote.co.uk/2009/05/15/sql-like-statement/</link><pubDate>Fri, 15 May 2009 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2009/05/15/sql-like-statement/</guid><description>Today I learnt a few new (well to me) SQL commands. The Like statement can do some basic regex type things. It supports character specifiers like this:
 Column Like &amp;#39;%[a-z]Test[a-z]%&amp;#39; This will find the word test as long as there is a letter at either end of the word in a block of text. You can also say Not a letter like so:
-Column Like &amp;#39;%[^a-z]Test[^a-z]%&amp;#39; This should find any words Test that do not have letters before or after them.</description></item></channel></rss>
+Column Like &amp;#39;%[^a-z]Test[^a-z]%&amp;#39; This should find any words Test that do not have letters before or after them.</description><content:encoded><![CDATA[<p>Today I learnt a few new (well to me) SQL commands.  The <a href="http://doc.ddart.net/mssql/sql70/la-lz_2.htm">Like statement</a> can do some basic regex type things.  It supports character specifiers like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">Column</span> <span style="color:#66d9ef">Like</span> <span style="color:#e6db74">&#39;%[a-z]Test[a-z]%&#39;</span>
+</span></span></code></pre></div><p>This will find the word test as long as there is a letter at either end of the word in a block of text.  You can also say Not a letter like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">Column</span> <span style="color:#66d9ef">Like</span> <span style="color:#e6db74">&#39;%[^a-z]Test[^a-z]%&#39;</span>
+</span></span></code></pre></div><p>This should find any words Test that do not have letters before or after them. Very useful for searching for a complete word in a block of text.  However I could not get this to work (MSSQL Server 2005) so I ended up doing this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">Select</span> 	Columns
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">From</span>	TableName
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">Where</span>	BlockOfText <span style="color:#66d9ef">Like</span> <span style="color:#e6db74">&#39;%&#39;</span> <span style="color:#f92672">+</span> <span style="color:#f92672">@</span>word <span style="color:#f92672">+</span><span style="color:#e6db74">&#39;%&#39;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">and</span>	BlockOfText <span style="color:#66d9ef">not</span> <span style="color:#66d9ef">like</span> <span style="color:#e6db74">&#39;%[a-z]&#39;</span> <span style="color:#f92672">+</span> <span style="color:#f92672">@</span>word <span style="color:#f92672">+</span> <span style="color:#e6db74">&#39;[a-z]%&#39;</span>
+</span></span></code></pre></div><p>Which works well for what I needed and is reasonably quick on a million records or so.</p>
+]]></content:encoded></item></channel></rss>

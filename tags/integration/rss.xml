@@ -1,2 +1,43 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>integration on Andy Dote</title><link>https://andydote.co.uk/tags/integration/</link><description>Recent content in integration on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 09 Jun 2016 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/integration/rss.xml" rel="self" type="application/rss+xml"/><item><title>Database Integrations for MicroServices</title><link>https://andydote.co.uk/2016/06/09/database-integrations-for-microservices/</link><pubDate>Thu, 09 Jun 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/06/09/database-integrations-for-microservices/</guid><description>This is a follow up post after seeing Michal Franc&amp;rsquo;s NDC talk on migrating from Monolithic architectures.
-One point raised was that Database Integration points are a terrible idea - and I wholeheartedly agree. However, there can be a number of situations where a Database Integration is the best or only way to achieve the end goal. This can be either technical; say a tool does not support API querying (looking at you SSRS), or cultural; the other team either don&amp;rsquo;t have the willingness, time, or power to learn how to query an API.</description></item></channel></rss>
+One point raised was that Database Integration points are a terrible idea - and I wholeheartedly agree. However, there can be a number of situations where a Database Integration is the best or only way to achieve the end goal. This can be either technical; say a tool does not support API querying (looking at you SSRS), or cultural; the other team either don&amp;rsquo;t have the willingness, time, or power to learn how to query an API.</description><content:encoded><![CDATA[<p>This is a follow up post after seeing <a href="https://twitter.com/francmichal">Michal Franc</a>&rsquo;s NDC talk on migrating from Monolithic architectures.</p>
+<p>One point raised was that Database Integration points are a terrible idea - and I wholeheartedly agree.  However, there can be a number of situations where a Database Integration is the best or only way to achieve the end goal.  This can be either technical; say a tool does not support API querying (looking at you SSRS), or cultural; the other team either don&rsquo;t have the willingness, time, or power to learn how to query an API.</p>
+<p>One common situation is a reporting team, who either cannot query an API (e.g. they are stuck using SSRS), or don&rsquo;t want/have time to learn how to query an API.</p>
+<p>There are two ways which can make a Database Integration an altogether less painful prospect, both with a common starting point: A separate login to the Database, with only readonly access to a very small set of tables and views.</p>
+<p>Views can be used to create a representation of the service&rsquo;s data in a manner which makes sense to external systems, for example de-normalising tables, or converting integer based enumerations into their string counterparts.</p>
+<p>Tables can be used to expose a transformed version of the service&rsquo;s data, for example a readmodel from an event stream.</p>
+<h2 id="event-sourcing-source-data">Event Sourcing source data</h2>
+<p>For example, one of our services uses Event Sourcing.  It uses projections to construct readmodels as events are stored (we use the <a href="https://www.nuget.org/packages/ledger">Ledger</a> library, and a SqlServer backend for this.)  To provide a Database Integeration point, we have a second set of projections which populate a set of tables specifically for external querying.</p>
+<p>If the following event was committed to the store:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;eventType&#34;</span>: <span style="color:#e6db74">&#34;phoneNumberAdded&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;aggregateID&#34;</span>: <span style="color:#ae81ff">231231</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;number&#34;</span>: <span style="color:#e6db74">&#34;01230 232323&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;home&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The readmodel table, which is just two columns: <code>id:int</code> and <code>json:varchar(max)</code>, would get updated to look like this:</p>
+<pre tabindex="0"><code>id      | json
+--------+-------------------------------------------------
+231231  | {
+            &#34;id&#34;: 231231,
+            &#34;name&#34;: &#34;Andy Dote&#34;,
+            &#34;phones&#34;: [
+              { &#34;type&#34;: &#34;mobile&#34;, &#34;number&#34;: &#34;0712345646&#34; },
+              { &#34;type&#34;: &#34;home&#34;, &#34;number&#34;: &#34;01230 232323&#34; }
+            ]
+          }
+</code></pre><p>The external integration table, which is a denormalised view of the data would get updated to look like this:</p>
+<pre tabindex="0"><code>id      | name      | home_phone    | mobile_phone
+--------+-----------+---------------+----------------------
+231231  | Andy Dote | 01230 232 323 | 07123 456 456
+</code></pre><h3 id="non-sql-systems">Non-SQL Systems</h3>
+<p>While I have not needed to implement this yet, there is a plan for how to do it:  a simple regular job which will pull the data from the service&rsquo;s main store, transform it, and insert it into the SQL store.</p>
+<h3 id="relational-systems">Relational Systems</h3>
+<p>A relational system can be done in a number of ways:</p>
+<ul>
+<li>In the same manner as the Non-SQL system: with a periodical job</li>
+<li>In a similar manner to the Event Sourced system: Updating a second table at the same time as the primary tables</li>
+<li>Using SQL triggers: on insert, add a row to the integration table etc.</li>
+</ul>
+<p>I wouldn&rsquo;t recommend the 3rd option, as you will start ending up with more and more logic living in larger and larger triggers.
+The important point on all these methods is that the Integration tables are separate from the main tables: you do not want to expose your internal implementation to external consumers.</p>
+]]></content:encoded></item></channel></rss>

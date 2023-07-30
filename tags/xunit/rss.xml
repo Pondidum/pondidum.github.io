@@ -1,5 +1,85 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>xunit on Andy Dote</title><link>https://andydote.co.uk/tags/xunit/</link><description>Recent content in xunit on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 21 Jan 2017 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/xunit/rss.xml" rel="self" type="application/rss+xml"/><item><title>Unit Tests &amp; Scratchpads</title><link>https://andydote.co.uk/2017/01/21/unit-tests-and-scratchpads/</link><pubDate>Sat, 21 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/21/unit-tests-and-scratchpads/</guid><description>Often when developing something, I have the need to check how a function or library works. For example, I always have to check for this question:
 Does Directory.ListFiles(&amp;quot;.\\temp\\&amp;quot;) return a list of filenames, a list of relative filepaths, or a list of rooted filepaths?
 It returns relative filepaths by the way:
-Directory.ListFiles(&amp;#34;.\\temp\\&amp;#34;); [ &amp;#34;.\temp\NuCrunch.Tests.csproj&amp;#34;, &amp;#34;.\temp\packages.config&amp;#34;, &amp;#34;.\temp\Scratchpad.cs&amp;#34; ] Now that there is a C# Interactive window in Visual Studio, you can use that to test the output.</description></item><item><title>RabbitMQ integration tests in XUnit</title><link>https://andydote.co.uk/2016/03/18/rabbitmq-xunit/</link><pubDate>Fri, 18 Mar 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/03/18/rabbitmq-xunit/</guid><description>Quite a number of my projects involve talking to RabbitMQ, and to help check things work as expected, I often have a number of integration tests which talk to a local RabbitMQ instance.
-While this is fine for tests being run locally, it does cause problems with the build servers - we don&amp;rsquo;t want to install RabbitMQ on there, and we don&amp;rsquo;t typically want the build to be dependent on RabbitMQ.</description></item></channel></rss>
+Directory.ListFiles(&amp;#34;.\\temp\\&amp;#34;); [ &amp;#34;.\temp\NuCrunch.Tests.csproj&amp;#34;, &amp;#34;.\temp\packages.config&amp;#34;, &amp;#34;.\temp\Scratchpad.cs&amp;#34; ] Now that there is a C# Interactive window in Visual Studio, you can use that to test the output.</description><content:encoded><![CDATA[<p>Often when developing something, I have the need to check how a function or library works.  For example, I <em>always</em> have to check for this question:</p>
+<blockquote>
+<p>Does <code>Directory.ListFiles(&quot;.\\temp\\&quot;)</code> return a list of filenames, a list of relative filepaths, or a list of rooted filepaths?</p>
+</blockquote>
+<p>It returns relative filepaths by the way:</p>
+<pre tabindex="0"><code>Directory.ListFiles(&#34;.\\temp\\&#34;);
+[ &#34;.\temp\NuCrunch.Tests.csproj&#34;, &#34;.\temp\packages.config&#34;, &#34;.\temp\Scratchpad.cs&#34; ]
+</code></pre><p>Now that there is a C# Interactive window in Visual Studio, you can use that to test the output.  Sometimes however the C# Interactive window is not suitable:</p>
+<ul>
+<li>You want to test needs a little more setup than a couple of lines</li>
+<li>You wish to use the debugger to check on intermediate state</li>
+<li>You are not in Visual Studio (I am 99% of the time in <a href="https://www.jetbrains.com/rider/">Rider</a>)</li>
+</ul>
+<p>When this happens, I turn to the unit test file which I add to all unit test projects:  the <code>Scratchpad.cs</code>.</p>
+<p>The complete listing of the file is this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">using</span> Xunit;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">using</span> Xunit.Abstractions;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">namespace</span> NuCrunch.Tests
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Scratchpad</span>
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> ITestOutputHelper _output;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">public</span> Scratchpad(ITestOutputHelper output)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			_output = output;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">		[Fact]</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> When_testing_something()
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>It gets committed to the git repository with no content in the <code>When_testing_something</code> method, and is never committed again afterwards.  The <code>_output</code> field is added to allow writing to console/test window easily too.</p>
+<p>Now whenever I wish to experiment with something, I can pop open the <code>Scratchpad</code> write some test content, then execute and debug it to my hearts content.</p>
+<p>After I am done with the test code, one of two things happen:  it gets deleted, or it gets moved into a proper unit test.</p>
+]]></content:encoded></item><item><title>RabbitMQ integration tests in XUnit</title><link>https://andydote.co.uk/2016/03/18/rabbitmq-xunit/</link><pubDate>Fri, 18 Mar 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/03/18/rabbitmq-xunit/</guid><description>Quite a number of my projects involve talking to RabbitMQ, and to help check things work as expected, I often have a number of integration tests which talk to a local RabbitMQ instance.
+While this is fine for tests being run locally, it does cause problems with the build servers - we don&amp;rsquo;t want to install RabbitMQ on there, and we don&amp;rsquo;t typically want the build to be dependent on RabbitMQ.</description><content:encoded><![CDATA[<p>Quite a number of my projects involve talking to <a href="https://rabbitmq.com">RabbitMQ</a>, and to help check things work as expected, I often have a number of integration tests which talk to a local RabbitMQ instance.</p>
+<p>While this is fine for tests being run locally, it does cause problems with the build servers - we don&rsquo;t want to install RabbitMQ on there, and we don&rsquo;t typically want the build to be dependent on RabbitMQ.</p>
+<p>To solve this I created a replacement <code>FactAttribute</code> which can check if RabbitMQ is available, and skip tests if it is not.</p>
+<p>This attribute works with a single host, and will only check for the host actually being there on its first connection.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RequiresRabbitFactAttribute</span> : FactAttribute
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">bool?</span> _isAvailable;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">public</span> RequiresRabbitFactAttribute(<span style="color:#66d9ef">string</span> host)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (_isAvailable.HasValue == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>      _isAvailable = CheckHost(host);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (_isAvailable == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>      Skip = <span style="color:#e6db74">$&#34;RabbitMQ is not available on {host}.&#34;</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">bool</span> CheckHost(<span style="color:#66d9ef">string</span> host)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> factory = <span style="color:#66d9ef">new</span> ConnectionFactory
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      HostName = host,
+</span></span><span style="display:flex;"><span>      RequestedConnectionTimeout = <span style="color:#ae81ff">1000</span>;
+</span></span><span style="display:flex;"><span>    };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = factory.CreateConnection())
+</span></span><span style="display:flex;"><span>      {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> connection.IsOpen;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">catch</span> (Exception)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">false</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>I was planning on using a dictionary, keyed by host to store the availability, but realized that I always use the same host throughout a test suite.</p>
+<p>The reason for passing the host name in via the ctor rather than using a constant is that this usually resides within a generic &ldquo;rabbitmq helpers&rdquo; type assembly, and is used in multiple projects.</p>
+]]></content:encoded></item></channel></rss>

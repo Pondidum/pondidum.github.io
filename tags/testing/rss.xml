@@ -1,18 +1,1166 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>testing on Andy Dote</title><link>https://andydote.co.uk/tags/testing/</link><description>Recent content in testing on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 23 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/testing/rss.xml" rel="self" type="application/rss+xml"/><item><title>Architecture Testing</title><link>https://andydote.co.uk/2023/07/23/architecture-testing/</link><pubDate>Sun, 23 Jul 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/07/23/architecture-testing/</guid><description>One of the many reasons given for using microservices rather than a mono repository is that it enforces boundaries between services/modules. However, there are ways to achieve strong boundaries between modules/services in one repository, using tools which are already available: test runners.
 Given a repository with the following structure:
-. ├── libraries │ ├── core │ ├── events │ └── ui ├── services │ ├── catalogue │ ├── billing │ └── shipping └── tools └── admin-cli There are a few rules we should enforce:</description></item><item><title>Testing Immutable Infrastructure</title><link>https://andydote.co.uk/2019/01/01/immutable-infra/</link><pubDate>Tue, 01 Jan 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/01/01/immutable-infra/</guid><description>In my previous post, I glossed over one of the most important and useful parts of Immutable Infrastructure: Testability. There are many kinds of tests we can write for our infrastructure, but they should all be focused on the machine/service and maybe it&amp;rsquo;s nearest dependencies, not the entire system.
-While this post focuses on testing a full machine (both locally in a VM, and remotely as an Amazon EC2 instance), it is also possible to do most of the same kind of tests against a Docker container.</description></item><item><title>Branching and Red Builds</title><link>https://andydote.co.uk/2018/08/10/red-builds/</link><pubDate>Fri, 10 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/10/red-builds/</guid><description>So this is a bit of a rant&amp;hellip;but hopefully with some solutions and workarounds too. So let&amp;rsquo;s kick things off with a nice statement:
+. ├── libraries │ ├── core │ ├── events │ └── ui ├── services │ ├── catalogue │ ├── billing │ └── shipping └── tools └── admin-cli There are a few rules we should enforce:</description><content:encoded><![CDATA[<p>One of the many reasons given for using microservices rather than a mono repository is that it enforces boundaries between services/modules.  However, there are ways to achieve strong boundaries between modules/services in one repository, using tools which are already available: test runners.</p>
+<p>Given a repository with the following structure:</p>
+<pre tabindex="0"><code>.
+├── libraries
+│   ├── core
+│   ├── events
+│   └── ui
+├── services
+│   ├── catalogue
+│   ├── billing
+│   └── shipping
+└── tools
+    └── admin-cli
+</code></pre><p>There are a few rules we should enforce:</p>
+<ul>
+<li>Services cannot reference each other</li>
+<li>tools cannot reference each other</li>
+<li>Services cannot reference tools</li>
+<li>Libraries can only reference other libraries</li>
+<li>Libraries cannot have circular dependencies</li>
+</ul>
+<p>There are also the conventions that we want to enforce:</p>
+<ul>
+<li>Feature folders should be used, not <code>models</code>, <code>views</code> and <code>controllers</code></li>
+<li>Specific libraries should not be used</li>
+<li>all services should expose a <code>/api/stats</code> endpoint</li>
+</ul>
+<p>How to write these tests will vary greatly depending on what programming languages and tools you use, but I know for sure they can be written in Go, C#, and TypeScript.  Not only that, but the tests can be written in a different language than the applications; in this example, our applications are written in a mix of NodeJS and Go, and the architectural tests are written in Go.</p>
+<h2 id="testing-for-a-convention">Testing for a Convention</h2>
+<p>The convention we will test for is that we strongly prefer folder-by-feature over folder-by-type.</p>
+<p>The test itself uses a couple of helper methods: <code>repositoryFolders</code> returns a slice of every folder recursively in the project, with information such as all child folders and all child files, along with names, paths, etc., populated.</p>
+<p>The <code>hasLayers</code> function itself is just checking if the direct children of a folder contain &ldquo;models&rdquo;, &ldquo;views&rdquo; and &ldquo;controllers&rdquo; or &ldquo;models&rdquo;, &ldquo;views&rdquo; and &ldquo;presenters&rdquo;.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestFolderByFeature</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">folders</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">repositoryFolders</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">folder</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">folders</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">hasLayers</span>(<span style="color:#a6e22e">folder</span>) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Failf</span>(<span style="color:#a6e22e">t</span>, <span style="color:#e6db74">&#34;found type folders, not slices&#34;</span>, <span style="color:#a6e22e">wrap80</span>(<span style="color:#e6db74">`
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">It looks like &#39;%s&#39; is using this folder structure, known as &#34;folder-by-type&#34;, which is discouraged:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Instead, you should use folders-by-feature:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">For more information, see this ADR: ./docs/arch/005-folder-layout.md
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">If this test failure is a false positive, please let us know, or you can either improve the test or add your folder path to the &#39;.architecture-ignore&#39; file.  Here is the fragment that can be added:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      `</span>, <span style="color:#a6e22e">folder</span>.<span style="color:#a6e22e">Path</span>, <span style="color:#a6e22e">layers</span>(<span style="color:#a6e22e">folder</span>), <span style="color:#a6e22e">slices</span>(<span style="color:#a6e22e">folder</span>), <span style="color:#a6e22e">folderByTypeArchitectureIgnore</span>(<span style="color:#a6e22e">folder</span>)))
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The error message in this kind of test is very important; it needs to cover:</p>
+<ul>
+<li>What was wrong</li>
+<li>Where the failure was (i.e. the path)</li>
+<li>Why this is considered wrong (with links to more information if needed)</li>
+<li>How to fix it</li>
+<li>How to add an exception to the rules (if desired)</li>
+<li>How to handle false positives</li>
+</ul>
+<p>For example, this is what the rendered output of the test above looks like, showing the folder that was detected to have folder-by-type, showing an example of how it should look, and linking to the <a href="/tags/adr/">adr</a>, which documents why this was chosen.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>It looks like &#39;services/catalogue/src&#39; is using this folder structure, known as
+</span></span><span style="display:flex;"><span>&#34;folder-by-type&#34;, which is discouraged:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>services/catalogue/src
+</span></span><span style="display:flex;"><span>├── controllers
+</span></span><span style="display:flex;"><span>├── models
+</span></span><span style="display:flex;"><span>└── views
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Instead, you should use folder-by-feature:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>services/catalogue/src
+</span></span><span style="display:flex;"><span>├── details
+</span></span><span style="display:flex;"><span>│   ├── controller.ts
+</span></span><span style="display:flex;"><span>│   ├── model.ts
+</span></span><span style="display:flex;"><span>│   └── view.ts
+</span></span><span style="display:flex;"><span>├── indexing
+</span></span><span style="display:flex;"><span>└── search
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>For more information, see this ADR: ./docs/arch/005-folder-layout.md
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>If this test failure is a false positive, please let us know, or you can either
+</span></span><span style="display:flex;"><span>improve the test or add your folder path to the &#39;.architecture-ignore&#39; file.
+</span></span><span style="display:flex;"><span>Here is the fragment that can be added:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>```toml
+</span></span><span style="display:flex;"><span>[[services]]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>[service.catalogue]
+</span></span><span style="display:flex;"><span>allowFolderByType = true
+</span></span><span style="display:flex;"><span>```.
+</span></span></code></pre></div><p>There is also the text on how to skip a test if there is a good reason to or the test failure is a false negative.  Adding to the <code>.architecture-ignore</code> file notifies the core team about an addition, but <strong>does not block the PR</strong>, as teams are all trusted; we just want to verify if something is happening a lot or if there is some case the tests are not handling.</p>
+<p>An example of a good reason for ignoring this test is when a team is taking ownership of a service and adding it to the repository: they want to pull its source in and make as few changes as possible until it is under their control; refactoring can then happen later.</p>
+<h2 id="testing-a-project-rule">Testing a Project Rule</h2>
+<p>Now let&rsquo;s look at how we verify that our services don&rsquo;t reference other services.  The test is similar to the previous one other than the <code>repositoryServices()</code> function returns a map of service names and Services.  The <code>Service</code> struct is an abstraction which allows us to handle both NodeJS projects and Go projects with the same test.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestServicesCannotReferenceOtherServices</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">allServices</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">repositoryServices</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">service</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">allServices</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">reference</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">service</span>.<span style="color:#a6e22e">References</span> {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">other</span>, <span style="color:#a6e22e">found</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">allServices</span>[<span style="color:#a6e22e">reference</span>.<span style="color:#a6e22e">Name</span>]; <span style="color:#a6e22e">found</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>         <span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Failf</span>(<span style="color:#a6e22e">t</span>, <span style="color:#e6db74">&#34;service references another service&#34;</span>, <span style="color:#a6e22e">wrap80</span>(<span style="color:#e6db74">`
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">It looks like the &#39;%s&#39; service is referencing the &#39;%s&#39; service.
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">1.  Service Boundary
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Needing data from another service is often an indication of non-optimal service boundary, which could mean we need to refactor our design a bit.
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">1.  Distributed Ball of Mud
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Having many service to service dependencies make all our services more tightly coupled, making refactoring and deployment harder.
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Sometimes a service to service reference is fine however!  You can add your service to service definition to the &#39;.architecture-ignore&#39; file if this is the case.  Here is the fragment that can be added:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">         `</span>, <span style="color:#a6e22e">service</span>.<span style="color:#a6e22e">Name</span>, <span style="color:#a6e22e">other</span>.<span style="color:#a6e22e">Name</span>, <span style="color:#a6e22e">serviceToServiceArchitectureIgnore</span>(<span style="color:#a6e22e">service</span>, <span style="color:#a6e22e">other</span>)))
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span></code></pre></div><p>The error message when rendered looks like this, again adding as much detail as we can along with how to add the exception if needed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-md" data-lang="md"><span style="display:flex;"><span>It looks like the catalogue &#39;service&#39; is referencing the &#39;offers&#39; service.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Service to Service references are discouraged for two main reasons:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">1.</span>  Service Boundary
+</span></span><span style="display:flex;"><span>Needing data from another service is often an indication of non-optimal service
+</span></span><span style="display:flex;"><span>boundary, which could mean we need to refactor our design a bit.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">2.</span>  Distributed Ball of Mud
+</span></span><span style="display:flex;"><span>Having many service to service dependencies make all our services more tightly
+</span></span><span style="display:flex;"><span>coupled, making refactoring and deployment harder.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Sometimes a service to service reference is fine however!  You can add your
+</span></span><span style="display:flex;"><span>service to service definition to the &#39;.architecture-ignore&#39; file if this is the
+</span></span><span style="display:flex;"><span>case.  Here is the fragment that can be added:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>```toml
+</span></span><span style="display:flex;"><span>[[services]]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>[services.catalogue]
+</span></span><span style="display:flex;"><span>references = [
+</span></span><span style="display:flex;"><span>    &#34;offers&#34;
+</span></span><span style="display:flex;"><span>]
+</span></span><span style="display:flex;"><span>```.
+</span></span></code></pre></div><h2 id="further-work">Further Work</h2>
+<p>Using tests like this also allows you to build extra things on top of them; for migrating from one library to another, you can add tests that specify that the number of usages can only go down over time, never up.</p>
+<p>You can also use <code>codeowners</code> (or equivalent) to keep an eye on what is being added to the <code>.architecture-ignore</code> file, allowing you to react to emerging patterns and either guide teams towards the pattern or away from it.</p>
+<p>The key with this is that you trust your teams; this is all &ldquo;trust but verify&rdquo; with the ignore file.  You should (almost) never be blocking a team from working.</p>
+]]></content:encoded></item><item><title>Testing Immutable Infrastructure</title><link>https://andydote.co.uk/2019/01/01/immutable-infra/</link><pubDate>Tue, 01 Jan 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/01/01/immutable-infra/</guid><description>In my previous post, I glossed over one of the most important and useful parts of Immutable Infrastructure: Testability. There are many kinds of tests we can write for our infrastructure, but they should all be focused on the machine/service and maybe it&amp;rsquo;s nearest dependencies, not the entire system.
+While this post focuses on testing a full machine (both locally in a VM, and remotely as an Amazon EC2 instance), it is also possible to do most of the same kind of tests against a Docker container.</description><content:encoded><![CDATA[<p>In my <a href="/2018/12/22/serilog-elk-jaeger/">previous post</a>, I glossed over one of the most important and useful parts of Immutable Infrastructure: Testability.  There are many kinds of tests we can write for our infrastructure, but they should all be focused on the machine/service and <em>maybe</em> it&rsquo;s nearest dependencies, <a href="https://medium.com/@copyconstruct/testing-microservices-the-sane-way-9bb31d158c16">not the entire system</a>.</p>
+<p>While this post focuses on testing a full machine (both locally in a VM, and remotely as an Amazon EC2 instance), it is also possible to do most of the same kind of tests against a Docker container.  In fact, one of the tools used in this post supports building Docker containers as an output in parallel to the AMIs, so this can also assist in providing a migration path to/from Docker.</p>
+<p>As an example, I will show how I built and tested a LogStash machine, including how to verify that the script to create the production machine is valid, that the machine itself has been provisioned correctly, and that the services inside work as expected.</p>
+<p>I have <a href="https://github.com/Pondidum/immutable-infra-testing-demo">published all the source code</a> to GitHub.  The examples in this post are all taken from the repository but might have a few bits removed just for readability.  Check the full source out if you are interested!</p>
+<h2 id="repository-structure-and-tools">Repository Structure and Tools</h2>
+<p>When it comes to building anything that you will have lots of, consistency is key to making it manageable.  To that end, I have a small selection of tools that I use, and a repository structure I try and stick to.  They are the following:</p>
+<p><strong><a href="https://www.vagrantup.com/">Vagrant</a></strong> - This is a tool for building and managing virtual machines.  It can be backed by many different <a href="https://www.vagrantup.com/docs/providers/">providers</a> such as Docker, HyperV and VirtualBox.  We&rsquo;ll use this to build a local Linux machine to develop and test LogStash in.  I use the HyperV provisioner, as that is what Docker For Windows also uses, and HyperV disables other virtualisation tools.</p>
+<p><strong><a href="https://packer.io/">Packer</a></strong> - This tool provides a way to build machine images.  Where Vagrant builds running machines, Packer builds the base images for you to boot, and can build multiple different ones (in parallel) from one configuration.  We&rsquo;ll use this to create our AMIs (Amazon Machine Images.)</p>
+<p><strong><a href="http://jestjs.io/">Jest</a></strong> - This is a testing framework written in (and for) NodeJS applications.  Whatever testing tool works best for your environment is what you should be using, but I use Jest as it introduces minimal dependencies, is cross-platform, and has some useful libraries for doing things like diffing json.</p>
+<p>The repository structure is pretty simple:</p>
+<ul>
+<li>scripts/</li>
+<li>src/</li>
+<li>test/</li>
+<li>build.sh</li>
+<li>logstash.json</li>
+<li>package.json</li>
+<li>vagrantfile</li>
+</ul>
+<p>The <code>src</code> directory is where our application code will live.  If the application is compiled, the output goes to the <code>build</code> directory (which is not tracked in source-control.)  The <code>test</code> directory will contain all of our tests, and the <code>scripts</code> directory will contain everything needed for provisioning our machines.</p>
+<p>We&rsquo;ll describe what the use of each of these files is as we go through the next section.</p>
+<h2 id="local-development">Local Development</h2>
+<p>To create our virtual machine locally, we will use <a href="https://www.vagrantup.com">Vagrant</a>.  To tell Vagrant how to build our machine, we need to create a <code>vagrantfile</code> in our repository, which will contain the machine details and provisioning steps.</p>
+<p>The machine itself has a name, CPU count, and memory specified.  There is also a setting for Hyper-V which allows us to use a differencing disk, which reduces the startup time for the VM, and how much disk space it uses on the host machine.</p>
+<p>For provisioning, we specify to run the relevant two files from the <code>scripts</code> directory.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;bento/ubuntu-16.04&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provider <span style="color:#e6db74">&#34;hyperv&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>hv<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>vmname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;LogStash&#34;</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>cpus <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">2048</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>linked_clone <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./scripts/provision.sh&#34;</span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./scripts/vagrant.sh&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>To keep things as similar as possible between our development machine and our output AMI, I keep as much of the setup script in one file: <code>scripts/provision.sh</code>.  In the case of our LogStash setup, this means installing Java, LogStash, some LogStash plugins, and enabling the service on reboots:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># add elastic&#39;s package repository</span>
+</span></span><span style="display:flex;"><span>wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;deb https://artifacts.elastic.co/packages/6.x/apt stable main&#34;</span> | sudo tee -a /etc/apt/sources.list.d/elastic-6.x.list
+</span></span><span style="display:flex;"><span>sudo apt-get update
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># install openjdk and set environment variable</span>
+</span></span><span style="display:flex;"><span>sudo apt-get install openjdk-8-jre -y
+</span></span><span style="display:flex;"><span>JAVA<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>readlink -f <span style="color:#66d9ef">$(</span>which java<span style="color:#66d9ef">)</span> | sed <span style="color:#e6db74">&#34;s:bin/java::&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;JAVA_HOME=</span>$JAVA<span style="color:#e6db74">&#34;</span> | sudo tee --append /etc/environment
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#install logstash and plugins</span>
+</span></span><span style="display:flex;"><span>sudo apt-get install logstash -y
+</span></span><span style="display:flex;"><span>/usr/share/logstash/bin/logstash-plugin install logstash-filter-uuid
+</span></span><span style="display:flex;"><span>/usr/share/logstash/bin/logstash-plugin install logstash-filter-prune
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl enable logstash.service
+</span></span></code></pre></div><p>Vagrant will automatically mount it&rsquo;s working directory into the VM under the path <code>/vagrant</code>.  This means we can add a second provisioning script (<code>scripts/vagrant.sh</code>) to link the <code>/vagrant/src</code> directory to the LogStash configuration directory (<code>/etc/logstash/conf.d</code>), meaning we can edit the files on the host machine, and then restart LogStash to pick up the changes.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>sudo rm -rf /etc/logstash/conf.d
+</span></span><span style="display:flex;"><span>sudo ln -s /vagrant/src /etc/logstash/conf.d
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl start logstash.service
+</span></span></code></pre></div><p>Now that we have a <code>vagrantfile</code>, we can start the virtual machine with a single command.  Note, Hyper-V requires administrator privileges, so you need to run this command in an admin terminal:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant up
+</span></span></code></pre></div><p>After a while, your new LogStash machine will be up and running.  If you want to log into the machine and check files an processes etc., you can run the following command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant ssh
+</span></span></code></pre></div><p>An argument can also be provided to the <code>ssh</code> command to be executed inside the VM, which is how I usually trigger LogStash restarts (as it doesn&rsquo;t seem to detect when I save the config files in the <code>src</code> directory):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant ssh -c <span style="color:#e6db74">&#39;sudo systemctl restart logstash&#39;</span>
+</span></span></code></pre></div><h2 id="deployment">Deployment</h2>
+<p>To create the deployable machine image, I use Packer.  The process is very similar to how Vagrant is used: select a base AMI, create a new EC2 machine, provision it, and save the result as a new AMI.</p>
+<p>Packer is configured with a single json file, in this case, named <code>logstash.json</code>.  The file is split into four parts: <code>variables</code>, <code>builders</code>, <code>provisioners</code>, and <code>outputs</code>.  I won&rsquo;t include the <code>outputs</code> section as it&rsquo;s not needed when building AMIs.</p>
+<h3 id="variables">Variables</h3>
+<p>The <code>variables</code> property is for all configuration that you can pass to Packer.  Their values can come from Environment Variables, CLI parameters, Consul, Vault, <a href="https://www.packer.io/docs/templates/user-variables.html">and others</a>.  In the LogStash example, there are three variables:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;variables&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;aws_access_key&#34;</span>: <span style="color:#e6db74">&#34;&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;aws_secret_key&#34;</span>: <span style="color:#e6db74">&#34;&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;ami_users&#34;</span>: <span style="color:#e6db74">&#34;{{env `AMI_ACCOUNTS`}}&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>aws_access_key</code> and <code>aws_secret_key</code> are known names - unless we specify some value, they will automatically be read from your AWS config (in <code>~/.aws/</code>), or if running on EC2, from the EC2 machine profile.</p>
+<p>The <code>ami_users</code> is a custom variable which will read the <code>AMI_ACCOUNTS</code> environment variable by default.  This particular one is used so that I can grant access to the resulting AMI to multiple AWS accounts, which is useful if you&rsquo;re running in an Organisation with multiple Accounts.  For example, if the AMI is built in a <code>common</code> account, and will be deployed into <code>dev</code>, <code>qa</code> and <code>prod</code> accounts, then you would populate the <code>AMI_ACCOUNTS</code> as a CSV of account IDs.</p>
+<h3 id="builders">Builders</h3>
+<p>Packer can build <a href="https://www.packer.io/docs/builders/index.html">many different kinds</a> of machine image, but for this, we only need one: <code>amazon-ebs</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;builders&#34;</span>: [
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;amazon-ebs&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;access_key&#34;</span>: <span style="color:#e6db74">&#34;{{user `aws_access_key`}}&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;secret_key&#34;</span>: <span style="color:#e6db74">&#34;{{user `aws_secret_key`}}&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;region&#34;</span>: <span style="color:#e6db74">&#34;eu-west-1&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;instance_type&#34;</span>: <span style="color:#e6db74">&#34;t2.micro&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;source_ami_filter&#34;</span>: {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;filters&#34;</span>: {
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;virtualization-type&#34;</span>: <span style="color:#e6db74">&#34;hvm&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;ubuntu/images/*ubuntu-xenial-16.04-amd64-server-*&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;root-device-type&#34;</span>: <span style="color:#e6db74">&#34;ebs&#34;</span>
+</span></span><span style="display:flex;"><span>        },
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;owners&#34;</span>: [<span style="color:#e6db74">&#34;099720109477&#34;</span>],
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;most_recent&#34;</span>: <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>      },
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;ssh_username&#34;</span>: <span style="color:#e6db74">&#34;ubuntu&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;ami_name&#34;</span>: <span style="color:#e6db74">&#34;logstash {{timestamp}}&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;ami_users&#34;</span>: <span style="color:#e6db74">&#34;{{user `ami_users`}}&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The two most interesting properties of this are <code>source_ami_filter</code> and <code>ami_users</code>.  The <code>source_ami_filter</code> works in a very similar manner to the AWS CLI&rsquo;s <code>describe-images</code> <code>--filters</code> parameter, albeit in a more readable format.  In this case, I am specifying that I want an <code>ubuntu-xenial</code> base, and I want it to be an official Canonical image, so specify their Account ID as the <code>owner</code>.  I also specify the <code>most_recent</code> property, as this filter will return all versions of this AMI which Canonical publish.</p>
+<p>The <code>ami_users</code> is what lets me grant access to the AMI from other accounts (rather than just making it public).  The property&rsquo;s value should be an array, but Packer is smart enough to expand the CSV in the user variable into an array for us.</p>
+<h3 id="provisioners">Provisioners</h3>
+<p>The <code>provisioners</code> array items are executed in the order they are specified.  To set up the machine, I use the <code>shell</code> provisioner to create a temporary directory, then the <code>file</code> provisioner to upload the files in the <code>src</code> directory to that temporary directory.  Finally a second <code>shell</code> provisioner uploads and runs the <code>scripts/provision.sh</code> and <code>scripts/aws.sh</code> files.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;provisioners&#34;</span>: [
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;shell&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;inline&#34;</span>: <span style="color:#e6db74">&#34;mkdir -p /tmp/src&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;file&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;source&#34;</span>: <span style="color:#e6db74">&#34;./src/&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;destination&#34;</span>: <span style="color:#e6db74">&#34;/tmp/src&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;shell&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;scripts&#34;</span>: [<span style="color:#e6db74">&#34;./scripts/provision.sh&#34;</span>, <span style="color:#e6db74">&#34;./scripts/aws.sh&#34;</span>]
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>aws.sh</code> file is very small and does roughly the same thing as the <code>vagrant.sh</code> script, but rather than symlinking the <code>/vagrant</code> directory, it moves the uploaded <code>src</code> directory into the right location for LogStash:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>sudo rm /etc/logstash/conf.d/*
+</span></span><span style="display:flex;"><span>sudo cp -r /tmp/src/* /etc/logstash/conf.d
+</span></span></code></pre></div><p>Note that this doesn&rsquo;t start the LogStash service - this gets done by the UserData when we launch a new instance, as often we need to pass in additional configuration parameters, and don&rsquo;t want the service running until that has been done.</p>
+<h3 id="running">Running</h3>
+<p>To create the AMI, we need to invoke packer.  If I am running packer on a remote machine via SSH, I run it inside <code>tmux</code>, so that disconnects don&rsquo;t fail the process:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>packer build -var <span style="color:#e6db74">&#34;ami_users=111,222,333&#34;</span> logstash.json
+</span></span></code></pre></div><p>After a while, Packer will finish, leaving you with an output which will include the new AMI ID:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#f92672">==</span>&gt; Builds finished. The artifacts of successful builds are:
+</span></span><span style="display:flex;"><span>--&gt; amazon-ebs: AMIs were created:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>eu-west-1: ami-123123123
+</span></span></code></pre></div><p>We&rsquo;ll get back to this output later when we create a build script that will also run our tests.  Before we get to that, however, let&rsquo;s look at how we can write tests which target both the local Vagrant machine and the AMI too.</p>
+<h2 id="testing">Testing</h2>
+<p>To test the machines, I am using <a href="https://jestjs.io">Jest</a>.  There isn&rsquo;t anything particularly interesting going on in the <code>package.json</code>, other than a few babel packages being installed so that I can use ES6 syntax:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;scripts&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;watch&#34;</span>: <span style="color:#e6db74">&#34;jest --watch&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;test&#34;</span>: <span style="color:#e6db74">&#34;jest &#34;</span>
+</span></span><span style="display:flex;"><span>  },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;devDependencies&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;babel-core&#34;</span>: <span style="color:#e6db74">&#34;^6.26.3&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;babel-jest&#34;</span>: <span style="color:#e6db74">&#34;^23.6.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;babel-preset-env&#34;</span>: <span style="color:#e6db74">&#34;^1.7.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;jest&#34;</span>: <span style="color:#e6db74">&#34;^23.6.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;regenerator-runtime&#34;</span>: <span style="color:#e6db74">&#34;^0.13.1&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="packer-configuration-testing">Packer Configuration Testing</h3>
+<p>There are a number of tests we can do to make sure our Packer configuration is valid before running it.  This includes things like checking the base AMI is from a whitelisted source (such as our accounts, Amazon and Canonical).  The test has to handle the possibility of multiple builders, and that some builders might not have a <code>source_ami_filter</code>.  It also handles if no owner has been specified at all, which we also consider a &ldquo;bad thing&rdquo;:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">ourAccounts</span> <span style="color:#f92672">=</span> [ <span style="color:#e6db74">&#34;111111&#34;</span>, <span style="color:#e6db74">&#34;222222&#34;</span>, <span style="color:#e6db74">&#34;333333&#34;</span>, <span style="color:#e6db74">&#34;444444&#34;</span> ];
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">otherOwners</span> <span style="color:#f92672">=</span> [ <span style="color:#e6db74">&#34;amazon&#34;</span>, <span style="color:#e6db74">&#34;099720109477&#34;</span> <span style="color:#75715e">/*canonical*/</span> ];
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;ami builder&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should be based on a whitelisted owner&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">allOwners</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">ourAccounts</span>.<span style="color:#a6e22e">concat</span>(<span style="color:#a6e22e">otherOwners</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">invalidOwners</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">owners</span> =&gt; <span style="color:#a6e22e">owners</span>.<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">owner</span> =&gt; <span style="color:#f92672">!</span><span style="color:#a6e22e">allOwners</span>.<span style="color:#a6e22e">includes</span>(<span style="color:#a6e22e">owner</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">amisWithInvalidOwners</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">builders</span>
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">builder</span> =&gt; <span style="color:#a6e22e">builder</span>.<span style="color:#a6e22e">source_ami_filter</span>)
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">map</span>(<span style="color:#a6e22e">builder</span> =&gt; ({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">name</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">builderName</span>(<span style="color:#a6e22e">builder</span>),
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">invalidOwners</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">invalidOwners</span>(<span style="color:#a6e22e">builder</span>.<span style="color:#a6e22e">source_ami_filter</span>.<span style="color:#a6e22e">owners</span> <span style="color:#f92672">||</span> [ <span style="color:#e6db74">&#34;NO OWNER SPECIFIED&#34;</span> ])
+</span></span><span style="display:flex;"><span>      }))
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">builders</span> =&gt; <span style="color:#a6e22e">builders</span>.<span style="color:#a6e22e">invalidOwners</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">amisWithInvalidOwners</span>).<span style="color:#a6e22e">toEqual</span>([]);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>I also test that certain variables (<code>ami_users</code>) have been defined, and have been used in the right place:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;variables&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should have a variable for who can use the ami&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">variables</span>).<span style="color:#a6e22e">toHaveProperty</span>(<span style="color:#e6db74">&#34;ami_users&#34;</span>);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should read ami_users from AMI_ACCOUNTS&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">variables</span>.<span style="color:#a6e22e">ami_users</span>).<span style="color:#a6e22e">toMatch</span>(
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">/{{\s*env\s*`AMI_ACCOUNTS`\s*}}/</span>
+</span></span><span style="display:flex;"><span>    );
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;ami builder&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should set the ami_user&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">invalidUsers</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">builders</span>
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">map</span>(<span style="color:#a6e22e">builder</span> =&gt; ({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">name</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">builderName</span>(<span style="color:#a6e22e">builder</span>),
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">users</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">builder</span>.<span style="color:#a6e22e">ami_users</span> <span style="color:#f92672">||</span> <span style="color:#e6db74">&#34;NO USERS SPECIFIED&#34;</span>
+</span></span><span style="display:flex;"><span>      }))
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">ami</span> =&gt; <span style="color:#f92672">!</span><span style="color:#a6e22e">ami</span>.<span style="color:#a6e22e">users</span>.<span style="color:#a6e22e">match</span>(<span style="color:#e6db74">/{{\s*user\s*`ami_users`\s*}}/</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">invalidUsers</span>).<span style="color:#a6e22e">toEqual</span>([]);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre></div><p>Other tests you might want to add are that the base AMI is under a certain age, or that your AMI has certain tags included, or that it is named in a specific manner.</p>
+<h3 id="machine-testing">Machine Testing</h3>
+<p>Machine testing is for checking that our provisioning worked successfully.  This is very useful, as subtle bugs can creep in when you don&rsquo;t verify what happens.</p>
+<p>For example, a machine I built copied configuration directory to a target location but was missing the <code>-r</code> flag, so when I later added a subdirectory, the machine failed as the referenced files didn&rsquo;t exist.</p>
+<p>So that the tests work with both the Vagrant and Packer built versions, we take in their address and key paths from the environment:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">import</span> { <span style="color:#a6e22e">spawnSync</span> } <span style="color:#a6e22e">from</span> <span style="color:#e6db74">&#34;child_process&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> { <span style="color:#a6e22e">createConnection</span> } <span style="color:#a6e22e">from</span> <span style="color:#e6db74">&#34;net&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// figure out where to look these up
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">host</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">process</span>.<span style="color:#a6e22e">env</span>.<span style="color:#a6e22e">LOGSTASH_ADDRESS</span>; <span style="color:#75715e">// e.g. &#34;172.27.48.28&#34;;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">keyPath</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">process</span>.<span style="color:#a6e22e">env</span>.<span style="color:#a6e22e">LOGSTASH_KEYPATH</span>; <span style="color:#75715e">// &#34;.vagrant/machines/default/hyperv/private_key&#34;;
+</span></span></span></code></pre></div><p>We also define two helper methods: one to check if a TCP port is open, and one which uses SSH to execute a command and read the response in the machine:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">execute</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">command</span> =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">args</span> <span style="color:#f92672">=</span> [<span style="color:#e6db74">`vagrant@</span><span style="color:#e6db74">${</span><span style="color:#a6e22e">host</span><span style="color:#e6db74">}</span><span style="color:#e6db74">`</span>, <span style="color:#e6db74">`-i`</span>, <span style="color:#a6e22e">keyPath</span>, <span style="color:#a6e22e">command</span>];
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">ssh</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">spawnSync</span>(<span style="color:#e6db74">&#34;ssh&#34;</span>, <span style="color:#a6e22e">args</span>, { <span style="color:#a6e22e">encoding</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#34;utf8&#34;</span> });
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">lines</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">ssh</span>.<span style="color:#a6e22e">stdout</span>.<span style="color:#a6e22e">split</span>(<span style="color:#e6db74">&#34;\n&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">lines</span>[<span style="color:#a6e22e">lines</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>] <span style="color:#f92672">===</span> <span style="color:#e6db74">&#34;&#34;</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">lines</span>.<span style="color:#a6e22e">slice</span>(<span style="color:#ae81ff">0</span>, <span style="color:#a6e22e">lines</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">lines</span>;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">testPort</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">port</span> =&gt; <span style="color:#66d9ef">new</span> Promise((<span style="color:#a6e22e">resolve</span>, <span style="color:#a6e22e">reject</span>) =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">client</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">createConnection</span>({ <span style="color:#a6e22e">host</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">host</span>, <span style="color:#a6e22e">port</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">port</span> });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">on</span>(<span style="color:#e6db74">&#34;error&#34;</span>, <span style="color:#a6e22e">err</span> =&gt; <span style="color:#a6e22e">reject</span>(<span style="color:#a6e22e">err</span>));
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">on</span>(<span style="color:#e6db74">&#34;connect&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">end</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">resolve</span>();
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>We can then add some tests which check the files were written to the right place, that port <code>5044</code> is open, and port <code>9600</code> is closed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;the machine&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should have the correct configuration&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">files</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">execute</span>(<span style="color:#e6db74">&#34;find /etc/logstash/conf.d/* -type f&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">files</span>).<span style="color:#a6e22e">toEqual</span>([
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">&#34;/etc/logstash/conf.d/beats.conf&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">&#34;/etc/logstash/conf.d/patterns/custom.txt&#34;</span>
+</span></span><span style="display:flex;"><span>    ]);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should be listening on 5044 for beats&#34;</span>, () =&gt; <span style="color:#a6e22e">testPort</span>(<span style="color:#ae81ff">5044</span>));
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should not be listening on 9600&#34;</span>, () =&gt; <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">testPort</span>(<span style="color:#ae81ff">9600</span>)).<span style="color:#a6e22e">rejects</span>.<span style="color:#a6e22e">toThrow</span>(<span style="color:#e6db74">&#34;ECONNREFUSED&#34;</span>));
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Of course, as we can execute any command inside the machine, we can check pretty much anything:</p>
+<ul>
+<li><code>tail</code> the LogStash log and see if it&rsquo;s got the right contents</li>
+<li>check if the service is started</li>
+<li>check the service is enabled on boot</li>
+<li>check the environment variables been written to the right files</li>
+</ul>
+<h3 id="application-testing">Application Testing</h3>
+<p>There are two styles of Application Testing: white-box and black-box.  White-box will be tests run on the application inside the machine, using minimal external dependencies (preferably none at all), and Black-box will be run on the application from outside the machine, either using direct dependencies, or fakes.</p>
+<p>It&rsquo;s worth noting that both white-box and black-box tests are <strong>slow</strong>, mostly down to how slow LogStash is at starting up, although only giving it 1 CPU and 2Gb of RAM probably doesn&rsquo;t help.</p>
+<h4 id="whitebox-testing-logstash">Whitebox Testing LogStash</h4>
+<p>To white-box test LogStash, I use a technique partially based on the <a href="https://github.com/agolo/logstash-test-runner">Agolo LogStash Test Runner</a>.  The process for the tests is to run LogStash interactively (rather than as a service), send it a single event, record the output events, and compare them to an expected output.</p>
+<p>The test cases are kept in separate folders, with two files.  First is the input file, imaginatively called <code>input.log</code>, which will contain one json encoded event per line.  The format needs to match what the result of FileBeat sending an event to LogStash would be.  In this case, it means a few extra fields, and a <code>message</code> property containing a string of json.  Formatted for readability, the object looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;@timestamp&#34;</span>: <span style="color:#e6db74">&#34;2018-12-27T14:08:24.753Z&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;beat&#34;</span>: { <span style="color:#f92672">&#34;hostname&#34;</span>: <span style="color:#e6db74">&#34;Spectre&#34;</span>, <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;Spectre&#34;</span>, <span style="color:#f92672">&#34;version&#34;</span>: <span style="color:#e6db74">&#34;5.3.0&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;fields&#34;</span>: { <span style="color:#f92672">&#34;environment&#34;</span>: <span style="color:#e6db74">&#34;local&#34;</span>, <span style="color:#f92672">&#34;log_type&#34;</span>: <span style="color:#e6db74">&#34;application&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;input_type&#34;</span>: <span style="color:#e6db74">&#34;log&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;message&#34;</span>: <span style="color:#e6db74">&#34;{\&#34;Timestamp\&#34;: \&#34;2018-12-18T17:06:27.7112297+02:00\&#34;,\&#34;Level\&#34;: \&#34;Information\&#34;,\&#34;MessageTemplate\&#34;: \&#34;This is the {count} message\&#34;,\&#34;Properties\&#34;: {\&#34;count\&#34;: 4,\&#34;SourceContext\&#34;: \&#34;LogLines.GetOpenPurchasesHandler\&#34;,\&#34;ApplicationName\&#34;: \&#34;FileBeatTest\&#34;,\&#34;CorrelationId\&#34;: \&#34;8f341e8e-6b9c-4ebf-816d-d89c014bad90\&#34;,\&#34;TimedOperationElapsedInMs\&#34;: 1000}}&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;offset&#34;</span>: <span style="color:#ae81ff">318</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;source&#34;</span>: <span style="color:#e6db74">&#34;D:\\tmp\\logs\\single.log&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;applicationlog&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>I also define an <code>output.log</code>, which contains the expected result(s), again one json encoded event per line.  The example pipeline in the repository will emit two events for a given input, so this file contains two lines of json (again, newlines added for readability here):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;source&#34;</span>: <span style="color:#e6db74">&#34;D:\\tmp\\logs\\single.log&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;@version&#34;</span>: <span style="color:#e6db74">&#34;1&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;fields&#34;</span>: { <span style="color:#f92672">&#34;log_type&#34;</span>: <span style="color:#e6db74">&#34;application&#34;</span>, <span style="color:#f92672">&#34;environment&#34;</span>: <span style="color:#e6db74">&#34;local&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;@timestamp&#34;</span>: <span style="color:#e6db74">&#34;2018-12-18T15:06:27.711Z&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;offset&#34;</span>: <span style="color:#ae81ff">318</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;ApplicationName&#34;</span>: <span style="color:#e6db74">&#34;FileBeatTest&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;host&#34;</span>: <span style="color:#e6db74">&#34;ubuntu-16&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;applicationlog&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;CorrelationId&#34;</span>: <span style="color:#e6db74">&#34;8f341e8e-6b9c-4ebf-816d-d89c014bad90&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;MessageTemplate&#34;</span>: <span style="color:#e6db74">&#34;This is the {count} message&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Level&#34;</span>: <span style="color:#e6db74">&#34;Information&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Context&#34;</span>: <span style="color:#e6db74">&#34;LogLines.GetOpenPurchasesHandler&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;TimeElapsed&#34;</span>: <span style="color:#ae81ff">1000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Properties&#34;</span>: { <span style="color:#f92672">&#34;count&#34;</span>: <span style="color:#ae81ff">4</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;duration&#34;</span>: <span style="color:#ae81ff">1000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;timestamp&#34;</span>: <span style="color:#ae81ff">1545145586711000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;id&#34;</span>: <span style="color:#e6db74">&#34;&lt;generated&gt;&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;traceid&#34;</span>: <span style="color:#e6db74">&#34;8f341e8e6b9c4ebf816dd89c014bad90&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;LogLines.GetOpenPurchasesHandler&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;localEndpoint&#34;</span>: { <span style="color:#f92672">&#34;serviceName&#34;</span>: <span style="color:#e6db74">&#34;FileBeatTest&#34;</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To enable sending the lines directly to LogStash (rather than needing to use FileBeat), we define an <code>input.conf</code> file, which configures LogStash to read json from stdin:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>input {
+</span></span><span style="display:flex;"><span>  stdin { codec <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;json_lines&#34;</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And an <code>ouput.conf</code> file which configures LogStash to write the output as json lines a known file path:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>output {
+</span></span><span style="display:flex;"><span>  file {
+</span></span><span style="display:flex;"><span>    path <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;/tmp/test/output.log&#34;</span>
+</span></span><span style="display:flex;"><span>    codec <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;json_lines&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The tests need to be run inside the machine itself, so I created a script in the <code>./scripts</code> directory which will do all the work, and can be run by the <code>execute</code> method in a Jest test.  The script stops the LogStash service, copies the current configuration from the <code>./src</code> directory and the replacement <code>input.conf</code> and <code>output.conf</code> files to a temporary location, and then runs LogStash once per test case, copying the result file to the test case&rsquo;s directory.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>sudo systemctl stop logstash
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>temp_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/tmp/test&#34;</span>
+</span></span><span style="display:flex;"><span>test_source<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/vagrant/test/acceptance&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo rm -rf <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">/*&#34;</span>
+</span></span><span style="display:flex;"><span>sudo mkdir -p $temp_path
+</span></span><span style="display:flex;"><span>sudo cp -r /vagrant/src/* $temp_path
+</span></span><span style="display:flex;"><span>sudo cp $test_source/*.conf $temp_path
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>find $test_source/* -type d | <span style="color:#66d9ef">while</span> read test_path; <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;Running </span><span style="color:#66d9ef">$(</span>basename $test_path<span style="color:#66d9ef">)</span><span style="color:#e6db74"> tests...&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    sudo /usr/share/logstash/bin/logstash <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>        <span style="color:#e6db74">&#34;--path.settings&#34;</span> <span style="color:#e6db74">&#34;/etc/logstash&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>        <span style="color:#e6db74">&#34;--path.config&#34;</span> <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>        &lt; <span style="color:#e6db74">&#34;</span>$test_path<span style="color:#e6db74">/input.log&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    sudo touch <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">/output.log&#34;</span>   <span style="color:#75715e"># create it if it doesn&#39;t exist (dropped logs etc.)</span>
+</span></span><span style="display:flex;"><span>    sudo rm -f <span style="color:#e6db74">&#34;</span>$test_path<span style="color:#e6db74">/result.log&#34;</span>
+</span></span><span style="display:flex;"><span>    sudo mv <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">/output.log&#34;</span> <span style="color:#e6db74">&#34;</span>$test_path<span style="color:#e6db74">/result.log&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>basename $test_path<span style="color:#66d9ef">)</span><span style="color:#e6db74"> tests done&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">done</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl start logstash
+</span></span></code></pre></div><p>To execute this, we use the <code>beforeAll</code> function to run it once - we also pass in <code>Number.MAX_SAFE_INTEGER</code> as by default <code>beforeAll</code> will time out after 5 seconds, and the <code>test.sh</code> is <strong>slow as hell</strong> (as LogStash takes ages to start up).</p>
+<p>Once the <code>test.sh</code> script has finished running, we load each test&rsquo;s <code>output.log</code> and <code>result.log</code> files, parse each line as json, compare the objects, and print out the delta if the objects are not considered equal:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">source</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;./test/acceptance&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">isDirectory</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">p</span> =&gt; <span style="color:#a6e22e">fs</span>.<span style="color:#a6e22e">lstatSync</span>(<span style="color:#a6e22e">p</span>).<span style="color:#a6e22e">isDirectory</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">cases</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">fs</span>
+</span></span><span style="display:flex;"><span>  .<span style="color:#a6e22e">readdirSync</span>(<span style="color:#a6e22e">source</span>)
+</span></span><span style="display:flex;"><span>  .<span style="color:#a6e22e">map</span>(<span style="color:#a6e22e">name</span> =&gt; <span style="color:#a6e22e">path</span>.<span style="color:#a6e22e">join</span>(<span style="color:#a6e22e">source</span>, <span style="color:#a6e22e">name</span>))
+</span></span><span style="display:flex;"><span>  .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">isDirectory</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;logstash&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">beforeAll</span>(
+</span></span><span style="display:flex;"><span>    () =&gt; <span style="color:#a6e22e">execute</span>(<span style="color:#e6db74">&#34;/vagrant/scripts/test.sh&#34;</span>),
+</span></span><span style="display:flex;"><span>    Number.<span style="color:#a6e22e">MAX_SAFE_INTEGER</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">each</span>(<span style="color:#a6e22e">cases</span>)(<span style="color:#e6db74">&#34;%s&#34;</span>, <span style="color:#a6e22e">directoryPath</span> =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">expected</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">readFile</span>(<span style="color:#a6e22e">path</span>.<span style="color:#a6e22e">join</span>(<span style="color:#a6e22e">directoryPath</span>, <span style="color:#e6db74">&#34;output.log&#34;</span>));
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">actual</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">readFile</span>(<span style="color:#a6e22e">path</span>.<span style="color:#a6e22e">join</span>(<span style="color:#a6e22e">directoryPath</span>, <span style="color:#e6db74">&#34;result.log&#34;</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">diffpatch</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">DiffPatcher</span>({
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">propertyFilter</span><span style="color:#f92672">:</span> (<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">context</span>) =&gt; {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">name</span> <span style="color:#f92672">!==</span> <span style="color:#e6db74">&#34;id&#34;</span>) {
+</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">true</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">left</span>.<span style="color:#a6e22e">id</span> <span style="color:#f92672">!==</span> <span style="color:#e6db74">&#34;&lt;generated&gt;&#34;</span>;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">delta</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">diffpatch</span>.<span style="color:#a6e22e">diff</span>(<span style="color:#a6e22e">expected</span>, <span style="color:#a6e22e">actual</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">output</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">formatters</span>.<span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">format</span>(<span style="color:#a6e22e">delta</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">length</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">log</span>(<span style="color:#a6e22e">output</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">length</span>).<span style="color:#a6e22e">toBe</span>(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><h4 id="blackbox-testing-logstash">Blackbox Testing LogStash</h4>
+<p>As the machine has ports open for FileBeat and will send it&rsquo;s output to ElasticSearch, we can set up a fake HTTP server, send some log events via FileBeat to the VM and check we receive the right HTTP calls to our fake server.</p>
+<p>While looking on how to do this, I came across the <a href="https://www.npmjs.com/package/lumberjack-protocol">lumberjack-protocol</a> package on NPM, but unfortunately, it only supports lumberjack v1, and FileBeat and LogStash are now using v2, so you would have to use a local copy of filebeat to do the sending.</p>
+<p>Due to the complexity of implementing this, and the diminished return on investment (the other tests should be sufficient), I have skipped creating the Blackbox tests for the time being.</p>
+<h2 id="ami-testing">AMI Testing</h2>
+<p>The final phase!  Now that we are reasonably sure everything works locally, we need to build our AMI and test that everything works there too, as it would be a shame to update an Auto Scale Group with the new image which doesn&rsquo;t work!</p>
+<p>All that needs to happen to run the tests against an EC2 instance is to set the three environment variables we used with Vagrant, to values for communicating with the EC2 instance. To do this, we&rsquo;ll need the EC2 IP Address, the username for SSH, and the private key for SSH authentication.</p>
+<p>The first thing our build script needs to do is create the AMI.  This is done in the same way as <a href="#running">mentioned earlier</a>, but with the slight difference of also piping the output to <code>tee</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>packer_log<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>packer build logstash.json | tee /dev/tty<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>ami_id<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$packer_log<span style="color:#e6db74">&#34;</span> | tail -n <span style="color:#ae81ff">1</span> | sed <span style="color:#e6db74">&#39;s/.*\(ami.*\)/\1/&#39;</span><span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>By using <code>tee</code>, we can pipe the build log from Packer to both the real terminal (<code>/dev/tty</code>), and to a variable called <code>packer_log</code>.  The script then takes the last line and uses some regex to grab the AMI ID.</p>
+<p>Next up, the script uses the AWS CLI to launch an EC2 instance based on the AMI, and store it&rsquo;s IP Address and Instance ID:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>json<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>aws ec2 run-instances <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --image-id <span style="color:#e6db74">&#34;</span>$ami_id<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --instance-type t2.small <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --key-name <span style="color:#e6db74">&#34;</span>$keypair_name<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --region eu-west-1 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --subnet-id <span style="color:#e6db74">&#34;</span>$subnet_id<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --security-group-ids <span style="color:#e6db74">&#34;</span>$security_group_id<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --tag-specifications <span style="color:#e6db74">&#39;ResourceType=instance,Tags=[{Key=Name,Value=logstash-verification}]&#39;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --user-data <span style="color:#e6db74">&#34;</span>$userdata<span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>instance_id<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$json<span style="color:#e6db74">&#34;</span> | jq -r .Instances<span style="color:#f92672">[</span>0<span style="color:#f92672">]</span>.InstanceId<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>private_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$json<span style="color:#e6db74">&#34;</span> | jq -r .Instances<span style="color:#f92672">[</span>0<span style="color:#f92672">]</span>.PrivateIpAddress<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>The IP Address is then used to set up the environment variables which the node test scripts use to locate the machine:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>LOGSTASH_ADDRESS<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$private_ip<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>LOGSTASH_SSH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;ubuntu&#34;</span>
+</span></span><span style="display:flex;"><span>LOGSTASH_KEYPATH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;~/.ssh/id_rsa&#34;</span> build ou
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>npm run test
+</span></span></code></pre></div><p>Finally, the script uses the Instance ID to terminate the instance:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>aws ec2 terminate-instances <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --instance-ids <span style="color:#e6db74">&#34;</span>$instance_id<span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><h2 id="wrapping-up">Wrapping Up</h2>
+<p>Hopefully, this (rather long) post is a useful introduction (!) to how I tackle testing Immutable Infrastructure.  All of these techniques for testing the machine and application can be used for testing things like Docker containers too (and handily, Packer can be used to create Docker containers also).</p>
+<p>As mentioned earlier <a href="https://github.com/Pondidum/immutable-infra-testing-demo">The Repository is available here</a>.</p>
+]]></content:encoded></item><item><title>Branching and Red Builds</title><link>https://andydote.co.uk/2018/08/10/red-builds/</link><pubDate>Fri, 10 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/10/red-builds/</guid><description>So this is a bit of a rant&amp;hellip;but hopefully with some solutions and workarounds too. So let&amp;rsquo;s kick things off with a nice statement:
 I hate broken builds.
 So everyone basically agrees on this point I think. The problem is that I mean all builds, including ones on shared feature branches.
-Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description></item><item><title>Test Expressiveness</title><link>https://andydote.co.uk/2018/02/26/test-expressiveness/</link><pubDate>Mon, 26 Feb 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/02/26/test-expressiveness/</guid><description>We have a test suite at work which tests a retry decorator class works as expected. One of the tests checks that when the inner implementation throws an exception, it will log the number of times it has failed:
-[Test] public async Task ShouldLogRetries() { var mockClient = Substitute.For&amp;lt;IContractProvider&amp;gt;(); var logger = Subsitute.For&amp;lt;ILogger&amp;gt;(); var sut = new RetryDecorator(mockClient, logger, maxRetries: 3); mockClient .GetContractPdf(Arg.Any&amp;lt;string&amp;gt;()) .Throws(new ContractDownloadException()); try { await sut.GetContractPdf(&amp;#34;foo&amp;#34;); } catch (Exception e){} logger.</description></item><item><title>Vagrant in the world of Docker</title><link>https://andydote.co.uk/2017/10/22/vagrant-in-a-world-of-docker/</link><pubDate>Sun, 22 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/22/vagrant-in-a-world-of-docker/</guid><description>I gave a little talk at work recently on my use of Vagrant, what it is, and why it is still useful in a world full of Docker containers.
-So, What is Vagrant? Vagrant is a product by Hashicorp, and is for scripting the creation of (temporary) virtual machines. It&amp;rsquo;s pretty fast to create a virtual machine with too, as it creates them from a base image (known as a &amp;ldquo;box&amp;rdquo;.</description></item><item><title>Testing RabbitMQ Concurrency in MassTransit</title><link>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</link><pubDate>Wed, 11 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</guid><description>We have a service which consumes messages from a RabbitMQ queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api. One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.</description></item><item><title>Integration Testing with Dotnet Core, Docker and RabbitMQ</title><link>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</link><pubDate>Mon, 02 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</guid><description>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.
-For one of my libraries (RabbitHarness) I have a set of tests which check it behaves as expected against a real instance of RabbitMQ. Ideally these tests will always be run, but sometimes RabbitMQ just isn&amp;rsquo;t available such as when running on AppVeyor builds, or if I haven&amp;rsquo;t started my local RabbitMQ Docker container.</description></item><item><title>Testing Containers or Test Behaviour, Not Implementation</title><link>https://andydote.co.uk/2017/09/17/testing-containers/</link><pubDate>Sun, 17 Sep 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/09/17/testing-containers/</guid><description>The trouble with testing containers is that usually the test ends up very tightly coupled to the implementation.
+Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description><content:encoded><![CDATA[<p>So this is a bit of a rant&hellip;but hopefully with some solutions and workarounds too. So let&rsquo;s kick things off with a nice statement:</p>
+<p>I hate broken builds.</p>
+<p>So everyone basically agrees on this point I think.  The problem is that I mean <em>all</em> builds, including ones on shared feature branches.</p>
+<p>Currently, I work on a number of projects which uses small(ish) feature branches.  The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.  Once the feature branch is completed, it&rsquo;s deployed and merged to master.  We&rsquo;ll ignore the fact that Trunk Based Development is just better for now.</p>
+<p><img loading="lazy" src="branching-features.png" alt="branching, developers working on small tasks being merged into a feature branch"  />
+</p>
+<p>The problem occurs when one of the first tasks to be completed is writing behaviour (or acceptance) tests.  These are written in something like SpecFlow, and call out to stubbed methods which throw <code>NotImplementedException</code> s.  When this gets merged, the feature branch build goes red and stays red until all other tasks are done.  And probably for a little while afterwards too.  Nothing like &ldquo;red-green-refactor&rdquo; when your light can&rsquo;t change away from red!</p>
+<h2 id="the-problems">The Problems</h2>
+<ul>
+<li>Local tests are failing, no matter how much you implement</li>
+<li>PullRequests to the feature branch don&rsquo;t have passing build checks</li>
+<li>The failing build is failing because:
+<ul>
+<li>Not everything is implemented yet</li>
+<li>A developer has introduced an error, and no one has noticed yet</li>
+<li>The build machine is playing up</li>
+</ul>
+</li>
+</ul>
+<p><img loading="lazy" src="branching-features-builds.png" alt="branching, developers working on small tasks being merged into a feature branch showing everything as failed builds"  />
+</p>
+<h2 id="bad-solutions">Bad Solutions</h2>
+<p>The first thing we could do is to not run the acceptance tests on a Task branch&rsquo;s build, and only when a feature branch build runs.  This is a bad idea, as someone will have forgotten to check if their task&rsquo;s acceptance tests pass, and will require effort later to fix the broken acceptance tests.</p>
+<p>We could also implement the acceptance file and not call any stubbed methods, making the file a text file and non-executable.  This is also a pretty bad idea - how much would you like to bet that it stays non-executable?</p>
+<h2 id="the-solution">The Solution</h2>
+<p>Don&rsquo;t have the acceptance tests as a separate task.  Instead, split the criteria among the implementation tasks.  This does mean that your other tasks should be Vertical Slices rather than Horizontal, which can be difficult to do depending on the application&rsquo;s architecture.</p>
+<h2 id="an-example">An Example</h2>
+<p>So let&rsquo;s dream up a super simple Acceptance Criteria:</p>
+<ul>
+<li>When a user signs up with a valid email which has not been used, they receive a welcome email with an activation link.</li>
+<li>When a user signs up with an invalid email, they get a validation error.</li>
+<li>When a user signs up with an in-use email, they get an error</li>
+</ul>
+<p>Note how this is already pretty close to being the tasks for the feature?  Our tasks are pretty much:</p>
+<ul>
+<li>implement the happy path</li>
+<li>implement other scenarios</li>
+</ul>
+<p>Of course, this means that not everything can be done in parallel - I imagine you&rsquo;d want the happy path task to be done first, and then the other scenarios are probably parallelisable.</p>
+<p>So our trade-off here is that we lose some parallelisation, but gain feedback. While this may seem insignificant, it has a significant impact on the overall delivery rate - everyone knows if their tasks are complete or not, and when the build goes red, you can be sure of what introduced the problem.</p>
+<p>Not to mention that features are rarely this small - you probably have various separate acceptance criteria, such as being able to view an account page.</p>
+<p>Oh, and once you can split your tasks correctly, there is only a small step to getting to do Trunk Based Development.  Which would make me happy.</p>
+<p>And developer happiness is important.</p>
+]]></content:encoded></item><item><title>Test Expressiveness</title><link>https://andydote.co.uk/2018/02/26/test-expressiveness/</link><pubDate>Mon, 26 Feb 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/02/26/test-expressiveness/</guid><description>We have a test suite at work which tests a retry decorator class works as expected. One of the tests checks that when the inner implementation throws an exception, it will log the number of times it has failed:
+[Test] public async Task ShouldLogRetries() { var mockClient = Substitute.For&amp;lt;IContractProvider&amp;gt;(); var logger = Subsitute.For&amp;lt;ILogger&amp;gt;(); var sut = new RetryDecorator(mockClient, logger, maxRetries: 3); mockClient .GetContractPdf(Arg.Any&amp;lt;string&amp;gt;()) .Throws(new ContractDownloadException()); try { await sut.GetContractPdf(&amp;#34;foo&amp;#34;); } catch (Exception e){} logger.</description><content:encoded><![CDATA[<p>We have a test suite at work which tests a retry decorator class works as expected.  One of the tests checks that when the inner implementation throws an exception, it will log the number of times it has failed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Test]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task ShouldLogRetries()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> mockClient = Substitute.For&lt;IContractProvider&gt;();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> logger = Subsitute.For&lt;ILogger&gt;();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> sut = <span style="color:#66d9ef">new</span> RetryDecorator(mockClient, logger, maxRetries: <span style="color:#ae81ff">3</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    mockClient
+</span></span><span style="display:flex;"><span>        .GetContractPdf(Arg.Any&lt;<span style="color:#66d9ef">string</span>&gt;())
+</span></span><span style="display:flex;"><span>        .Throws(<span style="color:#66d9ef">new</span> ContractDownloadException());
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> sut.GetContractPdf(<span style="color:#e6db74">&#34;foo&#34;</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">catch</span> (Exception e){}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    logger.Received(<span style="color:#ae81ff">1</span>).Information(Arg.Any&lt;<span style="color:#66d9ef">string</span>&gt;(), <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    logger.Received(<span style="color:#ae81ff">1</span>).Information(Arg.Any&lt;<span style="color:#66d9ef">string</span>&gt;(), <span style="color:#ae81ff">2</span>);
+</span></span><span style="display:flex;"><span>    logger.Received(<span style="color:#ae81ff">1</span>).Information(Arg.Any&lt;<span style="color:#66d9ef">string</span>&gt;(), <span style="color:#ae81ff">3</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>But looking at this test, I couldn&rsquo;t easily work out what the behaviour of <code>sut.GetContractPdf(&quot;foo&quot;)</code> was supposed to be; should it throw an exception, or should it not?  That fact that there is a <code>try...catch</code> indicates that it <em>might</em> throw an exception, but doesn&rsquo;t give any indication that it&rsquo;s required or not.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> sut.GetContractPdf(<span style="color:#e6db74">&#34;foo&#34;</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">catch</span> (Exception e)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Since we have the <a href="https://www.nuget.org/packages/Shouldly/"><code>Shouldly</code></a> library in use, I changed the test to be a little more descriptive:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>Should.Throw&lt;ContractDownloadException&gt;(() =&gt;
+</span></span><span style="display:flex;"><span>    sut.GetContractPdfForAccount(<span style="color:#e6db74">&#34;foo&#34;</span>)
+</span></span><span style="display:flex;"><span>);
+</span></span></code></pre></div><p>Now we know that when the decorator exceeds the number of retries, it should throw the inner implementation&rsquo;s exception.</p>
+<p>This in itself is better, but it also raises another question:  Is the test name correct? Or should this now be two separate tests? One called <code>ShouldLogRetries</code>, and one called <code>ShouldThrowInnerExceptionOnRetriesExceeded</code>?</p>
+<p>Even though I ended up adding the second test, I still left the first test with the <code>Should.Throw(...)</code> block, as it is still more descriptive at a glance than the <code>try...catch</code>.</p>
+]]></content:encoded></item><item><title>Vagrant in the world of Docker</title><link>https://andydote.co.uk/2017/10/22/vagrant-in-a-world-of-docker/</link><pubDate>Sun, 22 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/22/vagrant-in-a-world-of-docker/</guid><description>I gave a little talk at work recently on my use of Vagrant, what it is, and why it is still useful in a world full of Docker containers.
+So, What is Vagrant? Vagrant is a product by Hashicorp, and is for scripting the creation of (temporary) virtual machines. It&amp;rsquo;s pretty fast to create a virtual machine with too, as it creates them from a base image (known as a &amp;ldquo;box&amp;rdquo;.</description><content:encoded><![CDATA[<p>I gave a little talk at work recently on my use of Vagrant, what it is, and why it is still useful in a world full of Docker containers.</p>
+<h2 id="so-what-is-vagrant">So, What is Vagrant?</h2>
+<p><a href="">Vagrant</a> is a product by Hashicorp, and is for scripting the creation of (temporary) virtual machines.  It&rsquo;s pretty fast to create a virtual machine with too, as it creates them from a base image (known as a &ldquo;box&rdquo;.)</p>
+<p>It also supports multiple virtualisation tools, such as VirtualBox and HyperV.  If you are already using <a href="https://www.packer.io">Packer</a> to create AMIs for your Amazon infrastructure, you can modify your packerfile to also output a Vagrant box.</p>
+<p>As an example, this is a really basic VagrantFile for creating a basic Ubuntu box:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;hashicorp/precise64&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provider <span style="color:#e6db74">&#34;hyperv&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>h<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>vmname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;UbuntuPrecise&#34;</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>cpus <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">2048</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>To create the vm, on your command line just run</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant up <span style="color:#75715e"># creates the virtual machine</span>
+</span></span><span style="display:flex;"><span>vagrant ssh <span style="color:#75715e"># ssh into the virtual machine</span>
+</span></span><span style="display:flex;"><span>vagrant destroy -f <span style="color:#75715e"># destroy the virtual machine</span>
+</span></span></code></pre></div><h2 id="what-can-i-use-it-for">What can I use it for?</h2>
+<p>Personally I have three main uses for a Vagrant boxes; Performance/Environment Testing, Cluster Testing, and Complete Environment Setup.</p>
+<h3 id="performance-and-environment-testing">Performance and Environment Testing</h3>
+<p>When I am developing a service which will be deployed to AWS, we tend to know rougly what kind of instance it will be deployed to, for example <code>T2.Small</code>.  The code we develop local performs well&hellip;but that is on a development machine with anywhere from 4 to 16 CPU cores, and 8 to 32 GB of memory, and SSD storage.  How do you know what performance will be like when running on a 2 core, 2048 MB machine in AWS?</p>
+<p>While you can&rsquo;t emulate AWS exactly, it has certainly helped us tune applications - for example modifying how many parallel messages to handle when receiving from RabbitMQ (you can see about how to configure this in my previous post <a href="2017/10/11/masstransit-rabbitmq-concurrency-testing/">Concurrency in RabbitMQ</a>.)</p>
+<h3 id="cluster-testing">Cluster Testing</h3>
+<p>When you want to test a service which will operate in a cluster, Vagrant comes to the rescue again - you can use the <code>define</code> block to setup multiple copies of the machine, and provide common provisioning:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;hashicorp/precise64&#34;</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">inline</span>: <span style="color:#e6db74">&lt;&lt;SCRIPT
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74"></span>  <span style="color:#75715e"># a bash script to setup your service might go here</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">SCRIPT</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provider <span style="color:#e6db74">&#34;hyperv&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>h<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>vmname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;UbuntuPrecise&#34;</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>cpus <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">1024</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;first&#34;</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;second&#34;</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;third&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>If you want to do more configuration of your separate instances, you can provider a block to do so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;third&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>third<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    third<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">inline</span>: <span style="color:#e6db74">&#34;./vagrant/boot-cluster.sh&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><h3 id="complete-environment">Complete Environment</h3>
+<p>If you&rsquo;re developing a microservice in an environment with many other microservies which it needs to interact with, it can be a pain to setup all the hosts and supporting infrastructure.</p>
+<p>Instead, we can create a single base box which contains all of the setup and services, then each microservice can have a VagrantFile which is based off the base box, but also: stops the service you are developing, and starts the version which is located in the <code>/vagrant</code> share instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;mycorp/complete-environment&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provider <span style="color:#e6db74">&#34;hyperv&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>h<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>vmname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;WhateverServiceEnvironment&#34;</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>cpus <span style="color:#f92672">=</span> <span style="color:#ae81ff">4</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">4096</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># replace-service is a script which stops/removes an existing service,</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># and installs/starts a replacement. it uses a convention which expects</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># a service to have a script at `/vagrant/&lt;name&gt;/bin/&lt;name&gt;.sh`</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">inline</span>: <span style="color:#e6db74">&#34;./replace-service.sh WhateverService&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>In this case, the <code>mycorp/complete-environment</code> box would have all the services installed and started, and also a script in the machine root which does all the work to replace a service with the one under development.</p>
+<p>This base box could also be used to provide a complete testing environment too - just create a Vagrant file with no additional provisioning, and call <code>vagrant up</code>.</p>
+<h2 id="couldnt-you-use-docker-for-this-instead">Couldn&rsquo;t you use Docker for this instead?</h2>
+<p>Well yes, you can user Docker&hellip;but for some tasks, this is just easier.  We can also utilise Docker as both input and output for this; the base image could run docker internally to run all the services, or we could use a Packer script which would generate a Docker container of this setup <strong>and</strong> a vagrant box.</p>
+<p>Just because Docker is the cool thing to be using these days, doesn&rsquo;t mean Vagrant doesn&rsquo;t have any uses any more.  Far from it!</p>
+]]></content:encoded></item><item><title>Testing RabbitMQ Concurrency in MassTransit</title><link>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</link><pubDate>Wed, 11 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</guid><description>We have a service which consumes messages from a RabbitMQ queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api. One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.</description><content:encoded><![CDATA[<p>We have a service which consumes messages from a <a href="http://www.rabbitmq.com/">RabbitMQ</a> queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api.  One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.)</p>
+<p>Processing this spike of messages takes ages, and while this service is only on a <code>T2.Medium</code> machine (2 CPUs, 4GB Memory), it only uses 5-10% CPU while processing the messages, which is clearly pretty inefficient.</p>
+<p>We use <a href="http://masstransit-project.com/">MassTransit</a> when interacting with RabbitMQ as it provides us with a lot of useful features, but by default sets the amount of messages to be processed in parallel to <code>Environment.ProcessorCount * 2</code>.  For this project that means 4 messages, and as the process is IO bound, it stands to reason that we could increase that concurrency a bit. Or a lot.</p>
+<p>The existing MassTransit setup looks pretty similar to this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_bus = Bus.Factory.CreateUsingRabbitMq(rabbit =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> host = rabbit.Host(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;rabbitmq://localhost&#34;</span>), h =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        h.Username(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>        h.Password(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rabbit.ReceiveEndpoint(host, <span style="color:#e6db74">&#34;SpikyQueue&#34;</span>, endpoint =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        endpoint.Consumer(() =&gt; <span style="color:#66d9ef">new</span> TestConsumer());
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><h2 id="the-test-driven-development">The Test (Driven Development)</h2>
+<p>As we like testing things, I wrote a test to validate the degree of concurrency we have.  We use a real instance of RabbitMQ (<a href="/2017/10/02/dotnet-core-docker-integration-tests/">Started with Docker, as part of the build</a>), and have a test message and consumer.  Due to the speed of RabbitMQ delivery, we make the consumer just take a little bit of time before returning:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TestMessage</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> Value { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TestConsumer</span> : IConsumer&lt;TestMessage&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Consume(ConsumeContext&lt;TestMessage&gt; context)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Task.Delay(<span style="color:#ae81ff">600</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The final piece of our puzzle is an <code>IConsumeObserver</code>, which will count the number of messages processed in parallel, as well as the total number of messages processed.  We will use the total number of messages to know when our test can stop running, and the parallel number to prove if our concurrency changes worked.</p>
+<p>What this observer is doing is the following, but as we are in a multithreaded environment, we need to use the <code>Interlocked</code> class, and do a bit more work to make sure we don&rsquo;t lose values:</p>
+<pre tabindex="0"><code>PreConsume:
+    currentPendingDeliveryCount++
+    maxPendingDeliveryCount = Math.Max(maxPendingDeliveryCount, currentPendingDeliveryCount)
+PostConsume:
+    currentPendingDeliveryCount--
+</code></pre><p>The actual <code>ConsumeCountObserver</code> code is as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ConsumeCountObserver</span> : IConsumeObserver
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> _deliveryCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> _currentPendingDeliveryCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> _maxPendingDeliveryCount;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">readonly</span> <span style="color:#66d9ef">int</span> _messageCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">readonly</span> TaskCompletionSource&lt;<span style="color:#66d9ef">bool</span>&gt; _complete;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ConsumeCountObserver(<span style="color:#66d9ef">int</span> messageCount)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _messageCount = messageCount;
+</span></span><span style="display:flex;"><span>        _complete = <span style="color:#66d9ef">new</span> TaskCompletionSource&lt;<span style="color:#66d9ef">bool</span>&gt;();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> MaxDeliveryCount =&gt; _maxPendingDeliveryCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Wait() =&gt; <span style="color:#66d9ef">await</span> _complete.Task;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Task IConsumeObserver.ConsumeFault&lt;T&gt;(ConsumeContext&lt;T&gt; context, Exception exception) =&gt; Task.CompletedTask;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Task IConsumeObserver.PreConsume&lt;T&gt;(ConsumeContext&lt;T&gt; context)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Interlocked.Increment(<span style="color:#66d9ef">ref</span> _deliveryCount);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> current = Interlocked.Increment(<span style="color:#66d9ef">ref</span> _currentPendingDeliveryCount);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">while</span> (current &gt; _maxPendingDeliveryCount)
+</span></span><span style="display:flex;"><span>            Interlocked.CompareExchange(<span style="color:#66d9ef">ref</span> _maxPendingDeliveryCount, current, _maxPendingDeliveryCount);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Task.CompletedTask;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Task IConsumeObserver.PostConsume&lt;T&gt;(ConsumeContext&lt;T&gt; context)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Interlocked.Decrement(<span style="color:#66d9ef">ref</span> _currentPendingDeliveryCount);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (_deliveryCount == _messageCount)
+</span></span><span style="display:flex;"><span>            _complete.TrySetResult(<span style="color:#66d9ef">true</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Task.CompletedTask;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Finally, we can put the actual test together:  We publish some messages, connect the observer, and start processing.  Finally, when the observer indicates we have finished, we assert that the <code>MaxDeliveryCount</code> was the same as the <code>ConcurrencyLimit</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Test]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task WhenTestingSomething()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">var</span> i = <span style="color:#ae81ff">0</span>; i &lt; MessageCount; i++)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> _bus.Publish(<span style="color:#66d9ef">new</span> TestMessage { Value = i });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> observer = <span style="color:#66d9ef">new</span> ConsumeCountObserver(MessageCount);
+</span></span><span style="display:flex;"><span>    _bus.ConnectConsumeObserver(observer);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> _bus.StartAsync();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> observer.Wait();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> _bus.StopAsync();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    observer.MaxDeliveryCount.ShouldBe(ConcurrencyLimit);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="the-problem">The Problem</h2>
+<p>The problem we had was actually increasing the concurrency:  There are two things you can change, <code>.UseConcurrencyLimit(32)</code> and <code>.PrefetchCount = 32</code>, but doing this doesn&rsquo;t work:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_bus = Bus.Factory.CreateUsingRabbitMq(rabbit =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> host = rabbit.Host(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;rabbitmq://localhost&#34;</span>), h =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        h.Username(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>        h.Password(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rabbit.ReceiveEndpoint(host, <span style="color:#e6db74">&#34;SpikeyQueue&#34;</span>, endpoint =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        endpoint.UseConcurrencyLimit(ConcurrencyLimit);
+</span></span><span style="display:flex;"><span>        endpoint.PrefetchCount = (<span style="color:#66d9ef">ushort</span>) ConcurrencyLimit;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        endpoint.Consumer(() =&gt; <span style="color:#66d9ef">new</span> TestConsumer());
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Or well&hellip;it does work, if the <code>ConcurrencyLimit</code> is <strong>less</strong> than the default.  After a lot of trial and error, it turns out there are not two things you can change, but four:</p>
+<ul>
+<li><code>rabbit.UseConcurrencyLimit(val)</code></li>
+<li><code>rabbit.PrefetchCount = val</code></li>
+<li><code>endpoint.UseConcurrencyLimit(val)</code></li>
+<li><code>endpoint.PrefetchCount = val</code></li>
+</ul>
+<p>This makes sense (kind of): You can set limits on the factory, and then the endpoints can be any value less than or equal to the factory limits.  My process of trial and error to work out which needed to be set:</p>
+<ol>
+<li>Set them all to 32</li>
+<li>Run test
+<ul>
+<li>if it passes, remove one setting, go to 2.</li>
+<li>if it fails, add last setting back, remove a different setting, go to 2.</li>
+</ul>
+</li>
+</ol>
+<p>After iterating this set of steps for a while, it turns out for my use case that I need to set <code>rabbit.UseConcurrencyLimit(val)</code> and <code>endpoint.PrefetchCount = val</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_bus = Bus.Factory.CreateUsingRabbitMq(rabbit =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> host = rabbit.Host(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;rabbitmq://localhost&#34;</span>), h =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        h.Username(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>        h.Password(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rabbit.UseConcurrencyLimit(ConcurrencyLimit);
+</span></span><span style="display:flex;"><span>    rabbit.ReceiveEndpoint(host, <span style="color:#e6db74">&#34;SpikeyQueue&#34;</span>, endpoint =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        endpoint.PrefetchCount = (<span style="color:#66d9ef">ushort</span>) ConcurrencyLimit;
+</span></span><span style="display:flex;"><span>        endpoint.Consumer(() =&gt; <span style="color:#66d9ef">new</span> TestConsumer());
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Interestingly, no matter which place you set the <code>PrefetchCount</code> value, it doesn&rsquo;t show up in the RabbitMQ web dashboard.</p>
+<p>Hope this might help someone else struggling with getting higher concurrency with MassTransit.</p>
+]]></content:encoded></item><item><title>Integration Testing with Dotnet Core, Docker and RabbitMQ</title><link>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</link><pubDate>Mon, 02 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</guid><description>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.
+For one of my libraries (RabbitHarness) I have a set of tests which check it behaves as expected against a real instance of RabbitMQ. Ideally these tests will always be run, but sometimes RabbitMQ just isn&amp;rsquo;t available such as when running on AppVeyor builds, or if I haven&amp;rsquo;t started my local RabbitMQ Docker container.</description><content:encoded><![CDATA[<p>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.</p>
+<p>For one of my libraries (<a href="https://github.com/pondidum/rabbitharness">RabbitHarness</a>) I have a set of tests which check it behaves as expected against a real instance of <a href="http://www.rabbitmq.com/">RabbitMQ</a>.  Ideally these tests will always be run, but sometimes RabbitMQ just isn&rsquo;t available such as when running on <a href="https://ci.appveyor.com/project/Pondidum/rabbitharness">AppVeyor</a> builds, or if I haven&rsquo;t started my local RabbitMQ Docker container.</p>
+<h2 id="skipping-tests-if-rabbitmq-is-not-available">Skipping tests if RabbitMQ is not available</h2>
+<p>First off, I prevent the tests from running if RabbitMQ is not available by using a custom <a href="https://xunit.github.io/">XUnit</a> <code>FactAttribute</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RequiresRabbitFactAttribute</span> : FactAttribute
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">readonly</span> Lazy&lt;<span style="color:#66d9ef">bool</span>&gt; IsAvailable = <span style="color:#66d9ef">new</span> Lazy&lt;<span style="color:#66d9ef">bool</span>&gt;(() =&gt;
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> factory = <span style="color:#66d9ef">new</span> ConnectionFactory { HostName = <span style="color:#e6db74">&#34;localhost&#34;</span>, RequestedConnectionTimeout = <span style="color:#ae81ff">1000</span> };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = factory.CreateConnection())
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> connection.IsOpen;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">catch</span> (Exception)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">false</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">string</span> Skip
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> IsAvailable.Value ? <span style="color:#e6db74">&#34;&#34;</span> : <span style="color:#e6db74">&#34;RabbitMQ is not available&#34;</span>;  }
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">set</span> { <span style="color:#75715e">/* nothing */</span> }
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This attribute will try connecting to a RabbitMQ instance on <code>localhost</code> once for all tests per run, and cause any test with this attribute to be skipped if RabbitMQ is not available.</p>
+<h2 id="build-script--docker">Build Script &amp; Docker</h2>
+<p>I decided the build script should start a RabbitMQ container, and use that for the tests, but I didn&rsquo;t want to re-use my standard RabbitMQ instance which I use for all kinds of things, and may well be broken at any given time.</p>
+<p>As my build script is just a <code>bash</code> script, I can check if the <code>docker</code> command is available, and then start a container if it is (relying on the assumption that if <code>docker</code> is available, I can start a container).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -x <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>command -v docker<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  CONTAINER<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>docker run -d --rm -p 5672:5672 rabbitmq:3.6.11-alpine<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Started RabbitMQ container: </span>$CONTAINER<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>If <code>docker</code> is available, we start a new container.  I use <code>rabbitmq:3.6.11-alpine</code> as it is a tiny image, with no frills, and also start it with the <code>-d</code> and <code>--rm</code> flags, which starts the container in a disconnected mode (e.g. the <code>docker run</code> command returns instantly), and will delete the container when it is stopped, taking care of clean up for us! I only bother binding the main data connection port (<code>5672</code>), as that is all we are going to be using. Finally, the container&rsquo;s ID, which is returned by the <code>docker run</code> command, is stored in the <code>CONTAINER</code> variable.</p>
+<p>I recommend putting this step as the very first part of your build script, as it gives the container time to start up RabbitMQ and be ready for connections while your build is running.  Otherwise I found I was needing to put a <code>sleep 5</code> command in afterwards to pause the script for a short time.</p>
+<p>The script then continues on with the normal build process:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>dotnet restore <span style="color:#e6db74">&#34;</span>$NAME<span style="color:#e6db74">.sln&#34;</span>
+</span></span><span style="display:flex;"><span>dotnet build <span style="color:#e6db74">&#34;</span>$NAME<span style="color:#e6db74">.sln&#34;</span> --configuration $MODE
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>find . -iname <span style="color:#e6db74">&#34;*.Tests.csproj&#34;</span> -type f -exec dotnet test <span style="color:#e6db74">&#34;{}&#34;</span> --configuration $MODE <span style="color:#ae81ff">\;</span>
+</span></span><span style="display:flex;"><span>dotnet pack ./src/$NAME --configuration $MODE --output ../../.build
+</span></span></code></pre></div><p>Once this is all done, I have another check that <code>docker</code> exists, and stop the container we started earlier, by using the container ID in <code>CONTAINER</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -x <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>command -v docker<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  docker stop $CONTAINER
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>And that&rsquo;s it!  You can see the full <a href="https://github.com/Pondidum/RabbitHarness/blob/master/build.sh">build script for RabbitHarness here</a>.</p>
+<p>The only problem with this script is if you try and start a RabbitMQ container while you already have one running, the command will fail, but the build should succeed anyway as the running instance of RabbitMQ will work for the tests, and the <code>docker stop</code> command will just output that it can&rsquo;t find a container with a blank ID.</p>
+<p>I think I will be using this technique more to help provide isolation for builds - I think that the <a href="https://hub.docker.com/r/microsoft/mssql-server-linux/">Microsoft/mssql-server-linux</a> containers might be very useful for some of our work codebases (which do work against the Linux instances of MSSQL, even if they weren&rsquo;t designed to!)</p>
+]]></content:encoded></item><item><title>Testing Containers or Test Behaviour, Not Implementation</title><link>https://andydote.co.uk/2017/09/17/testing-containers/</link><pubDate>Sun, 17 Sep 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/09/17/testing-containers/</guid><description>The trouble with testing containers is that usually the test ends up very tightly coupled to the implementation.
 Let&amp;rsquo;s see an example. If we start off with an interface and implementation of a &amp;ldquo;cache&amp;rdquo;, which in this case is just going to store a single string value.
-public interface ICache { string Value { get; set; } } public class Cache { public string Value { get; set; } } We then setup our container (StructureMap in this case) to return the same instance of the cache whenever an ICache is requested:</description></item><item><title>Unit Tests &amp; Scratchpads</title><link>https://andydote.co.uk/2017/01/21/unit-tests-and-scratchpads/</link><pubDate>Sat, 21 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/21/unit-tests-and-scratchpads/</guid><description>Often when developing something, I have the need to check how a function or library works. For example, I always have to check for this question:
+public interface ICache { string Value { get; set; } } public class Cache { public string Value { get; set; } } We then setup our container (StructureMap in this case) to return the same instance of the cache whenever an ICache is requested:</description><content:encoded><![CDATA[<p>The trouble with testing containers is that usually the test ends up very tightly coupled to the implementation.</p>
+<p>Let&rsquo;s see an example.  If we start off with an interface and implementation of a &ldquo;cache&rdquo;, which in this case is just going to store a single string value.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ICache</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> Value { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Cache</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Value { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We then setup our container (<a href="http://structuremap.github.io">StructureMap</a> in this case) to return the same instance of the cache whenever an <code>ICache</code> is requested:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> container = <span style="color:#66d9ef">new</span> Container(_ =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    _.For&lt;ICache&gt;().Use&lt;Cache&gt;().Singleton();
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>The following test is fairly typical of how this behaviour gets verified - it just compares that the same instance was returned by the container:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> first = container.GetInstance&lt;ICache&gt;();
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> second = container.GetInstance&lt;ICache&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>first.ShouldBe(second);
+</span></span></code></pre></div><p>But this is a very brittle test, as it is assuming that <code>ICache</code> will actually be the singleton.  However in the future, we might add in a decorator, or make the cache a totally different style of implementation which isn&rsquo;t singleton based.</p>
+<p>For example, if we were to include a decorator class, which just logs reads and writes to the console:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">LoggingCache</span> : ICache
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Cache _backingCache;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> LoggingCache(Cache backingCache)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _backingCache = backingCache;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Value
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">get</span>
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            Console.WriteLine(<span style="color:#e6db74">&#34;Value fetched&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> _backingCache.Value;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">set</span>
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            Console.Write(<span style="color:#e6db74">$&#34;Value changed from {_backingCache.Value} to {value}&#34;</span>);
+</span></span><span style="display:flex;"><span>            _backingCache.Value = <span style="color:#66d9ef">value</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Which will change our container registration:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> container = <span style="color:#66d9ef">new</span> Container(_ =&gt; {
+</span></span><span style="display:flex;"><span>    _.ForSingletonOf&lt;Cache&gt;();
+</span></span><span style="display:flex;"><span>    _.For&lt;ICache&gt;().Use&lt;LoggingCache&gt;();
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>The test will now fail, or need changing to match the new implementation.  This shows two things:</p>
+<ul>
+<li>Tests are tightly coupled to the implementation</li>
+<li>Tests are testing the implementation, not the intent.</li>
+</ul>
+<h2 id="testing-intent-not-implementation">Testing intent, not implementation</h2>
+<p>Instead of checking if we get the same class instances back from the container, it would make for more sense to check the classes <em>behave</em> as expected.  For my &ldquo;super stupid cache&rdquo; example this could take the following form:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> first = container.GetInstance&lt;ICache&gt;();
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> second = container.GetInstance&lt;ICache&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>first.Value = <span style="color:#e6db74">&#34;testing&#34;</span>;
+</span></span><span style="display:flex;"><span>second.Value.ShouldBe(<span style="color:#e6db74">&#34;testing&#34;</span>);
+</span></span></code></pre></div><p>Not only does this test validate the behaviour of the classes, but it is far less brittle - we can change what the container returns entirely for <code>ICache</code>, as long as it behaves the same.</p>
+<p>But what do you think? How do you go about testing behaviour?</p>
+]]></content:encoded></item><item><title>Unit Tests &amp; Scratchpads</title><link>https://andydote.co.uk/2017/01/21/unit-tests-and-scratchpads/</link><pubDate>Sat, 21 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/21/unit-tests-and-scratchpads/</guid><description>Often when developing something, I have the need to check how a function or library works. For example, I always have to check for this question:
 Does Directory.ListFiles(&amp;quot;.\\temp\\&amp;quot;) return a list of filenames, a list of relative filepaths, or a list of rooted filepaths?
 It returns relative filepaths by the way:
-Directory.ListFiles(&amp;#34;.\\temp\\&amp;#34;); [ &amp;#34;.\temp\NuCrunch.Tests.csproj&amp;#34;, &amp;#34;.\temp\packages.config&amp;#34;, &amp;#34;.\temp\Scratchpad.cs&amp;#34; ] Now that there is a C# Interactive window in Visual Studio, you can use that to test the output.</description></item><item><title>Shouldly: Why would you assert any other way?</title><link>https://andydote.co.uk/2016/10/09/assertion-style/</link><pubDate>Sun, 09 Oct 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/10/09/assertion-style/</guid><description>I like to make my development life as easy as possible - and removing small irritations is a great way of doing this. Having used Shouldly in anger for a long time, I have to say I feel a little hamstrung when going back to just using NUnit&amp;rsquo;s assertions.
-I have been known on a couple of projects which use only NUnit assertions, when trying to solve a test failure with array differences, to install Shouldly, fix the test, then remove Shouldly again!</description></item><item><title>Using StructureMap Registries for better separation</title><link>https://andydote.co.uk/2014/05/19/using-structuremap-registries/</link><pubDate>Mon, 19 May 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/05/19/using-structuremap-registries/</guid><description>When it comes to configuring StructureMap, it supports the use of Registries. Registries support everything that the standard configure method does(new Container(c =&amp;gt; { /* */});).
+Directory.ListFiles(&amp;#34;.\\temp\\&amp;#34;); [ &amp;#34;.\temp\NuCrunch.Tests.csproj&amp;#34;, &amp;#34;.\temp\packages.config&amp;#34;, &amp;#34;.\temp\Scratchpad.cs&amp;#34; ] Now that there is a C# Interactive window in Visual Studio, you can use that to test the output.</description><content:encoded><![CDATA[<p>Often when developing something, I have the need to check how a function or library works.  For example, I <em>always</em> have to check for this question:</p>
+<blockquote>
+<p>Does <code>Directory.ListFiles(&quot;.\\temp\\&quot;)</code> return a list of filenames, a list of relative filepaths, or a list of rooted filepaths?</p>
+</blockquote>
+<p>It returns relative filepaths by the way:</p>
+<pre tabindex="0"><code>Directory.ListFiles(&#34;.\\temp\\&#34;);
+[ &#34;.\temp\NuCrunch.Tests.csproj&#34;, &#34;.\temp\packages.config&#34;, &#34;.\temp\Scratchpad.cs&#34; ]
+</code></pre><p>Now that there is a C# Interactive window in Visual Studio, you can use that to test the output.  Sometimes however the C# Interactive window is not suitable:</p>
+<ul>
+<li>You want to test needs a little more setup than a couple of lines</li>
+<li>You wish to use the debugger to check on intermediate state</li>
+<li>You are not in Visual Studio (I am 99% of the time in <a href="https://www.jetbrains.com/rider/">Rider</a>)</li>
+</ul>
+<p>When this happens, I turn to the unit test file which I add to all unit test projects:  the <code>Scratchpad.cs</code>.</p>
+<p>The complete listing of the file is this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">using</span> Xunit;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">using</span> Xunit.Abstractions;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">namespace</span> NuCrunch.Tests
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Scratchpad</span>
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> ITestOutputHelper _output;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">public</span> Scratchpad(ITestOutputHelper output)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			_output = output;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">		[Fact]</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> When_testing_something()
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>It gets committed to the git repository with no content in the <code>When_testing_something</code> method, and is never committed again afterwards.  The <code>_output</code> field is added to allow writing to console/test window easily too.</p>
+<p>Now whenever I wish to experiment with something, I can pop open the <code>Scratchpad</code> write some test content, then execute and debug it to my hearts content.</p>
+<p>After I am done with the test code, one of two things happen:  it gets deleted, or it gets moved into a proper unit test.</p>
+]]></content:encoded></item><item><title>Shouldly: Why would you assert any other way?</title><link>https://andydote.co.uk/2016/10/09/assertion-style/</link><pubDate>Sun, 09 Oct 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/10/09/assertion-style/</guid><description>I like to make my development life as easy as possible - and removing small irritations is a great way of doing this. Having used Shouldly in anger for a long time, I have to say I feel a little hamstrung when going back to just using NUnit&amp;rsquo;s assertions.
+I have been known on a couple of projects which use only NUnit assertions, when trying to solve a test failure with array differences, to install Shouldly, fix the test, then remove Shouldly again!</description><content:encoded><![CDATA[<p>I like to make my development life as easy as possible - and removing small irritations is a great way of doing this.  Having used <a href="http://docs.shouldly-lib.net/v2.4.0/docs">Shouldly</a> in anger for a long time, I have to say I feel a little hamstrung when going back to just using NUnit&rsquo;s assertions.</p>
+<p>I have been known on a couple of projects which use only NUnit assertions, when trying to solve a test failure with array differences, to install Shouldly, fix the test, then remove Shouldly again!</p>
+<p>The rest of this post goes through the different assertion models, and how they differ from each other and, eventually, why everyone should be using Shouldly!</p>
+<h2 id="the-most-basic">The Most Basic</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> valueOne = <span style="color:#e6db74">&#34;Something&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> valueTwo = <span style="color:#e6db74">&#34;Something else&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Debug.Assert(valueOne == valueTwo);
+</span></span><span style="display:flex;"><span>Debug.Assert(valueOne == valueTwo, <span style="color:#e6db74">$&#34;{valueOne} should have been {valueTwo}&#34;</span>);
+</span></span></code></pre></div><p>This is an assertion at it&rsquo;s most basic.  It will only assert if the condition is false, and optionally you can specify a 2nd parameter with a message.</p>
+<p>This has a couple of good points to it. No external dependencies are required, and it is strong typed (as your condition has to compile.)  The down sides to this are that it is not very descriptive, and can only be used in Debug compiles (or with the DEBUG constant defined), meaning a Release mode build cannot be tested with this.</p>
+<p>This also suffers from the descriptiveness problem - an output from this will only have a message saying an assertion failed, rather than anything helpful in figuring out why an assertion failed.</p>
+<h2 id="nunits-first-attempt">NUnit&rsquo;s First Attempt</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> valueOne = <span style="color:#e6db74">&#34;Something&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> valueTwo = <span style="color:#e6db74">&#34;Something else&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Assert.AreEqual(valueOne, valueTwo);
+</span></span><span style="display:flex;"><span>Assert.AreEqual(valueOne, valueTwo, <span style="color:#e6db74">$&#34;{valueOne} should have been {valueTwo}&#34;</span>);
+</span></span></code></pre></div><p>This improves on the Most Basic version by working in Release mode builds, and as it only depends on the test framework, it doesn&rsquo;t add a dependency you didn&rsquo;t already have.</p>
+<p>There are two things I dislike about this method: it remains as undescriptive as the first method, and it adds the problem of parameter ambiguity:  Which of the two parameters is the expected value, and which is the value under test? You can&rsquo;t tell without checking the method declaration.  While this is a small issue, it can cause headaches when you are trying to debug a test which has started failing, only to discover the assertion being the wrong way around was leading you astray!</p>
+<h2 id="nunits-second-attempt">NUnit&rsquo;s Second Attempt</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> valueOne = <span style="color:#e6db74">&#34;Something&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> valueTwo = <span style="color:#e6db74">&#34;Something else&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Assert.That(valueOne, Is.EqualTo(valueTwo));
+</span></span><span style="display:flex;"><span>Assert.That(valueOne, Is.EqualTo(valueTwo), <span style="color:#e6db74">$&#34;{valueOne} should have been {valueTwo}&#34;</span>);
+</span></span></code></pre></div><p>This is an interesting attempt at readability.  On the one hand, it&rsquo;s very easy to read as a sentence, but it is very wordy, especially if you are wanting to do a Not equals <code>Is.Not.EqualTo(valueTwo)</code>.</p>
+<p>This biggest problem with this however, is the complete loss of strong typing - both arguments are <code>object</code>.  This can trip you up when testing things such as Guids - especially if one of the values gets <code>.ToString()</code> on it at some point:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> id = Guid.NewGuid();
+</span></span><span style="display:flex;"><span>Assert.That(id.ToString(), Is.EqualTo(id));
+</span></span></code></pre></div><p>Not only will this compile, but when the test fails, unless you are paying close attention to the output, it will look like it should&rsquo;ve passed, as the only difference is the <code>&quot;</code> on either side of one of the values.</p>
+<h2 id="shouldlys-version">Shouldly&rsquo;s Version</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> valueOne = <span style="color:#e6db74">&#34;Something&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> valueTwo = <span style="color:#e6db74">&#34;Something else&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>valueOne.ShouldBe(valueTwo);
+</span></span><span style="display:flex;"><span>valueOne.ShouldBe(valueTwo, () =&gt; <span style="color:#e6db74">&#34;Custom Message&#34;</span>);
+</span></span></code></pre></div><p>Finally we hit upon the <a href="http://docs.shouldly-lib.net/v2.4.0/docs">Shouldly</a> library.  This assertion library not only solves the code-time issues of strong typing, parameter clarity, and wordiness, it really improves the descriptiveness problem.</p>
+<p>Shouldly uses the expression being tested against to create meaningful error messages:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#75715e">//nunit</span>
+</span></span><span style="display:flex;"><span>Assert.That(map.IndexOfValue(<span style="color:#e6db74">&#34;boo&#34;</span>), Is.EqualTo(<span style="color:#ae81ff">2</span>));    <span style="color:#75715e">// -&gt; Expected 2 but was 1</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">//shouldly</span>
+</span></span><span style="display:flex;"><span>map.IndexOfValue(<span style="color:#e6db74">&#34;boo&#34;</span>).ShouldBe(<span style="color:#ae81ff">2</span>);                    <span style="color:#75715e">// -&gt; map.IndexOfValue(&#34;boo&#34;) should be 2 but was 1</span>
+</span></span></code></pre></div><p>This is even more pronounced when you are comparing collections:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">new</span>[] { <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">3</span> }.ShouldBe(<span style="color:#66d9ef">new</span>[] { <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">4</span> });
+</span></span></code></pre></div><p>Produces the following output</p>
+<pre tabindex="0"><code>should be
+    [1, 2, 4]
+but was
+    [1, 2, 3]
+difference
+    [1, 2, *3*]
+</code></pre><p>And when comparing strings, not only does it tell you they were different, but provides a visualisation of what was different:</p>
+<pre tabindex="0"><code>input
+    should be
+&#34;this is a longer test sentence&#34;
+    but was
+&#34;this is a long test sentence&#34;
+    difference
+Difference     |                                |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+               |                               \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/  \|/
+Index          | ...  9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29
+Expected Value | ...  \s   l    o    n    g    e    r    \s   t    e    s    t    \s   s    e    n    t    e    n    c    e
+Actual Value   | ...  \s   l    o    n    g    \s   t    e    s    t    \s   s    e    n    t    e    n    c    e
+</code></pre><h2 id="finishing">Finishing</h2>
+<p>So having seen the design time experience and rich output Shouldly gives you, why would you not use it?</p>
+]]></content:encoded></item><item><title>Using StructureMap Registries for better separation</title><link>https://andydote.co.uk/2014/05/19/using-structuremap-registries/</link><pubDate>Mon, 19 May 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/05/19/using-structuremap-registries/</guid><description>When it comes to configuring StructureMap, it supports the use of Registries. Registries support everything that the standard configure method does(new Container(c =&amp;gt; { /* */});).
 There are two main reasons that I use the registries rather then doing all my configuration in the Container&amp;rsquo;s lambda: separation of concerns (one registry per area of code) and easier testing (which we will go into shortly).
-The only down side I can see to using registries is that it can scatter your configuration across your codebase - but if you have ReSharper, doing a &amp;lsquo;Find Implementations&amp;rsquo; on Registry will find them all for you, so it really isn&amp;rsquo;t much of a down side.</description></item></channel></rss>
+The only down side I can see to using registries is that it can scatter your configuration across your codebase - but if you have ReSharper, doing a &amp;lsquo;Find Implementations&amp;rsquo; on Registry will find them all for you, so it really isn&amp;rsquo;t much of a down side.</description><content:encoded><![CDATA[<p>When it comes to configuring StructureMap, it supports the use of <a href="http://fubuworld.com/structuremap/registration/registry-dsl/">Registries</a>.  Registries support everything that the standard configure method does(<code>new Container(c =&gt; { /* */});</code>).</p>
+<p>There are two main reasons that I use the registries rather then doing all my configuration in the Container&rsquo;s lambda:  separation of concerns (one registry per area of code) and easier testing (which we will go into shortly).</p>
+<p>The only down side I can see to using registries is that it can scatter your configuration across your codebase - but if you have ReSharper, doing a &lsquo;Find Implementations&rsquo; on <code>Registry</code> will find them all for you, so it really isn&rsquo;t much of a down side.</p>
+<h2 id="separation-of-concerns">Separation of Concerns</h2>
+<p>Taking <a href="https://github.com/Pondidum/NuCache">NuCache</a> as an example, in our app start we have <a href="https://github.com/Pondidum/NuCache/blob/master/NuCache/App_Start/ConfigureContainer.cs">ConfigureContainer.cs</a>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> Register(HttpConfiguration config)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> container = <span style="color:#66d9ef">new</span> Container(c =&gt; c.Scan(a =&gt;
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		a.TheCallingAssembly();
+</span></span><span style="display:flex;"><span>		a.WithDefaultConventions();
+</span></span><span style="display:flex;"><span>		a.LookForRegistries();
+</span></span><span style="display:flex;"><span>	}));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	config.DependencyResolver = <span style="color:#66d9ef">new</span> StructureMapDependencyResolver(container);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This snippet of code gets called as part of the AppStart, and tells StructureMap to use the default conventions (eg: <code>IFileSystem =&gt; FileSystem</code>), and to process any registries it finds.  The app then has multiple Registries with the actual configuration in (usually one per namespace, although not all namespaces have a registry).</p>
+<p>For example, we have these two registries:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">InfrastructureRegistry</span> : Registry
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> InfrastructureRegistry()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		For&lt;IPackageCache&gt;()
+</span></span><span style="display:flex;"><span>			.Use&lt;FileSystemPackageCache&gt;()
+</span></span><span style="display:flex;"><span>			.OnCreation(c =&gt; c.Initialise())
+</span></span><span style="display:flex;"><span>			.Singleton();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ProxyBehaviourRegistry</span> : Registry
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> ProxyBehaviourRegistry ()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Scan(a =&gt;
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			a.TheCallingAssembly();
+</span></span><span style="display:flex;"><span>			a.AddAllTypesOf&lt;IProxyBehaviour&gt;();
+</span></span><span style="display:flex;"><span>		});
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <a href="https://github.com/Pondidum/NuCache/blob/master/NuCache/Infrastructure/InfrastructureRegistry.cs">InfrastructureRegistry</a> just specifies how to resolve an <code>IPackageCache</code>, as it has requires some extra initialisation and to be treated as a singleton.</p>
+<p>The <a href="https://github.com/Pondidum/NuCache/blob/master/NuCache/ProxyBehaviour/ProxyBehaviourRegistry.cs">ProxyBehaviourRegistry</a> tells StructureMap to add all implementations of <code>IProxyBehaviour</code>, so that when we construct as <code>ProxyBehaviourSet</code>, which has a constructor parameter of <code>IEnumerable&lt;IProxyBehaviour&gt;</code> all the implementations are passed in for us.</p>
+<h2 id="easier-testing">Easier Testing</h2>
+<p>We can use the Registry feature of StructureMap to allow us to test parts of code as they would be in production.  This mostly applies to acceptance style testing, for example when I am testing the XmlRewriter, I want it to behave exactly as it would in production, with the same <code>IXElementTransform</code>s passed in.</p>
+<p>To do this, we can use the <code>RewriterRegistry</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> container = <span style="color:#66d9ef">new</span> Container(<span style="color:#66d9ef">new</span> RewriterRegistry());
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> rewriter = container.GetInstance&lt;XmlRewriter&gt;();
+</span></span></code></pre></div><p>Here we create a new container with the <code>RewriterRegistry</code> passed directly into the constructor.  This gives us access to a container completely configured for using the <code>XmlRewriter</code>.  We can then fake the inputs and outputs to the method under test, keeping the whole system in a known production-like state.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> inputStream = GetType().Assembly.GetManifestResourceStream(<span style="color:#e6db74">&#34;NuCache.Tests.Packages.xml&#34;</span>))
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> outputStream = <span style="color:#66d9ef">new</span> MemoryStream())
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	rewriter.Rewrite(targetUri, inputStream, outputStream);
+</span></span><span style="display:flex;"><span>	outputStream.Position = <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	_result = XDocument.Load(outputStream);
+</span></span><span style="display:flex;"><span>	_namespace = _result.Root.Name.Namespace;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Hopefully this shows how useful and powerful feature StructureMap&rsquo;s Registries are.</p>
+]]></content:encoded></item></channel></rss>

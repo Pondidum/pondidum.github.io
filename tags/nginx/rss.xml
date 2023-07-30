@@ -1,2 +1,49 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>nginx on Andy Dote</title><link>https://andydote.co.uk/tags/nginx/</link><description>Recent content in nginx on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 23 Apr 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/nginx/rss.xml" rel="self" type="application/rss+xml"/><item><title>An NGINX and DNS based outage</title><link>https://andydote.co.uk/2022/04/23/nginx-dns/</link><pubDate>Sat, 23 Apr 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/04/23/nginx-dns/</guid><description>I recently encountered a behaviour in Nginx that I didn&amp;rsquo;t expect and caused a production outage in the process. While I would love to blame DNS for this, as it&amp;rsquo;s usually the cause of most network-related issues, in this case, the fault lies with Nginx.
-I was running a very simple Nginx proxy, relaying an internal service to the outside world. The internal service is behind an AWS ALB, and the Nginx configuration was proxying to the ALB&amp;rsquo;s FQDN:</description></item></channel></rss>
+I was running a very simple Nginx proxy, relaying an internal service to the outside world. The internal service is behind an AWS ALB, and the Nginx configuration was proxying to the ALB&amp;rsquo;s FQDN:</description><content:encoded><![CDATA[<p>I recently encountered a behaviour in Nginx that I didn&rsquo;t expect and caused a production outage in the process.  While I would love to blame DNS for this, as it&rsquo;s usually the cause of most network-related issues, in this case, the fault lies with Nginx.</p>
+<p>I was running a very simple Nginx proxy, relaying an internal service to the outside world.  The internal service is behind an AWS ALB, and the Nginx configuration was proxying to the ALB&rsquo;s FQDN:</p>
+<pre tabindex="0"><code>http {
+  server {
+    listen              8000;
+    server_name         server.example.com;
+
+    location ~* ^/some/path {
+      proxy_pass              https://some.internal.alb.address.amazonaws.com;
+      proxy_set_header        Host $host;
+      proxy_read_timeout      120;
+      proxy_ignore_headers    Cache-Control;
+      proxy_ignore_headers    Expires;
+      proxy_ignore_headers    Set-Cookie;
+    }
+  }
+}
+</code></pre><p>The proxy was working fine for several weeks, until suddenly it wasn&rsquo;t.  To make matters more strange, when we checked the internal site directly, it showed as up and responding.  No deployments of any services had happened, and we had made no changes in any infrastructure either.  We restarted the Nginx service, and everything started working again.</p>
+<p>The first is that AWS&rsquo;s can, and does, change the IP addresses associated with load balancers.  This can happen for many unknown reasons as the underlying implementation of the AWS load balancers is a black box.  One known reason is the load balancer scaling to handle more or less traffic.  There is no API that we are aware of that allows you to see when these changes have happened; the only way we know is to run <code>dig</code> in a loop and send the results to our observability tool when they change.</p>
+<p>The second detail is how Nginx resolves DNS.  My initial expectation was that it worked like most DNS clients, and would query an address on the first request and then again after the TTL had elapsed.  It turns out my assumption was wrong, and that by default, Nginx queries addresses once on startup, <em>and never again</em>.</p>
+<p>So with these two facts, we can see why the proxy stopped working at some point; the target ALB had removed whichever IP address(es) Nginx had received from DNS at startup.  There are two different ways this can be fixed.</p>
+<p>The first way is to force Nginx to cache all IPs resolved for a fixed time window:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>http {
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  resolver_timeout 30s;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex;"><span>  server {
+</span></span><span style="display:flex;"><span>    listen              8000;
+</span></span><span style="display:flex;"><span>    server_name         server.example.com;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    location ~* ^/some/path {
+</span></span></code></pre></div><p>The second fix is to cause Nginx to re-resolve the upstream when it&rsquo;s DNS record expires (based on the DNS TTL):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>http {
+</span></span><span style="display:flex;"><span>  server {
+</span></span><span style="display:flex;"><span>    listen              8000;
+</span></span><span style="display:flex;"><span>    server_name         server.example.com;
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+    set $upstream some.internal.alb.address.amazonaws.com;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex;"><span>    location ~* ^/some/path {
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-     proxy_pass              https://some.internal.alb.address.amazonaws.com;
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+     proxy_pass              https://$upstream;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>      proxy_set_header        Host $host;
+</span></span><span style="display:flex;"><span>      proxy_read_timeout      120;
+</span></span><span style="display:flex;"><span>      proxy_ignore_headers    Cache-Control;
+</span></span><span style="display:flex;"><span>      proxy_ignore_headers    Expires;
+</span></span><span style="display:flex;"><span>      proxy_ignore_headers    Set-Cookie;
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>While I am glad there are two easy ways to solve this issue, I still find the default &ldquo;only resolve once at startup&rdquo; behaviour odd, as it goes against the <a href="https://en.wikipedia.org/wiki/Principle_of_least_astonishment">Principle of least surprise</a>;  I expect Nginx to re-query based on the TTL of the DNS Record.  I suspect this behaviour exists for performance reasons, but I don&rsquo;t know for sure.</p>
+]]></content:encoded></item></channel></rss>

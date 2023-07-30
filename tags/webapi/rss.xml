@@ -1,3 +1,64 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>webapi on Andy Dote</title><link>https://andydote.co.uk/tags/webapi/</link><description>Recent content in webapi on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Mon, 21 Sep 2015 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/webapi/rss.xml" rel="self" type="application/rss+xml"/><item><title>Posting PlainText to Asp WebApi</title><link>https://andydote.co.uk/2015/09/21/webapi-post-plaintext/</link><pubDate>Mon, 21 Sep 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/09/21/webapi-post-plaintext/</guid><description>Recently I have been writing a WebApi project which needs to accept plaintext via the body of a PUT request, and did the logical thing of using the FromBodyAttribute
 public HttpStatusCode PutKv([FromBody]string content, string keyGreedy) { return HttpStatusCode.OK; } Which didn&amp;rsquo;t work, with the useful error message of &amp;ldquo;Unsupported media type.&amp;rdquo;
-It turns out that to bind a value type with the FromBody attribute, you have to prefix the body of your request with an =.</description></item></channel></rss>
+It turns out that to bind a value type with the FromBody attribute, you have to prefix the body of your request with an =.</description><content:encoded><![CDATA[<p>Recently I have been writing a WebApi project which needs to accept plaintext via the body of a PUT request, and did the logical thing of using the <code>FromBodyAttribute</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> HttpStatusCode PutKv([FromBody]<span style="color:#66d9ef">string</span> content, <span style="color:#66d9ef">string</span> keyGreedy)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> HttpStatusCode.OK;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Which didn&rsquo;t work, with the useful error message of &ldquo;Unsupported media type.&rdquo;</p>
+<p>It turns out that to bind a value type with the <code>FromBody</code> attribute, you have to prefix the body of your request with an <code>=</code>.  As I am emulating another Api&rsquo;s interface, this is not an option, so I set about figuring out how to override this requirement.</p>
+<p>In the end I discovered that providing a new <code>MediaTypeFormatter</code> which handles plaintext is the answer:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PlainTextMediaTypeFormatter</span> : MediaTypeFormatter
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">public</span> PlainTextMediaTypeFormatter()
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    SupportedMediaTypes.Add(<span style="color:#66d9ef">new</span> MediaTypeHeaderValue(<span style="color:#e6db74">&#34;text/plain&#34;</span>));
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> Task&lt;<span style="color:#66d9ef">object</span>&gt; ReadFromStreamAsync(Type type, Stream readStream, HttpContent content, IFormatterLogger formatterLogger)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> source = <span style="color:#66d9ef">new</span> TaskCompletionSource&lt;<span style="color:#66d9ef">object</span>&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> memoryStream = <span style="color:#66d9ef">new</span> MemoryStream())
+</span></span><span style="display:flex;"><span>      {
+</span></span><span style="display:flex;"><span>        readStream.CopyTo(memoryStream);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> text = Encoding.UTF8.GetString(memoryStream.ToArray());
+</span></span><span style="display:flex;"><span>        source.SetResult(text);
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">catch</span> (Exception e)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      source.SetException(e);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> source.Task;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> Task WriteToStreamAsync(Type type, <span style="color:#66d9ef">object</span> <span style="color:#66d9ef">value</span>, Stream writeStream, HttpContent content, System.Net.TransportContext transportContext, System.Threading.CancellationToken cancellationToken)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> bytes = Encoding.UTF8.GetBytes(<span style="color:#66d9ef">value</span>.ToString());
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> writeStream.WriteAsync(bytes, <span style="color:#ae81ff">0</span>, bytes.Length, cancellationToken);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">bool</span> CanReadType(Type type)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> type == <span style="color:#66d9ef">typeof</span>(<span style="color:#66d9ef">string</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">bool</span> CanWriteType(Type type)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> type == <span style="color:#66d9ef">typeof</span>(<span style="color:#66d9ef">string</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This can then be added to the <code>config.Formatters</code> collection:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">WebApiConfig</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> Register(HttpConfiguration http)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    http.Formatters.Add(<span style="color:#66d9ef">new</span> PlainTextMediaTypeFormatter());
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>It really seems like something which should be supplied out of the box with WebApi to me, but at least it wasn&rsquo;t as complicated to implement as I was expecting it to be :)</p>
+]]></content:encoded></item></channel></rss>

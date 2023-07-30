@@ -1,6 +1,670 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>rabbitmq on Andy Dote</title><link>https://andydote.co.uk/tags/rabbitmq/</link><description>Recent content in rabbitmq on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 06 Apr 2019 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/rabbitmq/rss.xml" rel="self" type="application/rss+xml"/><item><title>Running a Secure RabbitMQ Cluster in Nomad</title><link>https://andydote.co.uk/2019/04/06/nomad-rabbitmq-secure/</link><pubDate>Sat, 06 Apr 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/04/06/nomad-rabbitmq-secure/</guid><description>Last time I wrote about running a RabbitMQ cluster in Nomad, one of the main pieces of feedback I received was about the (lack) of security of the setup, so I decided to revisit this, and write about how to launch as secure RabbitMQ node in Nomad.
 The things I want to cover are:
-Username and Password for the management UI Secure value for the Erlang Cookie SSL for Management and AMQP As usual, the demo repository with all the code is available if you&amp;rsquo;d rather just jump into that.</description></item><item><title>RabbitMQ clustering with Consul in Nomad</title><link>https://andydote.co.uk/2019/01/28/nomad-rabbitmq-consul-cluster/</link><pubDate>Mon, 28 Jan 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/01/28/nomad-rabbitmq-consul-cluster/</guid><description>Update If you want a secure version of this cluster, see Running a Secure RabbitMQ Cluster in Nomad.
-RabbitMQ is the centre of a lot of micros service architectures, and while you can cluster it manually, it is a lot easier to use some of the auto clustering plugins, such as AWS (EC2), Consul, Etcd, or Kubernetes. As I like to use Nomad for container orchestration, I thought it would be a good idea to show how to cluster RabbitMQ when it is running in a Docker container, on an unknown host (i.</description></item><item><title>Testing RabbitMQ Concurrency in MassTransit</title><link>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</link><pubDate>Wed, 11 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</guid><description>We have a service which consumes messages from a RabbitMQ queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api. One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.</description></item><item><title>Integration Testing with Dotnet Core, Docker and RabbitMQ</title><link>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</link><pubDate>Mon, 02 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</guid><description>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.
-For one of my libraries (RabbitHarness) I have a set of tests which check it behaves as expected against a real instance of RabbitMQ. Ideally these tests will always be run, but sometimes RabbitMQ just isn&amp;rsquo;t available such as when running on AppVeyor builds, or if I haven&amp;rsquo;t started my local RabbitMQ Docker container.</description></item><item><title>RabbitMQ integration tests in XUnit</title><link>https://andydote.co.uk/2016/03/18/rabbitmq-xunit/</link><pubDate>Fri, 18 Mar 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/03/18/rabbitmq-xunit/</guid><description>Quite a number of my projects involve talking to RabbitMQ, and to help check things work as expected, I often have a number of integration tests which talk to a local RabbitMQ instance.
-While this is fine for tests being run locally, it does cause problems with the build servers - we don&amp;rsquo;t want to install RabbitMQ on there, and we don&amp;rsquo;t typically want the build to be dependent on RabbitMQ.</description></item></channel></rss>
+Username and Password for the management UI Secure value for the Erlang Cookie SSL for Management and AMQP As usual, the demo repository with all the code is available if you&amp;rsquo;d rather just jump into that.</description><content:encoded><![CDATA[<p>Last time I wrote about running a RabbitMQ cluster in Nomad, one of the main pieces of feedback I received was about the (lack) of security of the setup, so I decided to revisit this, and write about how to launch as secure RabbitMQ node in Nomad.</p>
+<p>The things I want to cover are:</p>
+<ul>
+<li>Username and Password for the management UI</li>
+<li>Secure value for the Erlang Cookie</li>
+<li>SSL for Management and AMQP</li>
+</ul>
+<p>As usual, the <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo">demo repository</a> with all the code is available if you&rsquo;d rather just jump into that.</p>
+<h2 id="configure-nomad-to-integrate-with-vault">Configure Nomad To Integrate With Vault</h2>
+<p>To manage the certificates and credentials I will use another Hashicorp tool called <a href="https://vaultproject.io/">Vault</a>, which provides Secrets As A Service.  It can be configured for High Availability, but for the demo, we will just use a single instance on one of our Nomad machines.</p>
+<h3 id="vault">Vault</h3>
+<p>We&rsquo;ll update the Vagrant script used in the <a href="/2019/01/28/nomad-rabbitmq-consul-cluster/">last post about Nomad Rabbitmq Clustering</a> to add in a single Vault node.  <strong>This is not suitable for using Vault in production;</strong> for that there should be a separate Vault cluster running somewhere, but as this post is focusing on how to integrate with Vault, a single node will suffice.</p>
+<p>Once we have Vault installed (<a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/master/provision.sh#L50">see the <code>provision.sh</code> script</a>), we need to set up a few parts.  First is a PKI (public key infrastructure), better known as a Certificate Authority (CA).  We will generate a single root certificate and have our client machines (and optionally the host machine) trust that one certificate.</p>
+<p>As this the machines are running in Hyper-V with the Default Switch, we can use the inbuilt domain name, <code>mshome.net</code>, and provide our own certificates.  This script is run as part of the Server (<code>nomad1</code>) provisioning script, but in a production environment would be outside of this scope.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>domain<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;mshome.net&#34;</span>
+</span></span><span style="display:flex;"><span>vault secrets enable pki
+</span></span><span style="display:flex;"><span>vault secrets tune -max-lease-ttl<span style="color:#f92672">=</span>87600h pki
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault write -field<span style="color:#f92672">=</span>certificate pki/root/generate/internal common_name<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$domain<span style="color:#e6db74">&#34;</span> ttl<span style="color:#f92672">=</span>87600h <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    &gt; /vagrant/vault/mshome.crt
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault write pki/config/urls <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    issuing_certificates<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$VAULT_ADDR<span style="color:#e6db74">/v1/pki/ca&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    crl_distribution_points<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$VAULT_ADDR<span style="color:#e6db74">/v1/pki/crl&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault write pki/roles/rabbit <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    allowed_domains<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$domain<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    allow_subdomains<span style="color:#f92672">=</span>true <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    generate_lease<span style="color:#f92672">=</span>true <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    max_ttl<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;720h&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo cp /vagrant/vault/mshome.crt /usr/local/share/ca-certificates/mshome.crt
+</span></span><span style="display:flex;"><span>sudo update-ca-certificates
+</span></span></code></pre></div><p>If you don&rsquo;t want scary screens in FireFox and Chrome, you&rsquo;ll need to install the <code>mshome.crt</code> certificate into your trust store.</p>
+<p>Next up, we have some policies we need in Vault.  The first deals with what the Nomad Server(s) are allowed to do - namely to handle tokens for itself, and anything in the <code>nomad-cluster</code> role.  <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/master/vault/nomad-server-policy.hcl">A full commented version of this policy is available here</a>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>path <span style="color:#e6db74">&#34;auth/token/create/nomad-cluster&#34;</span> {
+</span></span><span style="display:flex;"><span>  capabilities <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;update&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>path <span style="color:#e6db74">&#34;auth/token/roles/nomad-cluster&#34;</span> {
+</span></span><span style="display:flex;"><span>  capabilities <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;read&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>path <span style="color:#e6db74">&#34;auth/token/lookup-self&#34;</span> {
+</span></span><span style="display:flex;"><span>  capabilities <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;read&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>path <span style="color:#e6db74">&#34;auth/token/lookup&#34;</span> {
+</span></span><span style="display:flex;"><span>  capabilities <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;update&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>path <span style="color:#e6db74">&#34;auth/token/revoke-accessor&#34;</span> {
+</span></span><span style="display:flex;"><span>  capabilities <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;update&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>path <span style="color:#e6db74">&#34;sys/capabilities-self&#34;</span> {
+</span></span><span style="display:flex;"><span>  capabilities <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;update&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>path <span style="color:#e6db74">&#34;auth/token/renew-self&#34;</span> {
+</span></span><span style="display:flex;"><span>  capabilities <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;update&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As this policy mentions the <code>nomad-cluster</code> role a few times, let&rsquo;s have a look at that also:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;disallowed_policies&#34;</span>: <span style="color:#e6db74">&#34;nomad-server&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;explicit_max_ttl&#34;</span>: <span style="color:#ae81ff">0</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;nomad-cluster&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;orphan&#34;</span>: <span style="color:#66d9ef">true</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;period&#34;</span>: <span style="color:#ae81ff">259200</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;renewable&#34;</span>: <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This allows a fairly long-lived token to be created, which can be renewed.  It is also limiting what the tokens are allowed to do, which can be done as either a block list (<code>disallowed_policies</code>) or an allow list (<code>allowed_policies</code>).  In this case, I am letting the Clients access any policies except the <code>nomad-server</code> policy.</p>
+<p>We can install both of these into Vault:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault policy write nomad-server /vagrant/vault/nomad-server-policy.hcl
+</span></span><span style="display:flex;"><span>vault write auth/token/roles/nomad-cluster @/vagrant/vault/nomad-cluster-role.json
+</span></span></code></pre></div><h3 id="nomad">Nomad</h3>
+<p>Now that Vault is up and running, we should configure Nomad to talk to it.  This is done in two places - the Server configuration, and the Client configuration.</p>
+<p>To configure the <strong>Nomad Server</strong>, we update it&rsquo;s configuration file to include a <code>vault</code> block, which contains a role name it will use to generate tokens (for itself and for the Nomad Clients), and an initial token.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>vault {
+</span></span><span style="display:flex;"><span>    enabled <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    address <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http://localhost:8200&#34;</span>
+</span></span><span style="display:flex;"><span>    task_token_ttl <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;1h&#34;</span>
+</span></span><span style="display:flex;"><span>    create_from_role <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;nomad-cluster&#34;</span>
+</span></span><span style="display:flex;"><span>    token <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;some_token_here&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The initial token is generated by the <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/master/server.sh"><code>./server.sh</code></a> script - how you go about doing this in production will vary greatly depending on how you are managing your machines.</p>
+<p>The <strong>Nomad Clients</strong> also need the Vault integration enabling, but in their case, it only needs the location of Vault, as the Server node(s) will provide tokens for the clients to use.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>vault {
+</span></span><span style="display:flex;"><span>    enabled <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    address <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http://nomad1.mshome.net:8200&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="job-requirements">Job Requirements</h2>
+<p>Before we go about changing the job itself, we need to write some data into Vault for the job to use:</p>
+<ul>
+<li>Credentials: Username and password for the RabbitMQ Management UI, and the <code>RABBITMQ_ERLANG_COOKIE</code></li>
+<li>A policy for the job allowing Certificate Generation and Credentials access</li>
+</ul>
+<h3 id="credentials">Credentials</h3>
+<p>First off, we need to create a username and password to use with the Management UI.  This can be done via the Vault CLI:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault kv put secret/rabbit/admin <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    username<span style="color:#f92672">=</span>administrator <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    password<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>cat /proc/sys/kernel/random/uuid<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>For the Erlang Cookie, we will also generate a Guid, but this time we will store it under a separate path in Vault so that it can be locked down separately to the admin username and password if needed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault kv put secret/rabbit/cookie <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    cookie<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>cat /proc/sys/kernel/random/uuid<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><h3 id="job-policy">Job Policy</h3>
+<p>Following the principle of <a href="https://en.wikipedia.org/wiki/Principle_of_least_privilege">Least Privilege</a>, we will create a policy for our <code>rabbit</code> job which only allows certificates to be generated, and rabbit credentials to be read.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>path <span style="color:#e6db74">&#34;pki/issue/rabbit&#34;</span> {
+</span></span><span style="display:flex;"><span>  capabilities <span style="color:#f92672">=</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;create&#34;</span>, <span style="color:#e6db74">&#34;read&#34;</span>, <span style="color:#e6db74">&#34;update&#34;</span>, <span style="color:#e6db74">&#34;delete&#34;</span>, <span style="color:#e6db74">&#34;list&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>path <span style="color:#e6db74">&#34;secret/data/rabbit/*&#34;</span> {
+</span></span><span style="display:flex;"><span>  capabilities <span style="color:#f92672">=</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;read&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This is written into Vault in the same way as the other policies were:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vault policy write rabbit /vagrant/vault/rabbit-policy.hcl
+</span></span></code></pre></div><h2 id="rabbit-job-configuration">Rabbit Job Configuration</h2>
+<p>The first thing we need to do to the job is specify what policies we want to use with Vault, and what to do when a token or credential expires:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>task <span style="color:#e6db74">&#34;rabbit&#34;</span> {
+</span></span><span style="display:flex;"><span>  driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;docker&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  vault {
+</span></span><span style="display:flex;"><span>    policies <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;default&#34;</span>, <span style="color:#e6db74">&#34;rabbit&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>    change_mode <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;restart&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">#...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="certificates">Certificates</h3>
+<p>To configure RabbitMQ to use SSL, we need to provide it with values for 3 environment variables:</p>
+<ul>
+<li><code>RABBITMQ_SSL_CACERTFILE</code> - The CA certificate</li>
+<li><code>RABBITMQ_SSL_CERTFILE</code> - The Certificate for RabbitMQ to use</li>
+<li><code>RABBITMQ_SSL_KEYFILE</code> - the PrivateKey for the RabbitMQ certificate</li>
+</ul>
+<p>So let&rsquo;s add a <code>template</code> block to the job to generate and write out a certificate.  It&rsquo;s worth noting that <strong>line endings matter</strong>.  You either need your <code>.nomad</code> file to use LF line endings, or make the <code>template</code> a single line and use <code>\n</code> to add the correct line endings in.  I prefer to have the file with LF line endings.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>template <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  data <span style="color:#f92672">=</span> <span style="color:#e6db74">&lt;&lt;EOH
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">{{ $host := printf &#34;common_name=%s.mshome.net&#34; (env &#34;attr.unique.hostname&#34;) }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">{{ with secret &#34;pki/issue/rabbit&#34; $host &#34;format=pem&#34; }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">{{ .Data.certificate }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">{{ .Data.private_key }}{{ end }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOH</span>
+</span></span><span style="display:flex;"><span>  destination <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;secrets/rabbit.pem&#34;</span>
+</span></span><span style="display:flex;"><span>  change_mode <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;restart&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>As we want to use the Nomad node&rsquo;s hostname within the <code>common_name</code> parameter of the secret, we need to use a variable to fetch and format the value:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>{{ $host :<span style="color:#f92672">=</span> printf <span style="color:#e6db74">&#34;common_name=%s.mshome.net&#34;</span> (env <span style="color:#e6db74">&#34;attr.unique.hostname&#34;</span>) }}
+</span></span></code></pre></div><p>This can then be used by the <code>with secret</code> block to fetch a certificate for the current host:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>{{ with secret <span style="color:#e6db74">&#34;pki/issue/rabbit&#34;</span> $host <span style="color:#e6db74">&#34;format=pem&#34;</span> }}
+</span></span></code></pre></div><p>Now that we have a certificate in the <code>./secrets/</code> directory, we can add a couple of volume mounts to the container, and set the environment variables with the container paths to the certificates.  Note how the root certificate is coming from the <code>/vagrant</code> directory, not from Vault itself.  Depending on how you are provisioning your machines to trust your CA, you will have a different path here!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>config {
+</span></span><span style="display:flex;"><span>  image <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;pondidum/rabbitmq:consul&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># ...</span>
+</span></span><span style="display:flex;"><span>  volumes <span style="color:#f92672">=</span> <span style="color:#f92672">[</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/vagrant/vault/mshome.crt:/etc/ssl/certs/mshome.crt&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;secrets/rabbit.pem:/etc/ssl/certs/rabbit.pem&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;secrets/rabbit.pem:/tmp/rabbitmq-ssl/combined.pem&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>env {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">RABBITMQ_SSL_CACERTFILE</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/etc/ssl/certs/mshome.crt&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">RABBITMQ_SSL_CERTFILE</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/etc/ssl/certs/rabbit.pem&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">RABBITMQ_SSL_KEYFILE</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/etc/ssl/certs/rabbit.pem&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">#...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>You should also notice that we are writing the <code>secrets/rabbit.pem</code> file into the container twice:  The second write is to a file in <code>/tmp</code> as a workaround for the <code>docker-entrypoint.sh</code> script.  If we don&rsquo;t create this file ourselves, the container script will create it by combining the <code>RABBITMQ_SSL_CERTFILE</code> file and <code>RABBITMQ_SSL_KEYFILE</code> file, which will result in an invalid certificate, and a nightmare to figure out&hellip;</p>
+<p>If the Vault integration in Nomad could write a single generated secret to two separate files, we wouldn&rsquo;t need this workaround.  Alternatively, you could make a custom container with a customised startup script to deal with this for you.</p>
+<p>You can see the version of this file with <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/a588d7c2483c999b2fa0f47433403dfe1838fd50/rabbit/secure.nomad">only these changes here</a></p>
+<h3 id="credentials-1">Credentials</h3>
+<p>Now that we have things running with a certificate, it would be a great idea to start using the Erlang Cookie value and Management UI credentials we stored in Vault earlier.  This is a super easy change to support in the Nomad file - we need to add another <code>template</code> block, but this time set <code>env = true</code> which will instruct nomad that the key-values in the template should be loaded as environment variables:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>template <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    data <span style="color:#f92672">=</span> <span style="color:#e6db74">&lt;&lt;EOH
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    {{ with secret &#34;secret/data/rabbit/cookie&#34; }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    RABBITMQ_ERLANG_COOKIE=&#34;{{ .Data.data.cookie }}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    {{ end }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    {{ with secret &#34;secret/data/rabbit/admin&#34; }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    RABBITMQ_DEFAULT_USER={{ .Data.data.username }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    RABBITMQ_DEFAULT_PASS={{ .Data.data.password }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    {{ end }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOH</span>
+</span></span><span style="display:flex;"><span>    destination <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;secrets/rabbit.env&#34;</span>
+</span></span><span style="display:flex;"><span>    env <span style="color:#f92672">=</span> true
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>The complete nomad file with <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/a78736cac3a93a43a96cbe84492089fca29d15e1/rabbit/secure.nomad">both certificates and credentials can be seen here</a>.</p>
+<h2 id="running">Running!</h2>
+<p>Now, all we need to do is start our new secure cluster:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nomad job run rabbit/secure.nomad
+</span></span></code></pre></div><h2 id="client-libraries">Client Libraries</h2>
+<p>Now that you have a secure version of RabbitMQ running, there are some interesting things which can be done with the client libraries.  While you can just use the secure port, RabbitMQ also supports <a href="https://www.rabbitmq.com/ssl.html#peer-verification">Peer Verification</a>, which means that the client has to present a certificate for itself, and RabbitMQ will validate that both certificates are signed by a common CA.</p>
+<p>This process can be controlled with two environment variables:</p>
+<ul>
+<li><code>RABBITMQ_SSL_VERIFY</code> set to either <code>verify_peer</code> or <code>verify_none</code></li>
+<li><code>RABBITMQ_SSL_FAIL_IF_NO_PEER_CERT</code> set to <code>true</code> to require client certificates, <code>false</code> to make them optional</li>
+</ul>
+<p>In .net land, if you are using MassTransit, the configuration looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> bus = Bus.Factory.CreateUsingRabbitMq(c =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    c.UseSerilog(logger);
+</span></span><span style="display:flex;"><span>    c.Host(<span style="color:#e6db74">&#34;rabbitmq://nomad1.mshome.net:5671&#34;</span>, r =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        r.Username(<span style="color:#e6db74">&#34;some_application&#34;</span>);
+</span></span><span style="display:flex;"><span>        r.Password(<span style="color:#e6db74">&#34;some_password&#34;</span>);
+</span></span><span style="display:flex;"><span>        r.UseSsl(ssl =&gt;
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            ssl.CertificatePath = <span style="color:#e6db74">@&#34;secrets/app.crt&#34;</span>;
+</span></span><span style="display:flex;"><span>        });
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>There are also lots of other interesting things you can do with SSL and RabbitMQ, such as using the certificate as authentication rather than needing a username and password per app.  But you should be generating your app credentials dynamically with Vault too&hellip;</p>
+<h1 id="wrapping-up">Wrapping Up</h1>
+<p>Finding all the small parts to make this work was quite a challenge.  The <a href="https://gitter.im/hashicorp-nomad/Lobby">Nomad gitter</a> was useful when trying to figure out the certificates issue, and being able to read the <a href="https://github.com/docker-library/rabbitmq/blob/4b2b11c59ee65c2a09616b163d4572559a86bb7b/3.7/alpine/docker-entrypoint.sh#L363">source code</a> of the Docker image for RabbitMQ was invaluable to making the Certificate work.</p>
+<p>If anyone sees anything I&rsquo;ve done wrong, or could be improved, I&rsquo;m happy to hear it!</p>
+]]></content:encoded></item><item><title>RabbitMQ clustering with Consul in Nomad</title><link>https://andydote.co.uk/2019/01/28/nomad-rabbitmq-consul-cluster/</link><pubDate>Mon, 28 Jan 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/01/28/nomad-rabbitmq-consul-cluster/</guid><description>Update If you want a secure version of this cluster, see Running a Secure RabbitMQ Cluster in Nomad.
+RabbitMQ is the centre of a lot of micros service architectures, and while you can cluster it manually, it is a lot easier to use some of the auto clustering plugins, such as AWS (EC2), Consul, Etcd, or Kubernetes. As I like to use Nomad for container orchestration, I thought it would be a good idea to show how to cluster RabbitMQ when it is running in a Docker container, on an unknown host (i.</description><content:encoded><![CDATA[<p><strong>Update</strong> If you want a secure version of this cluster, see <a href="/2019/04/06/nomad-rabbitmq-secure/">Running a Secure RabbitMQ Cluster in Nomad</a>.</p>
+<p>RabbitMQ is the centre of a lot of micros service architectures, and while you can cluster it manually, it is a lot easier to use some of the <a href="https://www.rabbitmq.com/clustering.html#cluster-formation-options">auto clustering plugins</a>, such as AWS (EC2), Consul, Etcd, or Kubernetes. As I like to use <a href="https://www.nomadproject.io/">Nomad</a> for container orchestration, I thought it would be a good idea to show how to cluster RabbitMQ when it is running in a Docker container, on an unknown host (i.e. one picked by Nomad.)</p>
+<p>I ran into a few problems trying to get this working, but a lot of searching and some help from the <a href="https://groups.google.com/forum/#!forum/rabbitmq-users">RabbitMQ mailing list</a> (thanks Luke!) got me through all the issues, so hopefully, this will be easier next time and for other people too.</p>
+<p>It is also worth noting that this is only going to be covering how to make a cluster work, not how to make it secure (setting up TLS etc.) for production usage.  There is a lot of <a href="https://www.rabbitmq.com/production-checklist.html#security-considerations">documentation on the RabbitMQ website</a> for further reading on this!</p>
+<p>The full repository with all of the <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo">demo code is available on my Github</a>.</p>
+<h2 id="nomad-cluster">Nomad Cluster</h2>
+<p>As this post is mostly about running RabbitMQ on Nomad, and not setting up Nomad, I&rsquo;ll give the basics here - the full scripts are in the repository, and linked below too.</p>
+<p>Vagrant is used to create us a three node cluster.  As I use Hyper-V for VMs, I can&rsquo;t set static IPs from the Vagrant file, so I have used another Vagrant feature: triggers.</p>
+<p>Triggers let us specify scripts to run after Vagrant actions, so in this case, we run a script after machine1 comes up which writes out it&rsquo;s IP to the <code>/vagrant</code> share.  The other machines can then read this same file to join the cluster:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#ae81ff">2</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;bento/ubuntu-16.04&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./provision.sh&#34;</span>, <span style="color:#e6db74">privileged</span>: <span style="color:#66d9ef">false</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;n1&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>n1<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    n1<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./server.sh&#34;</span>, <span style="color:#e6db74">privileged</span>: <span style="color:#66d9ef">false</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    n1<span style="color:#f92672">.</span>trigger<span style="color:#f92672">.</span>after <span style="color:#e6db74">:up</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>trigger<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>      trigger<span style="color:#f92672">.</span>run_remote <span style="color:#f92672">=</span> { <span style="color:#e6db74">inline</span>: <span style="color:#e6db74">&#34;ip route get 1 | awk &#39;{print $NF;exit}&#39; &gt; /vagrant/server_ip&#34;</span> }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;n2&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>n2<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    n2<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;nomad2&#34;</span>
+</span></span><span style="display:flex;"><span>    n2<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./client.sh&#34;</span>, <span style="color:#e6db74">privileged</span>: <span style="color:#66d9ef">false</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>The <code>provision.sh</code> script downloads and installs both Consul and Nomad, and then the respective <code>server.sh</code> and <code>client.sh</code> scripts set up both services in the right ways.  The server machine also acts as a Nomad client, so that we don&rsquo;t need 4 VMs running.</p>
+<p><a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/master/vagrantfile">VagrantFile</a>, <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/master/provision.sh">provision.sh</a>, <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/master/server.sh">server.sh</a>, <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/master/client.sh">client.sh</a></p>
+<p>All that remains to be done is <code>vagrant up</code>&hellip;and wait.  But while we&rsquo;re waiting for the machines to provision, let&rsquo;s have a look at RabbitMQ clustering, and how we&rsquo;ll define the job in Nomad.</p>
+<h2 id="rabbitmq-cluster">RabbitMQ Cluster</h2>
+<p>A few things to note about clustering RabbitMQ:</p>
+<ul>
+<li>All nodes must be listening on the same port for clustering (<code>4369</code> by default)</li>
+<li>The <code>ERL_EPMD_PORT</code> variable doesn&rsquo;t work on <code>rabbitmq &lt; 3.7.9</code></li>
+<li>The latest Docker image for rabbitmq is <code>3.7.8</code></li>
+<li>The rabbit node names must be DNS resolvable</li>
+<li>The <code>RABBITMQ_ERLANG_COOKIE</code> must have the same value</li>
+</ul>
+<p>The <code>rabbitmq_peer_discovery_consul</code> plugin we will use is shipped with RabbitMQ by default but is disabled.  The easiest way to get everything up and running is to create your own docker container, with the plugin enabled, and a small configuration file to set a few options:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>FROM rabbitmq<span style="color:#960050;background-color:#1e0010">:</span>management-alpine
+</span></span><span style="display:flex;"><span>COPY rabbitmq.conf <span style="color:#960050;background-color:#1e0010">/</span>etc<span style="color:#960050;background-color:#1e0010">/</span>rabbitmq
+</span></span><span style="display:flex;"><span>RUN rabbitmq-plugins enable --offline rabbitmq_peer_discovery_consul
+</span></span></code></pre></div><p>The <code>rabbitmq.conf</code> only needs a few lines:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>cluster_formation.peer_discovery_backend <span style="color:#f92672">=</span> rabbit_peer_discovery_consul
+</span></span><span style="display:flex;"><span>cluster_formation.consul.svc_addr_auto <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build -t rabbitmq:consul .
+</span></span></code></pre></div><p>An image built from this is also available on <a href="https://hub.docker.com/r/pondidum/rabbitmq">docker hub</a>.</p>
+<p>Once we have a custom container built, it&rsquo;s a good idea to test that it actually works, before we start trying to get Nomad to run it.  We&rsquo;ll do this by creating a network in Docker so that all the containers can talk directly to each other on their pre-defined ports.  Don&rsquo;t forget to change <code>CONSUL_HOST</code> to your machine&rsquo;s IP address!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker network create rabbit
+</span></span><span style="display:flex;"><span>docker run -d --rm --name consul -p 8500:8500 consul
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker run -d --rm --name rabbit1 -h rabbit1 --network rabbit -p 30001:15672 -e RABBITMQ_ERLANG_COOKIE<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;rabbit&#39;</span> -e <span style="color:#e6db74">&#39;RABBITMQ_DEFAULT_USER=test&#39;</span> -e <span style="color:#e6db74">&#39;RABBITMQ_DEFAULT_PASS=test&#39;</span> -e CONSUL_HOST<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;10.0.75.1&#39;</span> rabbitmq:consul
+</span></span><span style="display:flex;"><span>docker run -d --rm --name rabbit2 -h rabbit2 --network rabbit -p 30002:15672 -e RABBITMQ_ERLANG_COOKIE<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;rabbit&#39;</span> -e <span style="color:#e6db74">&#39;RABBITMQ_DEFAULT_USER=test&#39;</span> -e <span style="color:#e6db74">&#39;RABBITMQ_DEFAULT_PASS=test&#39;</span> -e CONSUL_HOST<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;10.0.75.1&#39;</span> rabbitmq:consul
+</span></span><span style="display:flex;"><span>docker run -d --rm --name rabbit3 -h rabbit3 --network rabbit -p 30003:15672 -e RABBITMQ_ERLANG_COOKIE<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;rabbit&#39;</span> -e <span style="color:#e6db74">&#39;RABBITMQ_DEFAULT_USER=test&#39;</span> -e <span style="color:#e6db74">&#39;RABBITMQ_DEFAULT_PASS=test&#39;</span> -e CONSUL_HOST<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;10.0.75.1&#39;</span> rabbitmq:consul
+</span></span></code></pre></div><p>You can now visit <code>http://localhost:30001</code> (or <code>30002</code> or <code>30003</code>) and see that we have a successful cluster running.  Once you&rsquo;re happy with it, you can kill it all off (as we started the containers with the <code>--rm</code> flag, Docker will delete them for us when they stop):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker stop rabbit1 rabbit2 rabbit3 consul
+</span></span><span style="display:flex;"><span>docker network rm rabbit
+</span></span></code></pre></div><h2 id="nomad-rabbit-job">Nomad Rabbit Job</h2>
+<p>Now that we know our container clusters successfully, we can create a Job definition to do the same thing in Nomad.  Nomad jobs are defined in HCL, a Json-like configuration language.</p>
+<p>The jobs require a name, which datacentre it should run in, and what kind of job type it is.  In this case, our job is called <code>rabbit</code> (imaginative I know), we&rsquo;ll run it in <code>dc1</code> (the default value Nomad starts with), and we&rsquo;ll make this job be a <code>service</code>, as opposed to a <code>batch</code> or <code>system</code> job:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>job <span style="color:#e6db74">&#34;rabbit&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  datacenters <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;dc1&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>  type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;service&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  group <span style="color:#e6db74">&#34;cluster&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># tasks ...</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>The <code>group</code> is used to hold a collection of <code>task</code>s, and when allocating a job, Nomad will make sure that all tasks belonging to an instance of a group are on the same node.</p>
+<p>So for example, if you had a 2 node Nomad cluster, and 3 instances of a group which contained 3 tasks (e.g. API, varnish, and nginx containers), Nomad might distribute the groups like so:</p>
+<p><img loading="lazy" src="nomad-allocation.png" alt="image of several nodes with groups of containers"  />
+</p>
+<p>Within the group, we can specify the number of instances we want with the <code>count</code> property, and we also specify that for both updates and migrations, only one group can be changed at a time.  This means that if you decide to upgrade the container used by the job, Nomad won&rsquo;t stop all instances at once, destroying your service&rsquo;s availability!</p>
+<p>We also specify that we want to use the health checks (defined later on) rather than the state of the task itself to determine what is healthy, and how long the task must be healthy for before we decide it&rsquo;s actually healthy, and how long it has to achieve being healthy.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>group <span style="color:#e6db74">&#34;cluster&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  count <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  update <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    max_parallel <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  migrate <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    max_parallel <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>    health_check <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;checks&#34;</span>
+</span></span><span style="display:flex;"><span>    min_healthy_time <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;5s&#34;</span>
+</span></span><span style="display:flex;"><span>    healthy_deadline <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;30s&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>The <code>task</code> is our unit of work in Nomad.  In this case, we are using the <code>docker</code> driver, but it also <a href="https://www.nomadproject.io/docs/drivers/index.html">supports many other drivers</a> including <code>exec</code>, <code>rkt</code> and <code>lxc</code>.  We configure which image to use, and importantly that the <code>hostname</code> is the name from Nomad!</p>
+<p>The <code>port_map</code> tells nomad which ports of the container we want to expose, and labels them.  We can then refer to the ports by their labels in other parts of the configuration.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>task <span style="color:#e6db74">&#34;rabbit&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;docker&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    image <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;pondidum/rabbitmq:consul&#34;</span>
+</span></span><span style="display:flex;"><span>    hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>attr.unique.hostname<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>    port_map <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      amqp <span style="color:#f92672">=</span> <span style="color:#ae81ff">5672</span>
+</span></span><span style="display:flex;"><span>      ui <span style="color:#f92672">=</span> <span style="color:#ae81ff">15672</span>
+</span></span><span style="display:flex;"><span>      epmd <span style="color:#f92672">=</span> <span style="color:#ae81ff">4369</span>
+</span></span><span style="display:flex;"><span>      clustering <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>The <code>env</code> section is pretty self-explanatory; they are environment variables to pass to the container.  As Consul is running on the Nomad host, we use the Nomad interpolation attribute to specify the IP of the current host, and we also set the <code>RABBITMQ_ERLANG_COOKIE</code> to a specific value.  In a production environment, you should be setting this value to something unguessable, possibly using the <a href="https://www.nomadproject.io/docs/job-specification/vault.html">Vault intergration</a> in Nomad to fetch a token.  We can also add other settings to pass to the container here, such as <code>RABBITMQ_DEFAULT_USER</code> and <code>RABBITMQ_DEFAULT_PASS</code>.  As with the cookie generation, in a production-like environment, you&rsquo;d probably want to use the Vault integration to pull the values for these variables.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>env <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  RABBITMQ_ERLANG_COOKIE <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;rabbitmq&#34;</span>
+</span></span><span style="display:flex;"><span>  CONSUL_HOST <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>attr.unique.network.ip-address<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>The <code>resources</code> section lets us constraints on things like CPU, Memory, IOPs, and Network.  In our case, we are only specifying a set of ports to expose on the network, and that we want them to be bound to specific ports on the host:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>resources <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  network <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    port <span style="color:#e6db74">&#34;amqp&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">5672</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>    port <span style="color:#e6db74">&#34;ui&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">15672</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>    port <span style="color:#e6db74">&#34;epmd&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">4369</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>    port <span style="color:#e6db74">&#34;clustering&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">25672</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>We could select different ports to bind the container ports to, or leave out the <code>static</code> pair entirely to have Nomad map the ports to random unused ports on the host.</p>
+<p>Finally, the <code>service</code> block integrates with service discovery (so, Consul), and allows us to register ports and health checks for our service.  In the case of our RabbitMQ cluster, we already have service discovery integration via the RabbitMQ Consul plugin, so this registration is only used for the <code>check</code> feature, which is what will also be used by the <code>migrate</code> block to see if a task is healthy:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>service <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  check <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    name     <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;alive&#34;</span>
+</span></span><span style="display:flex;"><span>    type     <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;tcp&#34;</span>
+</span></span><span style="display:flex;"><span>    port     <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;ui&#34;</span>
+</span></span><span style="display:flex;"><span>    interval <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;10s&#34;</span>
+</span></span><span style="display:flex;"><span>    timeout  <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;2s&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>The check is using the <code>ui</code> port defined earlier to check if the UI is alive.  We could also change the health check to use the <code>amqp</code> port instead, as that might be a better indication that the actual service can do useful things.  We can define multiple checks, and are not limited to TCP; <code>grpc</code>, <code>http</code>, and <code>script</code> are also supported.</p>
+<p>The entire job definition is below, and is <a href="https://github.com/Pondidum/Nomad-RabbitMQ-Demo/blob/master/rabbit/rabbit.nomad">also available in the repository</a>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>job <span style="color:#e6db74">&#34;rabbit&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  datacenters <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;dc1&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>  type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;service&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  group <span style="color:#e6db74">&#34;cluster&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    count <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    update <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      max_parallel <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    migrate <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      max_parallel <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>      health_check <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;checks&#34;</span>
+</span></span><span style="display:flex;"><span>      min_healthy_time <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;5s&#34;</span>
+</span></span><span style="display:flex;"><span>      healthy_deadline <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;30s&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    task <span style="color:#e6db74">&#34;rabbit&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;docker&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      config <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>        image <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;pondidum/rabbitmq:consul&#34;</span>
+</span></span><span style="display:flex;"><span>        hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>attr.unique.hostname<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>        port_map <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>          amqp <span style="color:#f92672">=</span> <span style="color:#ae81ff">5672</span>
+</span></span><span style="display:flex;"><span>          ui <span style="color:#f92672">=</span> <span style="color:#ae81ff">15672</span>
+</span></span><span style="display:flex;"><span>          epmd <span style="color:#f92672">=</span> <span style="color:#ae81ff">4369</span>
+</span></span><span style="display:flex;"><span>          clustering <span style="color:#f92672">=</span> <span style="color:#ae81ff">25672</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      env <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>        RABBITMQ_ERLANG_COOKIE <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;generate_a_guid_-_or_something_for_this&#34;</span>
+</span></span><span style="display:flex;"><span>        RABBITMQ_DEFAULT_USER <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;test&#34;</span>
+</span></span><span style="display:flex;"><span>        RABBITMQ_DEFAULT_PASS <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;test&#34;</span>
+</span></span><span style="display:flex;"><span>        CONSUL_HOST <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>attr.unique.network.ip-address<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      resources <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>        network <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>          port <span style="color:#e6db74">&#34;amqp&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">5672</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>          port <span style="color:#e6db74">&#34;ui&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">15672</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>          port <span style="color:#e6db74">&#34;epmd&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">4369</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>          port <span style="color:#e6db74">&#34;clustering&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">25672</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      service <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>        name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;rabbitmq&#34;</span>
+</span></span><span style="display:flex;"><span>        port <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;ui&#34;</span>
+</span></span><span style="display:flex;"><span>        check <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>          name     <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;alive&#34;</span>
+</span></span><span style="display:flex;"><span>          type     <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;tcp&#34;</span>
+</span></span><span style="display:flex;"><span>          interval <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;10s&#34;</span>
+</span></span><span style="display:flex;"><span>          timeout  <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;2s&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><h2 id="running-the-job">Running The Job</h2>
+<p>First, make sure your console can talk to Nomad, which we can do by using the <code>server_ip</code> file again:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>export NOMAD_ADDR<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;http://</span><span style="color:#66d9ef">$(</span>cat server_ip<span style="color:#66d9ef">)</span><span style="color:#e6db74">:4646&#34;</span>
+</span></span></code></pre></div><p>Now it should be possible to run the job:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nomad job run rabbit/rabbit.nomad
+</span></span></code></pre></div><p>After a few moments, we can visit any of the Nomad hosts, and log in to the RabbitMQ UI (<code>http://SOME_SERVER_IP:15672</code>) and you should be greeted with a running cluster with three nodes:</p>
+<p><img loading="lazy" src="rabbitmq-cluster.png" alt="rabbitmq cluster dashboard"  />
+</p>
+<h2 id="homework">Homework</h2>
+<ul>
+<li>Kill a container on one of the nodes and see what happens (<code>vagrant ssh n2</code> then <code>docker stop &lt;SOME_CONTAINER_ID&gt;</code>)</li>
+<li>Create an Application which you deploy to Nomad which uses service discovery to talk to RabbitMQ</li>
+<li>Create some more Nomad clients, and try making a bigger RabbitMQ cluster</li>
+</ul>
+<p>If you have any questions, feel free to comment below or <a href="https://twitter.com/pondidum">send me a tweet</a>.</p>
+]]></content:encoded></item><item><title>Testing RabbitMQ Concurrency in MassTransit</title><link>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</link><pubDate>Wed, 11 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</guid><description>We have a service which consumes messages from a RabbitMQ queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api. One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.</description><content:encoded><![CDATA[<p>We have a service which consumes messages from a <a href="http://www.rabbitmq.com/">RabbitMQ</a> queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api.  One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.)</p>
+<p>Processing this spike of messages takes ages, and while this service is only on a <code>T2.Medium</code> machine (2 CPUs, 4GB Memory), it only uses 5-10% CPU while processing the messages, which is clearly pretty inefficient.</p>
+<p>We use <a href="http://masstransit-project.com/">MassTransit</a> when interacting with RabbitMQ as it provides us with a lot of useful features, but by default sets the amount of messages to be processed in parallel to <code>Environment.ProcessorCount * 2</code>.  For this project that means 4 messages, and as the process is IO bound, it stands to reason that we could increase that concurrency a bit. Or a lot.</p>
+<p>The existing MassTransit setup looks pretty similar to this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_bus = Bus.Factory.CreateUsingRabbitMq(rabbit =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> host = rabbit.Host(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;rabbitmq://localhost&#34;</span>), h =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        h.Username(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>        h.Password(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rabbit.ReceiveEndpoint(host, <span style="color:#e6db74">&#34;SpikyQueue&#34;</span>, endpoint =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        endpoint.Consumer(() =&gt; <span style="color:#66d9ef">new</span> TestConsumer());
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><h2 id="the-test-driven-development">The Test (Driven Development)</h2>
+<p>As we like testing things, I wrote a test to validate the degree of concurrency we have.  We use a real instance of RabbitMQ (<a href="/2017/10/02/dotnet-core-docker-integration-tests/">Started with Docker, as part of the build</a>), and have a test message and consumer.  Due to the speed of RabbitMQ delivery, we make the consumer just take a little bit of time before returning:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TestMessage</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> Value { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TestConsumer</span> : IConsumer&lt;TestMessage&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Consume(ConsumeContext&lt;TestMessage&gt; context)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Task.Delay(<span style="color:#ae81ff">600</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The final piece of our puzzle is an <code>IConsumeObserver</code>, which will count the number of messages processed in parallel, as well as the total number of messages processed.  We will use the total number of messages to know when our test can stop running, and the parallel number to prove if our concurrency changes worked.</p>
+<p>What this observer is doing is the following, but as we are in a multithreaded environment, we need to use the <code>Interlocked</code> class, and do a bit more work to make sure we don&rsquo;t lose values:</p>
+<pre tabindex="0"><code>PreConsume:
+    currentPendingDeliveryCount++
+    maxPendingDeliveryCount = Math.Max(maxPendingDeliveryCount, currentPendingDeliveryCount)
+PostConsume:
+    currentPendingDeliveryCount--
+</code></pre><p>The actual <code>ConsumeCountObserver</code> code is as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ConsumeCountObserver</span> : IConsumeObserver
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> _deliveryCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> _currentPendingDeliveryCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> _maxPendingDeliveryCount;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">readonly</span> <span style="color:#66d9ef">int</span> _messageCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">readonly</span> TaskCompletionSource&lt;<span style="color:#66d9ef">bool</span>&gt; _complete;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ConsumeCountObserver(<span style="color:#66d9ef">int</span> messageCount)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _messageCount = messageCount;
+</span></span><span style="display:flex;"><span>        _complete = <span style="color:#66d9ef">new</span> TaskCompletionSource&lt;<span style="color:#66d9ef">bool</span>&gt;();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> MaxDeliveryCount =&gt; _maxPendingDeliveryCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Wait() =&gt; <span style="color:#66d9ef">await</span> _complete.Task;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Task IConsumeObserver.ConsumeFault&lt;T&gt;(ConsumeContext&lt;T&gt; context, Exception exception) =&gt; Task.CompletedTask;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Task IConsumeObserver.PreConsume&lt;T&gt;(ConsumeContext&lt;T&gt; context)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Interlocked.Increment(<span style="color:#66d9ef">ref</span> _deliveryCount);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> current = Interlocked.Increment(<span style="color:#66d9ef">ref</span> _currentPendingDeliveryCount);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">while</span> (current &gt; _maxPendingDeliveryCount)
+</span></span><span style="display:flex;"><span>            Interlocked.CompareExchange(<span style="color:#66d9ef">ref</span> _maxPendingDeliveryCount, current, _maxPendingDeliveryCount);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Task.CompletedTask;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Task IConsumeObserver.PostConsume&lt;T&gt;(ConsumeContext&lt;T&gt; context)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Interlocked.Decrement(<span style="color:#66d9ef">ref</span> _currentPendingDeliveryCount);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (_deliveryCount == _messageCount)
+</span></span><span style="display:flex;"><span>            _complete.TrySetResult(<span style="color:#66d9ef">true</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Task.CompletedTask;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Finally, we can put the actual test together:  We publish some messages, connect the observer, and start processing.  Finally, when the observer indicates we have finished, we assert that the <code>MaxDeliveryCount</code> was the same as the <code>ConcurrencyLimit</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Test]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task WhenTestingSomething()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">var</span> i = <span style="color:#ae81ff">0</span>; i &lt; MessageCount; i++)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> _bus.Publish(<span style="color:#66d9ef">new</span> TestMessage { Value = i });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> observer = <span style="color:#66d9ef">new</span> ConsumeCountObserver(MessageCount);
+</span></span><span style="display:flex;"><span>    _bus.ConnectConsumeObserver(observer);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> _bus.StartAsync();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> observer.Wait();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> _bus.StopAsync();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    observer.MaxDeliveryCount.ShouldBe(ConcurrencyLimit);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="the-problem">The Problem</h2>
+<p>The problem we had was actually increasing the concurrency:  There are two things you can change, <code>.UseConcurrencyLimit(32)</code> and <code>.PrefetchCount = 32</code>, but doing this doesn&rsquo;t work:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_bus = Bus.Factory.CreateUsingRabbitMq(rabbit =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> host = rabbit.Host(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;rabbitmq://localhost&#34;</span>), h =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        h.Username(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>        h.Password(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rabbit.ReceiveEndpoint(host, <span style="color:#e6db74">&#34;SpikeyQueue&#34;</span>, endpoint =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        endpoint.UseConcurrencyLimit(ConcurrencyLimit);
+</span></span><span style="display:flex;"><span>        endpoint.PrefetchCount = (<span style="color:#66d9ef">ushort</span>) ConcurrencyLimit;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        endpoint.Consumer(() =&gt; <span style="color:#66d9ef">new</span> TestConsumer());
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Or well&hellip;it does work, if the <code>ConcurrencyLimit</code> is <strong>less</strong> than the default.  After a lot of trial and error, it turns out there are not two things you can change, but four:</p>
+<ul>
+<li><code>rabbit.UseConcurrencyLimit(val)</code></li>
+<li><code>rabbit.PrefetchCount = val</code></li>
+<li><code>endpoint.UseConcurrencyLimit(val)</code></li>
+<li><code>endpoint.PrefetchCount = val</code></li>
+</ul>
+<p>This makes sense (kind of): You can set limits on the factory, and then the endpoints can be any value less than or equal to the factory limits.  My process of trial and error to work out which needed to be set:</p>
+<ol>
+<li>Set them all to 32</li>
+<li>Run test
+<ul>
+<li>if it passes, remove one setting, go to 2.</li>
+<li>if it fails, add last setting back, remove a different setting, go to 2.</li>
+</ul>
+</li>
+</ol>
+<p>After iterating this set of steps for a while, it turns out for my use case that I need to set <code>rabbit.UseConcurrencyLimit(val)</code> and <code>endpoint.PrefetchCount = val</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_bus = Bus.Factory.CreateUsingRabbitMq(rabbit =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> host = rabbit.Host(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;rabbitmq://localhost&#34;</span>), h =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        h.Username(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>        h.Password(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rabbit.UseConcurrencyLimit(ConcurrencyLimit);
+</span></span><span style="display:flex;"><span>    rabbit.ReceiveEndpoint(host, <span style="color:#e6db74">&#34;SpikeyQueue&#34;</span>, endpoint =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        endpoint.PrefetchCount = (<span style="color:#66d9ef">ushort</span>) ConcurrencyLimit;
+</span></span><span style="display:flex;"><span>        endpoint.Consumer(() =&gt; <span style="color:#66d9ef">new</span> TestConsumer());
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Interestingly, no matter which place you set the <code>PrefetchCount</code> value, it doesn&rsquo;t show up in the RabbitMQ web dashboard.</p>
+<p>Hope this might help someone else struggling with getting higher concurrency with MassTransit.</p>
+]]></content:encoded></item><item><title>Integration Testing with Dotnet Core, Docker and RabbitMQ</title><link>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</link><pubDate>Mon, 02 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</guid><description>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.
+For one of my libraries (RabbitHarness) I have a set of tests which check it behaves as expected against a real instance of RabbitMQ. Ideally these tests will always be run, but sometimes RabbitMQ just isn&amp;rsquo;t available such as when running on AppVeyor builds, or if I haven&amp;rsquo;t started my local RabbitMQ Docker container.</description><content:encoded><![CDATA[<p>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.</p>
+<p>For one of my libraries (<a href="https://github.com/pondidum/rabbitharness">RabbitHarness</a>) I have a set of tests which check it behaves as expected against a real instance of <a href="http://www.rabbitmq.com/">RabbitMQ</a>.  Ideally these tests will always be run, but sometimes RabbitMQ just isn&rsquo;t available such as when running on <a href="https://ci.appveyor.com/project/Pondidum/rabbitharness">AppVeyor</a> builds, or if I haven&rsquo;t started my local RabbitMQ Docker container.</p>
+<h2 id="skipping-tests-if-rabbitmq-is-not-available">Skipping tests if RabbitMQ is not available</h2>
+<p>First off, I prevent the tests from running if RabbitMQ is not available by using a custom <a href="https://xunit.github.io/">XUnit</a> <code>FactAttribute</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RequiresRabbitFactAttribute</span> : FactAttribute
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">readonly</span> Lazy&lt;<span style="color:#66d9ef">bool</span>&gt; IsAvailable = <span style="color:#66d9ef">new</span> Lazy&lt;<span style="color:#66d9ef">bool</span>&gt;(() =&gt;
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> factory = <span style="color:#66d9ef">new</span> ConnectionFactory { HostName = <span style="color:#e6db74">&#34;localhost&#34;</span>, RequestedConnectionTimeout = <span style="color:#ae81ff">1000</span> };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = factory.CreateConnection())
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> connection.IsOpen;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">catch</span> (Exception)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">false</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">string</span> Skip
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> IsAvailable.Value ? <span style="color:#e6db74">&#34;&#34;</span> : <span style="color:#e6db74">&#34;RabbitMQ is not available&#34;</span>;  }
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">set</span> { <span style="color:#75715e">/* nothing */</span> }
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This attribute will try connecting to a RabbitMQ instance on <code>localhost</code> once for all tests per run, and cause any test with this attribute to be skipped if RabbitMQ is not available.</p>
+<h2 id="build-script--docker">Build Script &amp; Docker</h2>
+<p>I decided the build script should start a RabbitMQ container, and use that for the tests, but I didn&rsquo;t want to re-use my standard RabbitMQ instance which I use for all kinds of things, and may well be broken at any given time.</p>
+<p>As my build script is just a <code>bash</code> script, I can check if the <code>docker</code> command is available, and then start a container if it is (relying on the assumption that if <code>docker</code> is available, I can start a container).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -x <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>command -v docker<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  CONTAINER<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>docker run -d --rm -p 5672:5672 rabbitmq:3.6.11-alpine<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Started RabbitMQ container: </span>$CONTAINER<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>If <code>docker</code> is available, we start a new container.  I use <code>rabbitmq:3.6.11-alpine</code> as it is a tiny image, with no frills, and also start it with the <code>-d</code> and <code>--rm</code> flags, which starts the container in a disconnected mode (e.g. the <code>docker run</code> command returns instantly), and will delete the container when it is stopped, taking care of clean up for us! I only bother binding the main data connection port (<code>5672</code>), as that is all we are going to be using. Finally, the container&rsquo;s ID, which is returned by the <code>docker run</code> command, is stored in the <code>CONTAINER</code> variable.</p>
+<p>I recommend putting this step as the very first part of your build script, as it gives the container time to start up RabbitMQ and be ready for connections while your build is running.  Otherwise I found I was needing to put a <code>sleep 5</code> command in afterwards to pause the script for a short time.</p>
+<p>The script then continues on with the normal build process:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>dotnet restore <span style="color:#e6db74">&#34;</span>$NAME<span style="color:#e6db74">.sln&#34;</span>
+</span></span><span style="display:flex;"><span>dotnet build <span style="color:#e6db74">&#34;</span>$NAME<span style="color:#e6db74">.sln&#34;</span> --configuration $MODE
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>find . -iname <span style="color:#e6db74">&#34;*.Tests.csproj&#34;</span> -type f -exec dotnet test <span style="color:#e6db74">&#34;{}&#34;</span> --configuration $MODE <span style="color:#ae81ff">\;</span>
+</span></span><span style="display:flex;"><span>dotnet pack ./src/$NAME --configuration $MODE --output ../../.build
+</span></span></code></pre></div><p>Once this is all done, I have another check that <code>docker</code> exists, and stop the container we started earlier, by using the container ID in <code>CONTAINER</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -x <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>command -v docker<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  docker stop $CONTAINER
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>And that&rsquo;s it!  You can see the full <a href="https://github.com/Pondidum/RabbitHarness/blob/master/build.sh">build script for RabbitHarness here</a>.</p>
+<p>The only problem with this script is if you try and start a RabbitMQ container while you already have one running, the command will fail, but the build should succeed anyway as the running instance of RabbitMQ will work for the tests, and the <code>docker stop</code> command will just output that it can&rsquo;t find a container with a blank ID.</p>
+<p>I think I will be using this technique more to help provide isolation for builds - I think that the <a href="https://hub.docker.com/r/microsoft/mssql-server-linux/">Microsoft/mssql-server-linux</a> containers might be very useful for some of our work codebases (which do work against the Linux instances of MSSQL, even if they weren&rsquo;t designed to!)</p>
+]]></content:encoded></item><item><title>RabbitMQ integration tests in XUnit</title><link>https://andydote.co.uk/2016/03/18/rabbitmq-xunit/</link><pubDate>Fri, 18 Mar 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/03/18/rabbitmq-xunit/</guid><description>Quite a number of my projects involve talking to RabbitMQ, and to help check things work as expected, I often have a number of integration tests which talk to a local RabbitMQ instance.
+While this is fine for tests being run locally, it does cause problems with the build servers - we don&amp;rsquo;t want to install RabbitMQ on there, and we don&amp;rsquo;t typically want the build to be dependent on RabbitMQ.</description><content:encoded><![CDATA[<p>Quite a number of my projects involve talking to <a href="https://rabbitmq.com">RabbitMQ</a>, and to help check things work as expected, I often have a number of integration tests which talk to a local RabbitMQ instance.</p>
+<p>While this is fine for tests being run locally, it does cause problems with the build servers - we don&rsquo;t want to install RabbitMQ on there, and we don&rsquo;t typically want the build to be dependent on RabbitMQ.</p>
+<p>To solve this I created a replacement <code>FactAttribute</code> which can check if RabbitMQ is available, and skip tests if it is not.</p>
+<p>This attribute works with a single host, and will only check for the host actually being there on its first connection.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RequiresRabbitFactAttribute</span> : FactAttribute
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">bool?</span> _isAvailable;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">public</span> RequiresRabbitFactAttribute(<span style="color:#66d9ef">string</span> host)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (_isAvailable.HasValue == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>      _isAvailable = CheckHost(host);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (_isAvailable == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>      Skip = <span style="color:#e6db74">$&#34;RabbitMQ is not available on {host}.&#34;</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">bool</span> CheckHost(<span style="color:#66d9ef">string</span> host)
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> factory = <span style="color:#66d9ef">new</span> ConnectionFactory
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      HostName = host,
+</span></span><span style="display:flex;"><span>      RequestedConnectionTimeout = <span style="color:#ae81ff">1000</span>;
+</span></span><span style="display:flex;"><span>    };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = factory.CreateConnection())
+</span></span><span style="display:flex;"><span>      {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> connection.IsOpen;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">catch</span> (Exception)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">false</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>I was planning on using a dictionary, keyed by host to store the availability, but realized that I always use the same host throughout a test suite.</p>
+<p>The reason for passing the host name in via the ctor rather than using a constant is that this usually resides within a generic &ldquo;rabbitmq helpers&rdquo; type assembly, and is used in multiple projects.</p>
+]]></content:encoded></item></channel></rss>

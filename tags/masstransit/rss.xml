@@ -1,1 +1,150 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>masstransit on Andy Dote</title><link>https://andydote.co.uk/tags/masstransit/</link><description>Recent content in masstransit on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Wed, 11 Oct 2017 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/masstransit/rss.xml" rel="self" type="application/rss+xml"/><item><title>Testing RabbitMQ Concurrency in MassTransit</title><link>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</link><pubDate>Wed, 11 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</guid><description>We have a service which consumes messages from a RabbitMQ queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api. One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.</description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>masstransit on Andy Dote</title><link>https://andydote.co.uk/tags/masstransit/</link><description>Recent content in masstransit on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Wed, 11 Oct 2017 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/masstransit/rss.xml" rel="self" type="application/rss+xml"/><item><title>Testing RabbitMQ Concurrency in MassTransit</title><link>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</link><pubDate>Wed, 11 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/11/masstransit-rabbitmq-concurrency-testing/</guid><description>We have a service which consumes messages from a RabbitMQ queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api. One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.</description><content:encoded><![CDATA[<p>We have a service which consumes messages from a <a href="http://www.rabbitmq.com/">RabbitMQ</a> queue - for each message, it makes a few http calls, collates the results, does a little processing, and then pushes the results to a 3rd party api.  One of the main benefits to having this behind a queue is our usage pattern - the queue usually only has a few messages in it per second, but periodically it will get a million or so messages within 30 minutes (so from ~5 messages/second to ~560 messages/second.)</p>
+<p>Processing this spike of messages takes ages, and while this service is only on a <code>T2.Medium</code> machine (2 CPUs, 4GB Memory), it only uses 5-10% CPU while processing the messages, which is clearly pretty inefficient.</p>
+<p>We use <a href="http://masstransit-project.com/">MassTransit</a> when interacting with RabbitMQ as it provides us with a lot of useful features, but by default sets the amount of messages to be processed in parallel to <code>Environment.ProcessorCount * 2</code>.  For this project that means 4 messages, and as the process is IO bound, it stands to reason that we could increase that concurrency a bit. Or a lot.</p>
+<p>The existing MassTransit setup looks pretty similar to this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_bus = Bus.Factory.CreateUsingRabbitMq(rabbit =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> host = rabbit.Host(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;rabbitmq://localhost&#34;</span>), h =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        h.Username(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>        h.Password(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rabbit.ReceiveEndpoint(host, <span style="color:#e6db74">&#34;SpikyQueue&#34;</span>, endpoint =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        endpoint.Consumer(() =&gt; <span style="color:#66d9ef">new</span> TestConsumer());
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><h2 id="the-test-driven-development">The Test (Driven Development)</h2>
+<p>As we like testing things, I wrote a test to validate the degree of concurrency we have.  We use a real instance of RabbitMQ (<a href="/2017/10/02/dotnet-core-docker-integration-tests/">Started with Docker, as part of the build</a>), and have a test message and consumer.  Due to the speed of RabbitMQ delivery, we make the consumer just take a little bit of time before returning:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TestMessage</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> Value { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TestConsumer</span> : IConsumer&lt;TestMessage&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Consume(ConsumeContext&lt;TestMessage&gt; context)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Task.Delay(<span style="color:#ae81ff">600</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The final piece of our puzzle is an <code>IConsumeObserver</code>, which will count the number of messages processed in parallel, as well as the total number of messages processed.  We will use the total number of messages to know when our test can stop running, and the parallel number to prove if our concurrency changes worked.</p>
+<p>What this observer is doing is the following, but as we are in a multithreaded environment, we need to use the <code>Interlocked</code> class, and do a bit more work to make sure we don&rsquo;t lose values:</p>
+<pre tabindex="0"><code>PreConsume:
+    currentPendingDeliveryCount++
+    maxPendingDeliveryCount = Math.Max(maxPendingDeliveryCount, currentPendingDeliveryCount)
+PostConsume:
+    currentPendingDeliveryCount--
+</code></pre><p>The actual <code>ConsumeCountObserver</code> code is as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ConsumeCountObserver</span> : IConsumeObserver
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> _deliveryCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> _currentPendingDeliveryCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> _maxPendingDeliveryCount;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">readonly</span> <span style="color:#66d9ef">int</span> _messageCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">readonly</span> TaskCompletionSource&lt;<span style="color:#66d9ef">bool</span>&gt; _complete;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ConsumeCountObserver(<span style="color:#66d9ef">int</span> messageCount)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _messageCount = messageCount;
+</span></span><span style="display:flex;"><span>        _complete = <span style="color:#66d9ef">new</span> TaskCompletionSource&lt;<span style="color:#66d9ef">bool</span>&gt;();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> MaxDeliveryCount =&gt; _maxPendingDeliveryCount;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Wait() =&gt; <span style="color:#66d9ef">await</span> _complete.Task;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Task IConsumeObserver.ConsumeFault&lt;T&gt;(ConsumeContext&lt;T&gt; context, Exception exception) =&gt; Task.CompletedTask;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Task IConsumeObserver.PreConsume&lt;T&gt;(ConsumeContext&lt;T&gt; context)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Interlocked.Increment(<span style="color:#66d9ef">ref</span> _deliveryCount);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> current = Interlocked.Increment(<span style="color:#66d9ef">ref</span> _currentPendingDeliveryCount);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">while</span> (current &gt; _maxPendingDeliveryCount)
+</span></span><span style="display:flex;"><span>            Interlocked.CompareExchange(<span style="color:#66d9ef">ref</span> _maxPendingDeliveryCount, current, _maxPendingDeliveryCount);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Task.CompletedTask;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Task IConsumeObserver.PostConsume&lt;T&gt;(ConsumeContext&lt;T&gt; context)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Interlocked.Decrement(<span style="color:#66d9ef">ref</span> _currentPendingDeliveryCount);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (_deliveryCount == _messageCount)
+</span></span><span style="display:flex;"><span>            _complete.TrySetResult(<span style="color:#66d9ef">true</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> Task.CompletedTask;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Finally, we can put the actual test together:  We publish some messages, connect the observer, and start processing.  Finally, when the observer indicates we have finished, we assert that the <code>MaxDeliveryCount</code> was the same as the <code>ConcurrencyLimit</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Test]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task WhenTestingSomething()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">var</span> i = <span style="color:#ae81ff">0</span>; i &lt; MessageCount; i++)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> _bus.Publish(<span style="color:#66d9ef">new</span> TestMessage { Value = i });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> observer = <span style="color:#66d9ef">new</span> ConsumeCountObserver(MessageCount);
+</span></span><span style="display:flex;"><span>    _bus.ConnectConsumeObserver(observer);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> _bus.StartAsync();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> observer.Wait();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> _bus.StopAsync();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    observer.MaxDeliveryCount.ShouldBe(ConcurrencyLimit);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="the-problem">The Problem</h2>
+<p>The problem we had was actually increasing the concurrency:  There are two things you can change, <code>.UseConcurrencyLimit(32)</code> and <code>.PrefetchCount = 32</code>, but doing this doesn&rsquo;t work:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_bus = Bus.Factory.CreateUsingRabbitMq(rabbit =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> host = rabbit.Host(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;rabbitmq://localhost&#34;</span>), h =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        h.Username(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>        h.Password(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rabbit.ReceiveEndpoint(host, <span style="color:#e6db74">&#34;SpikeyQueue&#34;</span>, endpoint =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        endpoint.UseConcurrencyLimit(ConcurrencyLimit);
+</span></span><span style="display:flex;"><span>        endpoint.PrefetchCount = (<span style="color:#66d9ef">ushort</span>) ConcurrencyLimit;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        endpoint.Consumer(() =&gt; <span style="color:#66d9ef">new</span> TestConsumer());
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Or well&hellip;it does work, if the <code>ConcurrencyLimit</code> is <strong>less</strong> than the default.  After a lot of trial and error, it turns out there are not two things you can change, but four:</p>
+<ul>
+<li><code>rabbit.UseConcurrencyLimit(val)</code></li>
+<li><code>rabbit.PrefetchCount = val</code></li>
+<li><code>endpoint.UseConcurrencyLimit(val)</code></li>
+<li><code>endpoint.PrefetchCount = val</code></li>
+</ul>
+<p>This makes sense (kind of): You can set limits on the factory, and then the endpoints can be any value less than or equal to the factory limits.  My process of trial and error to work out which needed to be set:</p>
+<ol>
+<li>Set them all to 32</li>
+<li>Run test
+<ul>
+<li>if it passes, remove one setting, go to 2.</li>
+<li>if it fails, add last setting back, remove a different setting, go to 2.</li>
+</ul>
+</li>
+</ol>
+<p>After iterating this set of steps for a while, it turns out for my use case that I need to set <code>rabbit.UseConcurrencyLimit(val)</code> and <code>endpoint.PrefetchCount = val</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_bus = Bus.Factory.CreateUsingRabbitMq(rabbit =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> host = rabbit.Host(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;rabbitmq://localhost&#34;</span>), h =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        h.Username(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>        h.Password(<span style="color:#e6db74">&#34;guest&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    rabbit.UseConcurrencyLimit(ConcurrencyLimit);
+</span></span><span style="display:flex;"><span>    rabbit.ReceiveEndpoint(host, <span style="color:#e6db74">&#34;SpikeyQueue&#34;</span>, endpoint =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        endpoint.PrefetchCount = (<span style="color:#66d9ef">ushort</span>) ConcurrencyLimit;
+</span></span><span style="display:flex;"><span>        endpoint.Consumer(() =&gt; <span style="color:#66d9ef">new</span> TestConsumer());
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Interestingly, no matter which place you set the <code>PrefetchCount</code> value, it doesn&rsquo;t show up in the RabbitMQ web dashboard.</p>
+<p>Hope this might help someone else struggling with getting higher concurrency with MassTransit.</p>
+]]></content:encoded></item></channel></rss>

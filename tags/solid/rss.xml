@@ -1,11 +1,831 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>solid on Andy Dote</title><link>https://andydote.co.uk/tags/solid/</link><description>Recent content in solid on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 15 Mar 2014 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/solid/rss.xml" rel="self" type="application/rss+xml"/><item><title>SOLID Principles - DIP</title><link>https://andydote.co.uk/2014/03/15/solid-principles-dip/</link><pubDate>Sat, 15 Mar 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/03/15/solid-principles-dip/</guid><description>Single Responsibility | Open Closed | Liskov Substitution | Interface Segregation | Dependency Inversion
-The Dependency Inversion Principle states that &amp;ldquo;Depend upon Abstractions. Do not depend upon concretions&amp;rdquo;. A good real world example of this is plug sockets around your house; any device you buy can be plugged into any socket in your house. You don&amp;rsquo;t have to buy new set of devices when you move house, and you don&amp;rsquo;t have to buy a new house for your devices!</description></item><item><title>SOLID Principles - ISP</title><link>https://andydote.co.uk/2014/03/01/solid-principles-isp/</link><pubDate>Sat, 01 Mar 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/03/01/solid-principles-isp/</guid><description>Interface Segregation Principle Single Responsibility | Open Closed | Liskov Substitution | Interface Segregation | Dependency Inversion
+The Dependency Inversion Principle states that &amp;ldquo;Depend upon Abstractions. Do not depend upon concretions&amp;rdquo;. A good real world example of this is plug sockets around your house; any device you buy can be plugged into any socket in your house. You don&amp;rsquo;t have to buy new set of devices when you move house, and you don&amp;rsquo;t have to buy a new house for your devices!</description><content:encoded><![CDATA[<p><a href="http://andydote.co.uk/solid-principles-srp">Single Responsibility</a> | <a href="http://andydote.co.uk/solid-principles-ocp">Open Closed</a> | <a href="http://andydote.co.uk/solid-principles-lsp">Liskov Substitution</a> | <a href="http://andydote.co.uk/solid-principles-isp">Interface Segregation</a> | <a href="http://andydote.co.uk/solid-principles-dip">Dependency Inversion</a></p>
+<p>The Dependency Inversion Principle states that &ldquo;Depend upon Abstractions. Do not depend upon concretions&rdquo;.  A good real world example of this is plug sockets around your house; any device you buy can be plugged into any socket in your house.  You don&rsquo;t have to buy new set of devices when you move house, and you don&rsquo;t have to buy a new house for your devices!</p>
+<p>In software terms this means that our higher level classes should not directly depend on lower level classes, but should depend on some intermediary.  The same goes for depending on external resources.  For example, if you have this class which takes a request string, and deserializes it, and does something with the resulting object:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RequestHandler</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> OnRequestReceived(<span style="color:#66d9ef">string</span> json)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">var</span> data = NewtonSoftJson.Deserialize&lt;RequestData&gt;(json);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>				Console.WriteLine(data.Name + <span style="color:#e6db74">&#34; Received.&#34;</span>);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This has two problems - the first is that it is totally dependant on the <code>NewtonSoftJson</code> class which means we are in violation of the Dependency Inversion Principle, and also we are tied to a specific provider.  We also are using a static method on the <code>NewtonSoftJson</code> class, which makes the method impossible to test, if we didn&rsquo;t want to depend on <code>NewtonSoftJson</code> for our test.</p>
+<p>We can move towards fixing both of these problems by adding an interface, and depending on that for serialization instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IJsonSerializer</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>		T Deserialize&lt;T&gt;(<span style="color:#66d9ef">string</span> json);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">JsonSerializer</span> : IJsonSerializer
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">public</span> T Deserialize&lt;T&gt;(<span style="color:#66d9ef">string</span> json)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> NewtonSoftJson.Deserialize&lt;T&gt;(json);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RequestHandler</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IJsonSerializer _serializer;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">public</span> RequestHandler(IJsonSerializer serializer)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>				_serializer = serializer;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> OnRequestReceived(<span style="color:#66d9ef">string</span> json)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">var</span> data = _serializer.Deserialize&lt;RequestData&gt;(json);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>				Console.WriteLine(data.Name + <span style="color:#e6db74">&#34; Received.&#34;</span>);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>By doing this, the <code>RequestHandler</code> class is now dependant on an abstraction rather than a concretion.  This nets us many benefits:  We are no longer directly dependant on <code>NewtonSoftJson</code>, our <code>OnRequestReceived</code> method has become more testable, and we have also centralised our json serialization logic.</p>
+<p>This means that if we wish to change to a different library for json serialization (or use the <code>JavaScriptSerializer</code> built into the .net framework) we can just create a new class which implements <code>IJsonSerializer</code> and pass an instance of the new class to <code>RequestHandler</code>.  It also means that anywhere we want to do json serialization can just take an <code>IJsonSerializer</code> in as a dependency, and not care what the dependency is actually doing when <code>Deserialize</code> is called.</p>
+<p>Hopefully this explains a little more on how inverting your dependencies can help make your software more flexible, and more maintainable.</p>
+<p>All source code is available on my Github: <a href="https://github.com/Pondidum/Solid.Demo">Solid.Demo Source Code</a></p>
+]]></content:encoded></item><item><title>SOLID Principles - ISP</title><link>https://andydote.co.uk/2014/03/01/solid-principles-isp/</link><pubDate>Sat, 01 Mar 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/03/01/solid-principles-isp/</guid><description>Interface Segregation Principle Single Responsibility | Open Closed | Liskov Substitution | Interface Segregation | Dependency Inversion
 Interface Segregation I find is often ignored, or people tend not to see the point in. Segregating your Interfaces is a very useful way of reducing compexity in your systems, and comes with a number of benefits, such as making mocking inputs easier, and making your objects smaller and simpler.
-So as usual, lets start off with an set of types which don&amp;rsquo;t adhere to the principle.</description></item><item><title>SOLID Principles - LSP</title><link>https://andydote.co.uk/2014/02/23/solid-principles-lsp/</link><pubDate>Sun, 23 Feb 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/02/23/solid-principles-lsp/</guid><description>Liskov Substitution Principle Single Responsibility | Open Closed | Liskov Substitution | Interface Segregation | Dependency Inversion
+So as usual, lets start off with an set of types which don&amp;rsquo;t adhere to the principle.</description><content:encoded><![CDATA[<h2 id="interface-segregation-principle">Interface Segregation Principle</h2>
+<p><a href="http://andydote.co.uk/solid-principles-srp">Single Responsibility</a> | <a href="http://andydote.co.uk/solid-principles-ocp">Open Closed</a> | <a href="http://andydote.co.uk/solid-principles-lsp">Liskov Substitution</a> | <a href="http://andydote.co.uk/solid-principles-isp">Interface Segregation</a> | <a href="http://andydote.co.uk/solid-principles-dip">Dependency Inversion</a></p>
+<p>Interface Segregation I find is often ignored, or people tend not to see the point in.  Segregating your Interfaces is a very useful way of reducing compexity in your systems, and comes with a number of benefits, such as making mocking inputs easier, and making your objects smaller and simpler.</p>
+<p>So as usual, lets start off with an set of types which don&rsquo;t adhere to the principle.  Starting off, we have the following interface, which we are using to write data access classes with:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IEntity</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	Guid ID { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span> Save();
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span> Load();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And a class which implements the interface:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Entity</span> : IEntity
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Guid ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Save()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Database.Save(<span style="color:#66d9ef">this</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> reader = Database.Load(ID))
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			ID = reader.GetGuid(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>			Read(reader);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Read(IDataReader reader)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//nothing in the base</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>At first glance, this seems like a pretty reasonable Entity, it doesn&rsquo;t have multiple responsibilities, and it is very simple. However, when we bring the second implementation of <code>IEntity</code> into the mix, it becomes more clear that some segregation would be useful:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ReadOnlyEntity</span> : IEntity
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Guid ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Save()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//do nothing</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> reader = Database.Load(ID))
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			ID = reader.GetGuid(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>			Read(reader);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Read(IDataReader reader)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//nothing in the base</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Why would a <code>ReadOnlyEntity</code> need a <code>Save()</code> method? What happens if you have a collection of data which gets loaded from your database, but never gets saved back (a list of countries and associated data for example.)  Also, consumers of the <code>IEntity</code> interface get more access to methods than they need, for example the <code>Database</code> class being used here:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Database</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> Save(IEntity entity)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		entity.Load();	<span style="color:#75715e">//?</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>From looking at our usages of our entities, we can see there are two specific roles: something that can be loaded, and something that can be saved.  We start our separation by inheriting our existing interface:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IEntity</span> : ISaveable, ILoadable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ISaveable</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	Guid ID { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span> Save();
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ILoadable</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	Guid ID { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span> Load();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Here we have pulled the method and properties relevant for saving into one interface, and the methods and properties relevant to loading into another.  By making <code>IEntity</code> inherit both <code>ISaveable</code> and <code>ILoadable</code>, we have no need to change any existing code yet.</p>
+<p>Our next step is to change usages of <code>IEntity</code> to take in the more specific interface that they require:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Database</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> Save(ISaveable entity)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Once this is done, we can remove the <code>IEntity</code> interface, and update our implementations to use <code>ISaveable</code> and <code>ILoadable</code> instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Entity</span> : ISaveable, ILoadable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Guid ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Save()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Database.Save(<span style="color:#66d9ef">this</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> reader = Database.Load(ID))
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			ID = reader.GetGuid(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>			Read(reader);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Read(IDataReader reader)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//nothing in the base</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ReadOnlyEntity</span> : ILoadable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Guid ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> reader = Original.Database.Load(ID))
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			ID = reader.GetGuid(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>			Read(reader);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Read(IDataReader reader)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//nothing in the base</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now our objects are showing specifically what they are capable of - the <code>ReadOnlyEntity</code> doesn&rsquo;t have a <code>Save()</code> method which you are not supposed to call!</p>
+<p>If you do have a method which requires an object which is both an <code>ISaveable</code> and an <code>ILoadable</code>, rather than pass in the same object to two parameters, you can achieve it with a generic parameter:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> DoSomething&lt;T&gt;(T entity) <span style="color:#66d9ef">where</span> T : ISaveable, ILoadable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	entity.Save();
+</span></span><span style="display:flex;"><span>	entity.Load();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Hopefully this shows the reasoning of segregating your interfaces and the steps to segregate existing interfaces.</p>
+<p>All source code is available on my Github: <a href="https://github.com/Pondidum/Solid.Demo">Solid.Demo Source Code</a></p>
+]]></content:encoded></item><item><title>SOLID Principles - LSP</title><link>https://andydote.co.uk/2014/02/23/solid-principles-lsp/</link><pubDate>Sun, 23 Feb 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/02/23/solid-principles-lsp/</guid><description>Liskov Substitution Principle Single Responsibility | Open Closed | Liskov Substitution | Interface Segregation | Dependency Inversion
 The Liskov Substitution Principle is states:
 If S is a sub-type of T, then objects of type T maybe replaced with objects of type S
 At face value, it means that a small class hierarchy like this:
-public class FileEntry { } public class DbFileEntry : FileEntry { } And a method which takes in a FileEntry, can be called like this:</description></item><item><title>SOLID Principles - OCP</title><link>https://andydote.co.uk/2014/02/19/solid-principles-ocp/</link><pubDate>Wed, 19 Feb 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/02/19/solid-principles-ocp/</guid><description>Open Closed Principle Single Responsibility | Open Closed | Liskov Substitution | Interface Segregation | Dependency Inversion
-The Open Closed Principle is one that I often find is miss-understood - how can something be open for extension, but closed for modification? A good example of this principle being implemented cropped up at work a while ago, we had a UI element which has a reusable grid, which gets populated with data based on a menu selection.</description></item><item><title>SOLID Principles - SRP</title><link>https://andydote.co.uk/2014/02/18/solid-principles-srp/</link><pubDate>Tue, 18 Feb 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/02/18/solid-principles-srp/</guid><description>Single Responsibility Principle Single Responsibility | Open Closed | Liskov Substitution | Interface Segregation | Dependency Inversion
+public class FileEntry { } public class DbFileEntry : FileEntry { } And a method which takes in a FileEntry, can be called like this:</description><content:encoded><![CDATA[<h2 id="liskov-substitution-principle">Liskov Substitution Principle</h2>
+<p><a href="http://andydote.co.uk/solid-principles-srp">Single Responsibility</a> | <a href="http://andydote.co.uk/solid-principles-ocp">Open Closed</a> | <a href="http://andydote.co.uk/solid-principles-lsp">Liskov Substitution</a> | <a href="http://andydote.co.uk/solid-principles-isp">Interface Segregation</a> | <a href="http://andydote.co.uk/solid-principles-dip">Dependency Inversion</a></p>
+<p>The Liskov Substitution Principle is states:</p>
+<blockquote>
+<p>If <strong>S</strong> is a sub-type of <strong>T</strong>, then objects of type <strong>T</strong> maybe replaced with objects of type <strong>S</strong></p>
+</blockquote>
+<p>At face value, it means that a small class hierarchy like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">FileEntry</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DbFileEntry</span> : FileEntry
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And a method which takes in a <code>FileEntry</code>, can be called like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>ProcessFile(<span style="color:#66d9ef">new</span> FileEntry());
+</span></span></code></pre></div><p>Or like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>ProcessFile(<span style="color:#66d9ef">new</span> DbFileEntry());
+</span></span></code></pre></div><p>This however only takes the principle at face value, and would not provide much value.  However, just because a class implements the expected interface does not necessarily mean that it can be a drop in replacement for another implementation.  This can be down to a number of factors, such as side effects of methods (like different kinds of exception being thrown), and external modification of state.</p>
+<h3 id="side-effects">Side Effects</h3>
+<p>In this example, you can see that the methods both have a pre-condition on some internal data, but as they throw different kinds of exceptions, they violate the principle:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">FileEntry</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Process()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (File.Exists(Path) == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> FileNotFoundException(Path);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//do work</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DbFileEntry</span> : FileEntry
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Process()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (Database.Contains(_id) == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> KeyNotFoundException(_id.ToString());
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//do work</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The reason for this being a violation is due to what the calling code is expecting to handle:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> RunFiles(IEnumerable&lt;FileEntry&gt; files)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">foreach</span> (<span style="color:#66d9ef">var</span> file <span style="color:#66d9ef">in</span> files)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			file.Process();
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">catch</span> (FileNotFoundException ex)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			_fails.Add(file.Name);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This method when called with a list of <code>FileEntry</code> will run every entry, and add the names of any which failed to a collection for later use.  However if it were called with a list of <code>DbFileEntry</code>, the first file to fail would cause then entire method to fail, and no more files would be processed.</p>
+<p>Fixing the classes so they obey the LSP could be done by changing the <code>DbFileEntry</code> to throw the same kind of exception as the <code>FileEntry</code>, but the exception type <code>FileNotFoundException</code> wouldn&rsquo;t make sense in the context of a database.</p>
+<p>The solution is to create a new exception type which the <code>Process</code> methods with throw, and that the <code>RunFiles</code> method will catch:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">FileEntry</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Process()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (File.Exists(Path) == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> FileEntryProcessException(FileNotFoundException(Path));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//do work</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DbFileEntry</span> : FileEntry
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Process()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (_database.Contains(_id) == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> FileEntryProcessException(KeyNotFoundException(_id));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//do work</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> RunFiles(IEnumerable&lt;FileEntry&gt; files)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">foreach</span> ( <span style="color:#66d9ef">var</span> file <span style="color:#66d9ef">in</span> files)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			file.Process();
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">catch</span> (FileEntryProcessException ex)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			_fails.Add(file.Name);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>By keeping the original exceptions we were going to throw as the <code>.InnerException</code> property of our new <code>FileEntryProcessException</code> we can still preserve the more specific exceptions, while allowing the <code>RunFiles</code> method to catch it.</p>
+<p>An alternate solution to this would be to have two new specific exception types, which both inherit a single type:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ProcessException</span> : Exception()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">FileNotFoundProcessException</span> : ProcessException
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> FileNotFoundProcessException(String path)
+</span></span><span style="display:flex;"><span>	{}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">KeyNotFoundProcessException</span> : ProcessException
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> KeyNotFoundProcessException(Guid id)
+</span></span><span style="display:flex;"><span>	{}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The problem with this approach is that you are hoping that all consumers of <code>FileEntry</code> are catching <code>ProcessException</code>, rather than one of it&rsquo;s sub-classes.  By using the first solution, you are forcing the consumer to catch your one exception type.</p>
+<h3 id="state-mutation">State Mutation</h3>
+<p>Extra methods on a sub class can cause a violation of the Liskov Substitution Principle too; by mutating state, and causing calling code to make un-expected transitions.  Take this for example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DefaultStateGenerator</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">int</span> _state;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> GetNextStateID(<span style="color:#66d9ef">int</span> currentState)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> Math.Min(++currentState, <span style="color:#ae81ff">3</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">StateMachine</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> StateMachine(IStateGenerator generator)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_generator = generator;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Transition()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> newState = _generator.GetNextStateID(_currentState);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">switch</span> (newState)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> <span style="color:#ae81ff">0</span>:
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>; <span style="color:#75715e">//do nothing</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> <span style="color:#ae81ff">1</span>:
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>; <span style="color:#75715e">//do nothing</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> <span style="color:#ae81ff">2</span>:
+</span></span><span style="display:flex;"><span>				PayTheMan();
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_currentState = newState;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Using the <code>DefaultStateGenerator</code> will cause the state machine to work as expected - it will transition through the states, calling <code>PayTheMan</code> one on state 2, and then just sticking at state 3 for subsequent calls.  However, if you were to use the <code>EvilStateGenerator</code> things might be a bit different:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">EvilStateGenerator</span> : IStateGenerator
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">bool</span> _evil;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> GetNextStateID(<span style="color:#66d9ef">int</span> currentState)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _evil ? <span style="color:#ae81ff">2</span> : Math.Min(++currentState, <span style="color:#ae81ff">3</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> BeEvil()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_evil = <span style="color:#66d9ef">true</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This <code>EvilStateGenerator</code> works as usual, until a call to its <code>BeEvil</code> method gets called, at which point it will return state 2 every time, causing the <code>PayTheMan</code> method to be called on every <code>Transition</code>.</p>
+<p>Hopefully these two examples provide sufficient reason for paying attention to the Liskov Substitution Principle.</p>
+<p>All source code is available on my Github: <a href="https://github.com/Pondidum/Solid.Demo">Solid.Demo Source Code</a></p>
+]]></content:encoded></item><item><title>SOLID Principles - OCP</title><link>https://andydote.co.uk/2014/02/19/solid-principles-ocp/</link><pubDate>Wed, 19 Feb 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/02/19/solid-principles-ocp/</guid><description>Open Closed Principle Single Responsibility | Open Closed | Liskov Substitution | Interface Segregation | Dependency Inversion
+The Open Closed Principle is one that I often find is miss-understood - how can something be open for extension, but closed for modification? A good example of this principle being implemented cropped up at work a while ago, we had a UI element which has a reusable grid, which gets populated with data based on a menu selection.</description><content:encoded><![CDATA[<h2 id="open-closed-principle">Open Closed Principle</h2>
+<p><a href="http://andydote.co.uk/solid-principles-srp">Single Responsibility</a> | <a href="http://andydote.co.uk/solid-principles-ocp">Open Closed</a> | <a href="http://andydote.co.uk/solid-principles-lsp">Liskov Substitution</a> | <a href="http://andydote.co.uk/solid-principles-isp">Interface Segregation</a> | <a href="http://andydote.co.uk/solid-principles-dip">Dependency Inversion</a></p>
+<p>The Open Closed Principle is one that I often find is miss-understood - how can something be open for extension, but closed for modification?
+A good example of this principle being implemented cropped up at work a while ago, we had a UI element which has a reusable grid, which gets populated with data based on a menu selection.  The user can also add, edit and delete items from the grids.</p>
+<p>The class was originally implemented something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">UserGrid</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> UserGrid()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_menu.Add(<span style="color:#66d9ef">new</span> ToolStripMenuItem { Text = <span style="color:#e6db74">&#34;Emails&#34;</span>, Tag = MenuTypes.Emails });
+</span></span><span style="display:flex;"><span>		_menu.Add(<span style="color:#66d9ef">new</span> ToolStripMenuItem { Text = <span style="color:#e6db74">&#34;Addresses&#34;</span>, Tag = MenuTypes.Addresses });
+</span></span><span style="display:flex;"><span>		_menu.Add(<span style="color:#66d9ef">new</span> ToolStripMenuItem { Text = <span style="color:#e6db74">&#34;Phone Numbers&#34;</span>, Tag = MenuTypes.Phones });
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Populate()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> selection = GetMenuSelection();
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> rows = <span style="color:#66d9ef">new</span> List&lt;DataGridViewRow&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">switch</span> (selection)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> MenuTypes.Emails:
+</span></span><span style="display:flex;"><span>				rows.AddRange(_user.EmailAddresses);
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> MenuTypes.Addresses:
+</span></span><span style="display:flex;"><span>				rows.AddRange(_user.Addresses);
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> MenuTypes.Phones:
+</span></span><span style="display:flex;"><span>				rows.AddRange(_user.PhoneNumbers);
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_grid.Rows.Clear();
+</span></span><span style="display:flex;"><span>		_grid.Rows.AddRange(rows.ToArray());
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> OnAddClicked()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> selection = GetMenuSelection();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">switch</span> (selection)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> MenuTypes.Emails:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">var</span> emailEditor = <span style="color:#66d9ef">new</span> EmailEditor(<span style="color:#66d9ef">new</span> Email());
+</span></span><span style="display:flex;"><span>				emailEditor.ShowDialog();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> MenuTypes.Addresses:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">var</span> addressEditor = <span style="color:#66d9ef">new</span> AddressEditor(<span style="color:#66d9ef">new</span> Address());
+</span></span><span style="display:flex;"><span>				addressEditor.ShowDialog();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> MenuTypes.Phones:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">var</span> phoneEditor = <span style="color:#66d9ef">new</span> PhoneEditor(<span style="color:#66d9ef">new</span> Phone());
+</span></span><span style="display:flex;"><span>				phoneEditor.ShowDialog();
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>I haven&rsquo;t listed all the methods here, but you get the idea - a lot of repeated-ish code (switch statements), and when you want to add a new grid type you have to do the following steps:</p>
+<ul>
+<li>Add a new entry to the MenuTypes enum.</li>
+<li>Add the new menu item in the constructor.</li>
+<li>Add an implementation to the Populate method.</li>
+<li>Add an implementation for each action to the add, edit and delete methods.</li>
+</ul>
+<p>This pretty much defines the opposite of the Open Closed Principle - the class has to be edited to add in any new functionality, and grows larger each time.  Throw in some more logic to the class, such as:</p>
+<ul>
+<li>You cannot edit Addresses, they can only be added or removed.</li>
+<li>You can only delete an Email if it was added less than 1 week ago.</li>
+<li>A Super User can do anything.</li>
+<li>A General User can only view items.</li>
+</ul>
+<p>and you are asking for trouble, and when those requirements change or get added to, you will have to go back through all the different methods to make sure your logic holds true.</p>
+<h2 id="the-solution">The Solution</h2>
+<p>In a similar way to how we handled refactoring and improving the code of the <code>JobPostingService</code> in the last post, we can make a set of small steps to improve this class.</p>
+<p>Unlike the last solution, we are going to use an abstract class as our base, rather than an Interface.  This is picked as we have some methods which are optional (see the first requirement), so we may not wish to implement all methods.</p>
+<p>Our first step is to create our base class:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">GridHandler</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> User User { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> String Title { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> IEnumerable&lt;DataGridViewRow&gt; Populate();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Add()
+</span></span><span style="display:flex;"><span>	{}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Edit(<span style="color:#66d9ef">object</span> item)
+</span></span><span style="display:flex;"><span>	{}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Delete(<span style="color:#66d9ef">object</span> item)
+</span></span><span style="display:flex;"><span>	{}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note that the <code>Title</code> property and <code>Populate</code> method are abstract - you must implement these at the very least to be a <code>GridHandler</code>.
+At the same time as this, we will lay our groundwork in the <code>UserGrid</code> class:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">UserGrid</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> List&lt;GridHandler&gt; _handlers;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> UserGrid()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_handlers = <span style="color:#66d9ef">new</span> List&lt;GridHandler&gt;();
+</span></span><span style="display:flex;"><span>		_grid = <span style="color:#66d9ef">new</span> DataGridView();
+</span></span><span style="display:flex;"><span>		_menu = <span style="color:#66d9ef">new</span> List&lt;ToolStripMenuItem&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_menu.Add(<span style="color:#66d9ef">new</span> ToolStripMenuItem { Text = <span style="color:#e6db74">&#34;Emails&#34;</span>, Tag = MenuTypes.Emails });
+</span></span><span style="display:flex;"><span>		_menu.Add(<span style="color:#66d9ef">new</span> ToolStripMenuItem { Text = <span style="color:#e6db74">&#34;Addresses&#34;</span>, Tag = MenuTypes.Addresses });
+</span></span><span style="display:flex;"><span>		_menu.Add(<span style="color:#66d9ef">new</span> ToolStripMenuItem { Text = <span style="color:#e6db74">&#34;Phone Numbers&#34;</span>, Tag = MenuTypes.Phones });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> AddHandler(GridHandler handler)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_handlers.Add(handler);
+</span></span><span style="display:flex;"><span>		_menu.Add(<span style="color:#66d9ef">new</span> ToolStripMenuItem { Text = handler.Title });
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> SetUser(User user)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_user = user;
+</span></span><span style="display:flex;"><span>		_handlers.ForEach(handler =&gt; handler.User = user);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Populate()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> handler = GetHandlerForSelection();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (handler != <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			_grid.Rows.Clear();
+</span></span><span style="display:flex;"><span>			_grid.Rows.AddRange(handler.Populate().ToArray());
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> selection = GetMenuSelection();
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> rows = <span style="color:#66d9ef">new</span> List&lt;DataGridViewRow&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">switch</span> (selection)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> MenuTypes.Emails:
+</span></span><span style="display:flex;"><span>				rows.AddRange(_user.EmailAddresses);
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> MenuTypes.Addresses:
+</span></span><span style="display:flex;"><span>				rows.AddRange(_user.Addresses);
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> MenuTypes.Phones:
+</span></span><span style="display:flex;"><span>				rows.AddRange(_user.PhoneNumbers);
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_grid.Rows.Clear();
+</span></span><span style="display:flex;"><span>		_grid.Rows.AddRange(rows.ToArray());
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>UserGrid</code> class has had a new method called <code>AddHandler</code>, which allows handlers to be added to the grid.  The <code>SetUser</code> method has been updated to also set the <code>User</code> property on all handlers, and all the <code>Add</code>, <code>Edit</code>, <code>Delete</code> and <code>Populate</code> methods have been updated to attempt to try and use a handler, and if none is found, use the existing implementation.</p>
+<p>Our next step is to create the first <code>GridHandler</code>, which will be for Email Addresses:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">EmailGridHandler</span> : GridHandler
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">string</span> Title
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;Email Addresses&#34;</span>; }
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> IEnumerable&lt;DataGridViewRow&gt; Populate()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> User.EmailAddresses;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Add()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> email = <span style="color:#66d9ef">new</span> Email();
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> editor = <span style="color:#66d9ef">new</span> EmailEditor(email);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		editor.ShowDialog();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		User.AddEmail(email);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Edit(<span style="color:#66d9ef">object</span> item)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> email = (Email)item;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> editor = <span style="color:#66d9ef">new</span> EmailEditor(email);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		editor.ShowDialog();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Delete(<span style="color:#66d9ef">object</span> item)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> email = (Email)item;
+</span></span><span style="display:flex;"><span>		User.RemoveEmail(email);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As you can see, this class obeys the <a href="http://andydote.co.uk/solid-principles-srp">Single Responsibility Principle</a> as it only deals with how to change data from the <code>User</code> object into data and actions for the grid.</p>
+<p>We can now update the usage of our <code>UserGrid</code> to take advantage of the new <code>GridHandler</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Usage</span> : Form
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> UserGrid _grid;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Usage()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_grid = <span style="color:#66d9ef">new</span> UserGrid();
+</span></span><span style="display:flex;"><span>		_grid.AddHandler(<span style="color:#66d9ef">new</span> EmailGridHandler());
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>All that remains to be done now is to go through the <code>UserGrid</code> and remove all the code relating to <code>Email</code>s.  The extraction of functionality steps can then be repeated for each of the existing grid types (<code>Address</code> and <code>Phone</code> in our case.)</p>
+<p>Once this is done, we can go back to the <code>UserGrid</code> and remove all non-grid code, leaving us with this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">UserGrid</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> List&lt;GridHandler&gt; _handlers;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> UserGrid()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_handlers = <span style="color:#66d9ef">new</span> List&lt;GridHandler&gt;();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> AddHandler(GridHandler handler)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_handlers.Add(handler);
+</span></span><span style="display:flex;"><span>		_menu.Add(<span style="color:#66d9ef">new</span> ToolStripMenuItem { Text = handler.Title });
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> SetUser(User user)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_handlers.ForEach(handler =&gt; handler.User = user);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Populate()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> handler = GetHandlerForSelection();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (handler != <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			_grid.Rows.Clear();
+</span></span><span style="display:flex;"><span>			_grid.Rows.AddRange(handler.Populate().ToArray());
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> OnAddClicked()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> handler = GetHandlerForSelection();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (handler != <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			handler.Add();
+</span></span><span style="display:flex;"><span>			Populate();
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As you can see, the <code>UserGrid</code> class is now much smaller, and has no user specific logic in it.  This means we don&rsquo;t need to modify the class when we want to add a new grid type (it is <strong>closed for modification</strong>), but as adding new functionality to the grid just consists of another call to <code>.AddHandler(new WebsiteGridHandler());</code> we have made it <strong>open for extension</strong>.</p>
+<p>All source code is available on my Github: <a href="https://github.com/Pondidum/Solid.Demo">Solid.Demo Source Code</a></p>
+]]></content:encoded></item><item><title>SOLID Principles - SRP</title><link>https://andydote.co.uk/2014/02/18/solid-principles-srp/</link><pubDate>Tue, 18 Feb 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/02/18/solid-principles-srp/</guid><description>Single Responsibility Principle Single Responsibility | Open Closed | Liskov Substitution | Interface Segregation | Dependency Inversion
 SRP (Single Responsibility Principle) is something I hear a lot of developers agree is a good thing, but when I read their code, they violate it without realising, or don&amp;rsquo;t see the use in their particular case.
-A particularly prominent example I find in our code bases is Permissioning and Caching. These two requirements can often slip into classes slowly - especially if requirements are not clear, or change as the task progresses.</description></item></channel></rss>
+A particularly prominent example I find in our code bases is Permissioning and Caching. These two requirements can often slip into classes slowly - especially if requirements are not clear, or change as the task progresses.</description><content:encoded><![CDATA[<h2 id="single-responsibility-principle">Single Responsibility Principle</h2>
+<p><a href="http://andydote.co.uk/solid-principles-srp">Single Responsibility</a> | <a href="http://andydote.co.uk/solid-principles-ocp">Open Closed</a> | <a href="http://andydote.co.uk/solid-principles-lsp">Liskov Substitution</a> | <a href="http://andydote.co.uk/solid-principles-isp">Interface Segregation</a> | <a href="http://andydote.co.uk/solid-principles-dip">Dependency Inversion</a></p>
+<p>SRP (Single Responsibility Principle) is something I hear a lot of developers agree is a good thing, but when I read their code, they violate it without realising, or don&rsquo;t see the use in their particular case.</p>
+<p>A particularly prominent example I find in our code bases is Permissioning and Caching.  These two requirements can often slip into classes slowly - especially if requirements are not clear, or change as the task progresses.  A slightly contrived example is this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">JobPostingService</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">readonly</span> TimeSpan Timeout = <span style="color:#66d9ef">new</span> TimeSpan(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> JobWebService _jobService;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> List&lt;Job&gt; _jobs;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> DateTime _lastLoaded;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> JobPostingService()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_jobService = <span style="color:#66d9ef">new</span> JobWebService();
+</span></span><span style="display:flex;"><span>		_lastLoaded = DateTime.MinValue;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Job&gt; GetCurrentJobs()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (_lastLoaded - DateTime.Now &gt; Timeout)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			_jobs = _jobService.GetLiveJobs().ToList();
+</span></span><span style="display:flex;"><span>			_lastLoaded = DateTime.Now;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _jobs;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> PostToFreeBoards(Job job)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> jobs = GetCurrentJobs();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (jobs.Any(j =&gt; j.ID == job.ID))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_jobService.Post(job, Boards.FreeBoard1 | Boards.FreeBoard2);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> PostToAllBoards(Job job)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> jobs = GetCurrentJobs();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (jobs.Any(j =&gt; j.ID == job.ID))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_jobService.Post(job, Boards.PaidBoard1 | Boards.PaidBoard2);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This class is fairly small, but it is already showing the symptoms of doing too many things; it is dealing with caching, as well as posting jobs.  While this is not a major problem at the moment, it is also easier to nip the problem in the bud - before a load of new requirements/changes arrive and complicate things.</p>
+<h2 id="the-solution">The Solution</h2>
+<p>We start off by changing our class to take it&rsquo;s dependencies in via constructor parameters (Dependency Injection, the &lsquo;D&rsquo; in SOLID):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> JobPostingService(JobWebService jobService)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	_jobService = jobService;
+</span></span><span style="display:flex;"><span>	_lastLoaded = DateTime.MinValue;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>So the usage of the <code>JobPostingService</code> goes from this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> poster = <span style="color:#66d9ef">new</span> JobPostingService();
+</span></span></code></pre></div><p>To this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> poster = <span style="color:#66d9ef">new</span> JobPostingService(<span style="color:#66d9ef">new</span> JobWebService());
+</span></span></code></pre></div><p>Next, we take the <code>JobWebService</code> class and extract &amp; implement an interface of it&rsquo;s methods:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IJobService</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	IEnumerable&lt;Job&gt; GetLiveJobs();
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">bool</span> Post(Job job, Boards boards);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">JobWebService</span> : IJobService
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And finally, create a new class which only deals with caching the results of a JobService, by wrapping calls to another instance:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">CachedJobService</span> : IJobService
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> List&lt;Job&gt; _jobs;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> DateTime _lastLoaded;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> TimeSpan _timeout;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IJobService _other;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> CachedJobService(IJobService otherService)
+</span></span><span style="display:flex;"><span>		: <span style="color:#66d9ef">this</span>(otherService, <span style="color:#66d9ef">new</span> TimeSpan(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">0</span>))
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> CachedJobService(IJobService otherService, TimeSpan timeout)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_other = otherService;
+</span></span><span style="display:flex;"><span>		_timeout = timeout;
+</span></span><span style="display:flex;"><span>		_lastLoaded = DateTime.MinValue;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Job&gt; GetLiveJobs()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (_lastLoaded - DateTime.Now &gt; _timeout)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			_jobs = _other.GetLiveJobs().ToList();
+</span></span><span style="display:flex;"><span>			_lastLoaded = DateTime.Now;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _jobs;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">bool</span> Post(Job job, Boards boards)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _other.Post(job, boards);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This class passes all <code>Post()</code> calls to the other implementation, but caches the results of calls to <code>GetLiveJobs()</code>, and we have added a time-out as an optional constructor parameter.  This wrapping calls to another implementation is called <a href="http://en.wikipedia.org/wiki/Decorator_pattern">The Decorator Pattern</a>.</p>
+<p>As the JobPostingService class no longer has to cache the results of calls to <code>JobService</code> itself, we can delete all the caching related code:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">JobPostingService</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IJobService _jobService;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> JobPostingService(IJobService jobService)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_jobService = jobService;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Job&gt; GetCurrentJobs()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _jobService.GetLiveJobs();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> PostToFreeBoards(Job job)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> jobs = GetCurrentJobs();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (jobs.Any(j =&gt; j.ID == job.ID))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_jobService.Post(job, Boards.FreeBoard1 | Boards.FreeBoard2);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> PostToAllBoards(Job job)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> jobs = GetCurrentJobs();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (jobs.Any(j =&gt; j.ID == job.ID))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_jobService.Post(job, Boards.PaidBoard1 | Boards.PaidBoard2);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And our usage changes again, from this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> poster = <span style="color:#66d9ef">new</span> JobPostingService(<span style="color:#66d9ef">new</span> JobWebService());
+</span></span></code></pre></div><p>To this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> webService = <span style="color:#66d9ef">new</span> CachedJobService(<span style="color:#66d9ef">new</span> JobWebService());
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> poster = <span style="color:#66d9ef">new</span> JobPostingService(webService);
+</span></span></code></pre></div><p>We have now successfully extracted all the various pieces of functionality into separate classes, which has gained us the ability to test individual features (caching can be tested with a fake <code>IJobService</code> and checked to see when calls go through to the service), and the ability to adapt more easily to new requirements.  Talking of which&hellip;</p>
+<blockquote>
+<p>New Requirement:  The third party webservice is not always available, allow use of a fallback webservice.</p>
+</blockquote>
+<p>Now you could go and modify the <code>JobPostingService</code> class to have a second webservice parameter:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> primaryService = <span style="color:#66d9ef">new</span> CachedJobService(<span style="color:#66d9ef">new</span> JobWebService());
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> secondaryService = <span style="color:#66d9ef">new</span> CachedJobService(<span style="color:#66d9ef">new</span> BackupWebService());
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> poster = <span style="color:#66d9ef">new</span> JobPostingService(primaryService, secondaryService);
+</span></span></code></pre></div><p>But what happens when a third service is added? and a fourth? Surely there is another way?</p>
+<p>As luck would have it, we can use the <code>IJobService</code> interface to create a single class which handles all the logic for switching between the two services:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">FailoverJobService</span> : IJobService
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> List&lt;IJobService&gt; _services;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> FailoverJobService(<span style="color:#66d9ef">params</span> IJobService[] services)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_services = services.ToList();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Job&gt; GetLiveJobs()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _services.SelectMany(s =&gt; s.GetLiveJobs());
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">bool</span> Post(Job job, Boards boards)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> _services.Any(service =&gt; service.Post(job, boards));
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This class takes in a number of <code>IJobService</code>s and will try each one in turn to post jobs, and when listing jobs, gets the results from all services.  In the same manner as the <code>CachedJobService</code>, we have a single class which can easily be tested without effecting any of the other functionality.</p>
+<p>The really interesting point comes when we decide when to use caching? do you cache each service passed to the <code>FailoverJobService</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> primaryService = <span style="color:#66d9ef">new</span> CachedJobService(<span style="color:#66d9ef">new</span> JobWebService());
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> secondaryService = <span style="color:#66d9ef">new</span> CachedJobService(<span style="color:#66d9ef">new</span> BackupWebService());
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> failover = <span style="color:#66d9ef">new</span> FailoverJobService(primaryService, secondaryService);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> poster = <span style="color:#66d9ef">new</span> JobPostingService(failover);
+</span></span></code></pre></div><p>Or do you cache the <code>FailoverJobService</code> itself:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> primaryService = <span style="color:#66d9ef">new</span> JobWebService();
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> secondaryService = <span style="color:#66d9ef">new</span> BackupWebService();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> failover = <span style="color:#66d9ef">new</span> CachedJobService(<span style="color:#66d9ef">new</span> FailoverJobService(primaryService, secondaryService));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> poster = <span style="color:#66d9ef">new</span> JobPostingService(failover);
+</span></span></code></pre></div><p>Or both?</p>
+<p>Hopefully this article has explained 1/5th (maybe a little more, we did do Dependency Injection after all!) of the SOLID principles, and how it can be useful to keep your code as small and modular as possible.</p>
+<p>All source code is available on my Github: <a href="https://github.com/Pondidum/Solid.Demo">Solid.Demo Source Code</a></p>
+]]></content:encoded></item></channel></rss>

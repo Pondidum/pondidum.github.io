@@ -1,2 +1,140 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>simpleinjector on Andy Dote</title><link>https://andydote.co.uk/tags/simpleinjector/</link><description>Recent content in simpleinjector on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Fri, 28 Jul 2017 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/simpleinjector/rss.xml" rel="self" type="application/rss+xml"/><item><title>Serilog LogContext with StructureMap and SimpleInjector</title><link>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</link><pubDate>Fri, 28 Jul 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</guid><description>This article has been updated after feedback from .Net Junkie (Godfather of SimpleInjector). I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)
-Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.</description></item></channel></rss>
+Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.</description><content:encoded><![CDATA[<p><em>This article has been updated after feedback from <a href="https://twitter.com/dot_NET_Junkie">.Net Junkie</a> (Godfather of SimpleInjector).  I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)</em></p>
+<p>Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.  Take the following snippet for example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Something</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">readonly</span> ILogger Log = Log.ForContext(<span style="color:#66d9ef">typeof</span>(Something));
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>There are two things I don&rsquo;t like about this.  The first is the static field access:  We have tests which assert on log content for disallowed information, or to include a correlationid etc.  Having a static field means that if tests run in parallel, we end up with flaky tests due to multiple log messages being written.  The second thing I don&rsquo;t like is less about the line itself, but the repetition of this line throughout the codebase.  Nearly every class which does logging has the same line, but with the type parameter changed.</p>
+<p>I set out to see if I could remedy both problems at once.</p>
+<h2 id="fixing-the-static-field">Fixing the Static Field</h2>
+<p>The first fix is to inject the logger in via a constructor argument, which will allow tests to use their own version of the logger:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Something</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> ILogger _log;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Something(ILogger logger)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _log = logger.ForContext(<span style="color:#66d9ef">typeof</span>(Something));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>That was easy! Now on to the hard part; removing the repeated <code>.ForContext</code> call.</p>
+<h2 id="fixing-the-forcontext-repetition">Fixing the ForContext Repetition</h2>
+<p>Most (if not all) the applications I build use a dependency injection container to build objects.  In my opinion there are only two containers which are worth considering in the .net space:  <a href="http://structuremap.github.io/">StructureMap</a>, and <a href="https://simpleinjector.org">SimpleInjector</a>.  If you like convention based registration, use StructureMap.  If you like to get a safety net that prevents and detects common misconfigurations, use SimpleInjector.</p>
+<h3 id="tests">Tests</h3>
+<p>We can use the same tests to verify the behaviour both when using StructureMap and SimpleInjector&rsquo;s.  We have a couple of test classes, and an interface to allow for more generic testing:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ILogOwner</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    ILogger Logger { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Something</span> : ILogOwner
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ILogger Logger { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Something(ILogger logger)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Logger = logger;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Everything</span> : ILogOwner
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ILogger Logger { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Everything(ILogger logger)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Logger = logger;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And then a single parameterised test method for verification:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Tests</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Container _container;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Tests()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Log.Logger = <span style="color:#66d9ef">new</span> LoggerConfiguration()
+</span></span><span style="display:flex;"><span>            .MinimumLevel.Debug()
+</span></span><span style="display:flex;"><span>            .WriteTo.Console()
+</span></span><span style="display:flex;"><span>            .CreateLogger();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// _container = new ...</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [Theory]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [InlineData(typeof(Something))]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [InlineData(typeof(Everything))]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Types_get_their_own_context(Type type)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> instance = (ILogOwner)_container.GetInstance(type);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> context = GetContextFromLogger(instance);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        context.ShouldBe(type.FullName);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">string</span> GetContextFromLogger(ILogOwner owner)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> logEvent = CreateLogEvent();
+</span></span><span style="display:flex;"><span>        owner.Logger.Write(logEvent);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> logEvent.Properties[<span style="color:#e6db74">&#34;SourceContext&#34;</span>].ToString().Trim(<span style="color:#e6db74">&#39;&#34;&#39;</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> LogEvent CreateLogEvent() =&gt; <span style="color:#66d9ef">new</span> LogEvent(
+</span></span><span style="display:flex;"><span>        DateTimeOffset.Now,
+</span></span><span style="display:flex;"><span>        LogEventLevel.Debug,
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">null</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">new</span> MessageTemplate(<span style="color:#e6db74">&#34;&#34;</span>, Enumerable.Empty&lt;MessageTemplateToken&gt;()),
+</span></span><span style="display:flex;"><span>        Enumerable.Empty&lt;LogEventProperty&gt;());
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="structuremap">StructureMap</h3>
+<p>The StructureMap initialisation just requires a single line change to use the construction context when creating a logger:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_container = <span style="color:#66d9ef">new</span> Container(_ =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    _.Scan(a =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        a.TheCallingAssembly();
+</span></span><span style="display:flex;"><span>        a.WithDefaultConventions();
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// original:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// _.For&lt;ILogger&gt;().Use(context =&gt; Log.Logger);</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// contextual</span>
+</span></span><span style="display:flex;"><span>    _.For&lt;ILogger&gt;().Use(context =&gt; Log.ForContext(context.ParentType));
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><h3 id="simpleinjector">SimpleInjector</h3>
+<p>SimpleInjector does a lot of verification of your container configuration, and as such deals mostly with Types, rather than instances, or types which have multiple mappings as we are doing.  This makes it slightly harder to support the behaviour we had with StructureMap, but not impossible.  A huge thanks to .Net Junkie for assisting with this!</p>
+<p>First we need to create an implementation of  <code>IDependencyInjectionBehavior</code>, which will handle our <code>ILogger</code> type requests, and pass all other types requests to the standard implementation:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">SerilogContextualLoggerInjectionBehavior</span> : IDependencyInjectionBehavior
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDependencyInjectionBehavior _original;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Container _container;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> SerilogContextualLoggerInjectionBehavior(ContainerOptions options)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _original = options.DependencyInjectionBehavior;
+</span></span><span style="display:flex;"><span>        _container = options.Container;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Verify(InjectionConsumerInfo consumer) =&gt; _original.Verify(consumer);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> InstanceProducer GetInstanceProducer(InjectionConsumerInfo i, <span style="color:#66d9ef">bool</span> t) =&gt;
+</span></span><span style="display:flex;"><span>        i.Target.TargetType == <span style="color:#66d9ef">typeof</span>(ILogger)
+</span></span><span style="display:flex;"><span>            ? GetLoggerInstanceProducer(i.ImplementationType)
+</span></span><span style="display:flex;"><span>            : _original.GetInstanceProducer(i, t);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> InstanceProducer&lt;ILogger&gt; GetLoggerInstanceProducer(Type type) =&gt;
+</span></span><span style="display:flex;"><span>        Lifestyle.Transient.CreateProducer(() =&gt; Log.ForContext(type), _container);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This can then be set in our container setup:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_ontainer = <span style="color:#66d9ef">new</span> Container();
+</span></span><span style="display:flex;"><span>_container.Options.DependencyInjectionBehavior = <span style="color:#66d9ef">new</span> SerilogContextualLoggerInjectionBehavior(_container.Options);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>_container.Register&lt;Something&gt;();
+</span></span><span style="display:flex;"><span>_container.Register&lt;Everything&gt;();
+</span></span></code></pre></div><p>And now our tests pass!</p>
+<h2 id="outcomes">Outcomes</h2>
+<p>Thanks to this container usage, I no longer have to have the <code>.ForContext(typeof(Something))</code> scattered throughout my codebases.</p>
+<p>Hopefully this shows how taking away just some of the little tasks makes life easier - I now no longer have to remember to do the <code>.ForContext</code> on each class, and don&rsquo;t need to have tests to validate it is done on each class (I have one test in my container configuration tests which validates this behaviour instead).</p>
+]]></content:encoded></item></channel></rss>

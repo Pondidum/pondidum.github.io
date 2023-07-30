@@ -1,9 +1,322 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>cqrs on Andy Dote</title><link>https://andydote.co.uk/tags/cqrs/</link><description>Recent content in cqrs on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 09 Sep 2017 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/cqrs/rss.xml" rel="self" type="application/rss+xml"/><item><title>Repositories Revisited (and why CQRS is better)</title><link>https://andydote.co.uk/2017/09/09/repositories-revisited/</link><pubDate>Sat, 09 Sep 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/09/09/repositories-revisited/</guid><description>TLDR: I still don&amp;rsquo;t like Repositories!
 Recently I had a discussion with a commenter on my The problems with, and solutions to Repositories post, and felt it was worth expanding on how I don&amp;rsquo;t use repositories.
-My applications tend to use the mediator pattern to keep things decoupled (using the Mediatr library), and this means that I end up with &amp;ldquo;handler&amp;rdquo; classes which process messages; they load something from storage, call domain methods, and then write it back to storage, possibly returning some or all the data.</description></item><item><title>MediatR and Magic</title><link>https://andydote.co.uk/2017/01/07/mediatr-and-magic/</link><pubDate>Sat, 07 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/07/mediatr-and-magic/</guid><description>Having recently watched Greg Young&amp;rsquo;s excellent talk on 8 Lines of Code I was thinking about how this kind of thinking applies to the mediator pattern, and specifically the MediatR implementation.
+My applications tend to use the mediator pattern to keep things decoupled (using the Mediatr library), and this means that I end up with &amp;ldquo;handler&amp;rdquo; classes which process messages; they load something from storage, call domain methods, and then write it back to storage, possibly returning some or all the data.</description><content:encoded><![CDATA[<p><strong>TLDR:</strong> I still don&rsquo;t like Repositories!</p>
+<p>Recently I had a discussion with a commenter on my <a href="2015/03/28/problems-with-and-solutions-to-repositories/">The problems with, and solutions to Repositories</a> post, and felt it was worth expanding on how I don&rsquo;t use repositories.</p>
+<p>My applications tend to use the mediator pattern to keep things decoupled (using the <a href="https://github.com/jbogard/MediatR">Mediatr</a> library), and this means that I end up with &ldquo;handler&rdquo; classes which process messages; they load something from storage, call domain methods, and then write it back to storage, possibly returning some or all the data.</p>
+<p>For example you could implement a handler to update the tags on a toggle class like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">UpdateToggleTagsHandler</span> : IAsyncRequestHandler&lt;UpdateToggleTagsRequest, UpdateToggleTagsResponse&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> GetToggleQuery _getToggle;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> SaveToggleCommand _saveToggle;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> UpdateToggleTagsHandler(GetToggleQuery getToggle, SaveToggleCommand saveToggle)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _getToggle = getToggle;
+</span></span><span style="display:flex;"><span>        _saveToggle = saveToggle;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task&lt;UpdateToggleTagsResponse&gt; Handle(UpdateToggleTagsRequest message)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> toggle = <span style="color:#66d9ef">await</span> _getToggle.Execute(message.ToggleID);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        toggle.AddTag(message.Tag);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> _saveToggle(toggle);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> UpdateToggleTagsResponse
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            Tags = toggle.Tags.ToArray()
+</span></span><span style="display:flex;"><span>        };
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note how we use constructor injection to get a single command and a single query, and that  the business logic is contained within the <code>Toggle</code> class itself, not the <code>Handler</code>.</p>
+<p>By depending on commands and queries rather than using a repository, we can see at a glance what the <code>UpdateToggleTagsHandler</code> requires in the way of data, rather than having to pick through the code and figure out which of 20 methods on a repository is actually being called.</p>
+<p>The actual domain classes (in this case, the <code>Toggle</code> class) know nothing of storage concerns.  As I use EventSourcing a lot, the domain classes just need a few methods to facilitate storage: applying events, fetching pending events, and clearing pending events.  For non EventSourced classes, I tend to use the Memento pattern: each class implements two methods, one to load from a plain object, one to write to the same plain object.</p>
+<p>If your handler starts needing many commands or many queries passed in, it&rsquo;s a pretty good indication that your design has a weakness which will probably need refactoring.  This is harder to notice when using repositories as you might still only have a single constructor parameter, but be calling tens of methods on it.</p>
+<p>Hopefully this provides a bit more reasoning behind my dislike of repositories, and how I try to implement alternatives.</p>
+]]></content:encoded></item><item><title>MediatR and Magic</title><link>https://andydote.co.uk/2017/01/07/mediatr-and-magic/</link><pubDate>Sat, 07 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/07/mediatr-and-magic/</guid><description>Having recently watched Greg Young&amp;rsquo;s excellent talk on 8 Lines of Code I was thinking about how this kind of thinking applies to the mediator pattern, and specifically the MediatR implementation.
 I have written about the advantages of CQRS with MediatR before, but having used it for a long time now, there are some parts which cause friction on a regular basis.
-The problems Discoverability The biggest issue first. You have a controller with the following constructor:</description></item><item><title>CQS with Mediatr</title><link>https://andydote.co.uk/2016/03/19/cqs-with-mediatr/</link><pubDate>Sat, 19 Mar 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/03/19/cqs-with-mediatr/</guid><description>This article is some extra thoughts I had on api structure after reading Derek Comartin.
+The problems Discoverability The biggest issue first. You have a controller with the following constructor:</description><content:encoded><![CDATA[<p>Having recently watched Greg Young&rsquo;s excellent talk on <a href="https://www.infoq.com/presentations/8-lines-code-refactoring">8 Lines of Code</a> I was thinking about how this kind of thinking applies to the mediator pattern, and specifically the <a href="https://github.com/jbogard/MediatR">MediatR</a> implementation.</p>
+<p>I have written about the advantages of <a href="/2016/03/19/cqs-with-mediatr/">CQRS with MediatR</a> before, but having used it for a long time now, there are some parts which cause friction on a regular basis.</p>
+<h2 id="the-problems">The problems</h2>
+<h3 id="discoverability">Discoverability</h3>
+<p>The biggest issue first.  You have a controller with the following constructor:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> AddressController(IMediator mediator)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    _mediator = mediator;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>What messages does it emit? What handlers are used by it?  No idea without grepping for <code>_mediator.</code></p>
+<h3 id="where-is-the-hander-for-x">Where is the hander for X?</h3>
+<p>So you have a controller with a method which sends a <code>GetAllAddressesQuery</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">AddressController</span> : ApiController
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;Address&gt; Get()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> _mediator.Send(<span style="color:#66d9ef">new</span> GetAllAddressesQuery(User));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The fastest way to get to the handler definition is to hit <code>Ctrl+T</code> and type in <code>GetAllAddressesQueryHandler</code>.  This becomes more problematic on larger codebases when you can end up with many handlers with similar names.</p>
+<h3 id="what-calls-commandqueryhandler">What calls {command|query}Handler?</h3>
+<p>Given the following handler, what uses it?</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">GetAllAddressesQueryHandler</span> : IRequestHandler&lt;GetAllAddressesQuery, IEnumerable&lt;Address&gt;&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;Address&gt; Handle(GetAllAddressesQuery message)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//...</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>With this problem you can use <code>Find Usages</code> on the <code>GetAllAddressesQuery</code> type parameter to find what calls it, so this isn&rsquo;t so bad at all.  The main problem is I am often doing <code>Find Usages</code> on the handler itself, not the message.</p>
+<h2 id="solutions">Solutions</h2>
+<h3 id="discoverability-1">Discoverability</h3>
+<p>The team I am on at work felt this problem a lot before I joined, and had decided to role their own mediation pipeline.  It works much the same as MediatR, but rather than injecting an <code>IMediator</code> interface into the constructor, you inject interface(s) representing the handler(s) being used:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> AddressController(IGetAllAddressesQueryHandler getHandler, IAddAddressHandler addHandler)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    _getHandler = getHandler;
+</span></span><span style="display:flex;"><span>    _addHandler = addHandler;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The trade-offs made by this method are:</p>
+<ul>
+<li>The controllers are now more tightly coupled to the handlers (Handlers are mostly used by 1 controller anyway)</li>
+<li>We can&rsquo;t easily do multicast messages (We almost never need to do this)</li>
+<li>More types are required (the interface) for your handler (so what?)</li>
+</ul>
+<p>On the whole, I think this is a pretty good trade-off to be made, we get all the discoverability we wanted, and our controllers and handlers are still testable.</p>
+<h3 id="what-callswhere-is-commandqueryhandler">What calls/Where is {command|query}Handler?</h3>
+<p>This is also solved by the switch to our internal library, but we also augment the change by grouping everything into functionality groups:</p>
+<pre tabindex="0"><code>Frontend
+  Adddress
+    AddressController.cs
+    GetAllAddressesQuery.cs
+    GetAllAddressesQueryHandler.cs
+    IGetAllAddressesQueryHandler.cs
+  Contact
+    ContactController.cs
+    ...
+  Startup.cs
+  project.json
+</code></pre><p>I happen to prefer this structure to a folder for each role (e.g. <code>controllers</code>, <code>messages</code>, <code>handlers</code>), so this is not a hard change to make for me.</p>
+<h2 id="magic">Magic</h2>
+<p>As Greg noted in his video, the second you take in a 3rd party library, it&rsquo;s code you own (or are responsible for).  The changes we have made have really just traded some 3rd party magic for some internal magic.  How the handler pipeline gets constructed can be a mystery still (unless you go digging through the library), but it&rsquo;s a mystery we control.</p>
+<p>The important part of this to note is that we felt a pain/friction with how we are working, and decided to change what trade-offs we were making.</p>
+<p>What trade-offs are you making?  Is it worth changing the deal?</p>
+]]></content:encoded></item><item><title>CQS with Mediatr</title><link>https://andydote.co.uk/2016/03/19/cqs-with-mediatr/</link><pubDate>Sat, 19 Mar 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/03/19/cqs-with-mediatr/</guid><description>This article is some extra thoughts I had on api structure after reading Derek Comartin.
 Asides from the benefits that Derek mentions (no fat repositories, thin controllers), there are a number of other advantages that this style of architecture brings.
 Ease of Testing By using Command and Queries, you end up with some very useful seams for writing tests.
-For controllers With controllers, you typically use Dependency injection to provide an instance of IMediator:</description></item><item><title>The problems with and solutions to Repositories</title><link>https://andydote.co.uk/2015/03/28/problems-with-and-solutions-to-repositories/</link><pubDate>Sat, 28 Mar 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/03/28/problems-with-and-solutions-to-repositories/</guid><description>Repositories are a design pattern which I have never been a huge fan of. I can see the use of them as a good layer boundary, but too often I see them being used all over the place instead of at an infrastructure level in a code base.
-A particularly prevalent version of this misuse I see is self populating collections. These generally inherit List&amp;lt;TEntity&amp;gt; or Dictionary&amp;lt;TID, TEntity&amp;gt;, and provide a set of methods such as .</description></item></channel></rss>
+For controllers With controllers, you typically use Dependency injection to provide an instance of IMediator:</description><content:encoded><![CDATA[<p>This article is some extra thoughts I had on api structure after reading <a href="http://codeopinion.com/thin-controllers-cqrs-mediatr/">Derek Comartin</a>.</p>
+<p>Asides from the benefits that Derek mentions (no fat repositories, thin controllers), there are a number of other advantages that this style of architecture brings.</p>
+<h2 id="ease-of-testing">Ease of Testing</h2>
+<p>By using Command and Queries, you end up with some very useful seams for writing tests.</p>
+<h3 id="for-controllers">For controllers</h3>
+<p>With controllers, you typically use Dependency injection to provide an instance of <code>IMediator</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">AddressController</span> : ApiController
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IMediator _mediator;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> AddressController(IMediator mediator)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _mediator = mediator;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;Address&gt; Get()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> _mediator.Send(<span style="color:#66d9ef">new</span> GetAllAddressesQuery(User));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>You can now test the controller&rsquo;s actions return as you expect:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Fact]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> When_requesting_all_addresses()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">var</span> mediator = Substitute.For&lt;IMediator&gt;();
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">var</span> controller = <span style="color:#66d9ef">new</span> AddressController(mediator);
+</span></span><span style="display:flex;"><span>  controller.User = Substitute.For&lt;IPrincipal&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">var</span> result = controller.Get();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  mediator
+</span></span><span style="display:flex;"><span>      .Received(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>      .Send(Arg.Is&lt;GetAllAddressesQuery&gt;(q =&gt; q.User == controller.User));
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This is also useful when doing integration tests, as you can use <code>Microsoft.Owin.Testing.TestApp</code> to test that all the serialization, content negotiation etc works correctly, and still use a substituted mediator so you have known values to test with:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">[Fact]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> <span style="color:#66d9ef">void</span> Addresses_get_should_return_an_empty_json_array()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> mediator = Substitute.For&lt;IMediator&gt;();
+</span></span><span style="display:flex;"><span>    mediator.Send(Arg.Any&lt;GetAllAddressesQuery&gt;()).Returns(Enumerable.Empty&lt;Address&gt;());
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> server = TestServer.Create(app =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> api = <span style="color:#66d9ef">new</span> Startup(mediator);
+</span></span><span style="display:flex;"><span>        api.Configuration(app);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> response = <span style="color:#66d9ef">await</span> _server
+</span></span><span style="display:flex;"><span>        .CreateRequest(<span style="color:#e6db74">&#34;/api/address&#34;</span>)
+</span></span><span style="display:flex;"><span>        .AddHeader(<span style="color:#e6db74">&#34;content-type&#34;</span>, <span style="color:#e6db74">&#34;application/json&#34;</span>)
+</span></span><span style="display:flex;"><span>        .GetAsync();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> json = <span style="color:#66d9ef">await</span> response.Content.ReadAsStringAsync();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    json.ShouldBe(<span style="color:#e6db74">&#34;[]&#34;</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="for-handlers">For Handlers</h3>
+<p>Handler are now isolated from the front end of your application, which means testing is a simple matter of creating an instance, passing in a message, and checking the result.  For example the <code>GetAllAddressesQuery</code> handler could be implemented like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">GetAllAddressesQueryHandler</span> : IRequestHandler&lt;GetAllAddressesQuery, IEnumerable&lt;Address&gt;&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;Address&gt; Handle(GetAllAddressesQuery message)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (message.User == <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> Enumerable.Empty&lt;Address&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> [] {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">new</span> Address { Line1 = <span style="color:#e6db74">&#34;34 Home Road&#34;</span>, PostCode = <span style="color:#e6db74">&#34;BY2 9AX&#34;</span> }
+</span></span><span style="display:flex;"><span>        };
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And a test might look like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">[Fact]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> When_no_user_is_specified()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> handler = <span style="color:#66d9ef">new</span> GetAllAddressesQueryHandler();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> result = handler.Handle(<span style="color:#66d9ef">new</span> GetAllAddressesQuery());
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    result.ShouldBeEmpty();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="multiple-front-ends">Multiple Front Ends</h2>
+<p>The next advantage of using Commmands and Queries is that you can support multiple frontends without code duplication.  This ties in very nicely with a <a href="http://alistair.cockburn.us/Hexagonal+architecture">Hexagonal architecture</a>. For example, one of my current projects has a set of commands and queries, which are used by a WebApi, and WebSocket connector, and a RabbitMQ adaptor.</p>
+<p>This sample also makes use of <a href="https://www.nuget.org/packages/rabbitharness">RabbitHarness</a>, which provides a small interface for easy sending, listening and querying of queues and exchanges.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> RabbitMqConnector(IMediator mediator, IRabbitConnector connector) {
+</span></span><span style="display:flex;"><span>    _mediator = mediator;
+</span></span><span style="display:flex;"><span>    _connector = connector;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _connector.ListenTo(<span style="color:#66d9ef">new</span> QueueDefinition { Name = <span style="color:#e6db74">&#34;AddressQueries&#34;</span> }, OnMessage);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">bool</span> OnMessage(IBasicProperties props, GetAllAddressesQuery message)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">//in this case, the message sent to RabbitMQ matches the query structure</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> addresses = _mediator.Send(message);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _connector.SendTo(
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">new</span> QueueDefinition { Name = props.ReplyTo },
+</span></span><span style="display:flex;"><span>        replyProps =&gt; replyProps.CorrelationID = props.CorrelationID,
+</span></span><span style="display:flex;"><span>        addresses
+</span></span><span style="display:flex;"><span>    );
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="vertical-slicing">Vertical Slicing</h2>
+<p>This a soft-advantage of Commands and Queries I have found - you can have many more developers working in parallel on a project adding commands and queries etc, before you start treading on each others toes&hellip;and the only painful part is all the <code>*.csproj</code> merges you need to do!  Your mileage may vary on this one!</p>
+<h2 id="disadvantages">Disadvantages</h2>
+<p>In a large project, you can end up with a lot of extra classes, which can be daunting at first - one of my current projects has around 60 <code>IRequest</code> and <code>IRequestHandler</code> implementations.  As long as you follow a good naming convention, or sort them in to namespaces, it is not that much of a problem.</p>
+<h2 id="overall">Overall</h2>
+<p>Overall I like this pattern a lot - especially as it makes transitioning towards EventSourcing and/or full CQRS much easier.</p>
+<p>How about you? What are your thoughts and experiences on this?</p>
+]]></content:encoded></item><item><title>The problems with and solutions to Repositories</title><link>https://andydote.co.uk/2015/03/28/problems-with-and-solutions-to-repositories/</link><pubDate>Sat, 28 Mar 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/03/28/problems-with-and-solutions-to-repositories/</guid><description>Repositories are a design pattern which I have never been a huge fan of. I can see the use of them as a good layer boundary, but too often I see them being used all over the place instead of at an infrastructure level in a code base.
+A particularly prevalent version of this misuse I see is self populating collections. These generally inherit List&amp;lt;TEntity&amp;gt; or Dictionary&amp;lt;TID, TEntity&amp;gt;, and provide a set of methods such as .</description><content:encoded><![CDATA[<p>Repositories are a design pattern which I have never been a huge fan of.  I can see the use of them as a good layer boundary, but too often I see them being used all over the place instead of at an infrastructure level in a code base.</p>
+<p>A particularly prevalent version of this misuse I see is self populating collections.  These generally inherit <code>List&lt;TEntity&gt;</code> or <code>Dictionary&lt;TID, TEntity&gt;</code>, and provide a set of methods such as <code>.LoadByParentID(TID id)</code>.  The problem with this is that the collection still exposes methods such as <code>.Add()</code> and <code>.Remove()</code> - but these operations only run on the in-memory entities, and don&rsquo;t effect the data source itself.</p>
+<h2 id="the-alternative">The Alternative</h2>
+<p>The technique I prefer for reads are Query objects.  These are simple classes which expose a single public method to return some data.  For example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">GetDocumentsWaitingQuery</span> : IDocumentsQuery
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDataStore _dataStore;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> GetDocumentsWaitingQuery(IDataStore datastore)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_dataStore = datastore;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Document&gt; Execute()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = _dataStore.Open())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> connection
+</span></span><span style="display:flex;"><span>				.Query&lt;Document&gt;(
+</span></span><span style="display:flex;"><span>					<span style="color:#e6db74">&#34;select * from documents where status == @status&#34;</span>,
+</span></span><span style="display:flex;"><span>					<span style="color:#66d9ef">new</span> { status = DocumentStatuses.Waiting})
+</span></span><span style="display:flex;"><span>				.ToList();
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The code using this class might look something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DocumentProcessor</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDocumentsQuery _query;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DocumentProcessor(IDocumentsQuery waitingDocumentsQuery)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_query = waitingDocumentsQuery;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Run()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">foreach</span> (<span style="color:#66d9ef">var</span> document <span style="color:#66d9ef">in</span> _query.Execute())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#75715e">//some operation on document...</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This class is almost too simple, but resembles a system&rsquo;s processor which I wrote.  They key here is that the <code>DocumentProcessor</code> only relies on an <code>IDocumentsQuery</code>, not a specific query.</p>
+<p>Normal usage of the system looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ProcessAll()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> query = <span style="color:#66d9ef">new</span> GetDocumentsWaitingQuery(_dataStore);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> saveCommand = <span style="color:#66d9ef">new</span> SaveDocumentCommand(_dataStore);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> processor = <span style="color:#66d9ef">new</span> DocumentProcessor(query, saveCommand);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	processor.Run();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>When the user requests a single document get reprocessed, we just substitute in a different Query:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> query = <span style="color:#66d9ef">new</span> GetDocumentByIDQuery(_dataStore, id: <span style="color:#ae81ff">123123</span>);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> saveCommand = <span style="color:#66d9ef">new</span> SaveDocumentCommand(_dataStore);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> processor = <span style="color:#66d9ef">new</span> DocumentProcessor(query, saveCommand);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>processor.Run();
+</span></span></code></pre></div><p>And finally, when the system is under test, we can pass in completely fake commands:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Fact]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> When_multiple_documents_for_the_same_user()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> first = <span style="color:#66d9ef">new</span> Document { .UserID = <span style="color:#ae81ff">1234</span>, .Name = <span style="color:#e6db74">&#34;Document One&#34;</span> };
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> second = <span style="color:#66d9ef">new</span> Document { .UserID = <span style="color:#ae81ff">1234</span>, .Name = <span style="color:#e6db74">&#34;Document Two&#34;</span> };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> query = Substitute.For&lt;IDocumentsQuery&gt;();
+</span></span><span style="display:flex;"><span>	query.Execute().Returns(<span style="color:#66d9ef">new</span>[] {first, second});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> processor = <span style="color:#66d9ef">new</span> DocumentProcessor(query, Substitute.For&lt;ISaveDocumentCommand&gt;());
+</span></span><span style="display:flex;"><span>	processor.Run();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	first.Primary.ShouldBe(<span style="color:#66d9ef">true</span>);
+</span></span><span style="display:flex;"><span>	second.Primary.ShouldBe(<span style="color:#66d9ef">false</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This means that in the standard usage, it gets passed an instance of <code>GetDocumentsWaitingQuery</code>, but when under test gets a <code>Substitute.For&lt;IDocumentsQuery&gt;()</code>, and for debugging a problem with a specific document, it gets given <code>new GetSingleDocumentQuery(id: 234234)</code> for example.</p>
+<h2 id="commands">Commands</h2>
+<p>What about saving?  Well it&rsquo;s pretty much the same story:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">SaveDocumentCommand</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDataStore datastore;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> SaveDocumentCommand(IDataStore datastore)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_dataStore = datastore
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Execute(Document document)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = _dataStore.Open())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			connection.Execute(<span style="color:#e6db74">&#34;update documents set status = @status where id = @id&#34;</span>, document);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Obviously the sql in the save command would be a bit more complete&hellip;</p>
+<h2 id="but-repositories">But Repositories&hellip;</h2>
+<p>Well yes, you can create methods on your repositories to do all of this, like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> IDocumentRepository
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> SaveDocument(Document document) { <span style="color:#75715e">/* ... */</span> }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Document&gt; GetDocumentsWaiting() { <span style="color:#75715e">/* ... */</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>But now your classes utilising this repository are tied to the methods it implements - you cannot just swap out the workings of <code>.GetDocumentsWaiting</code> for a single document query any more.</p>
+<p>This is why I like to use Command and Query objects - the not only provide good encapsulation (all your sql is contained within), but they also provide a large level of flexibility in your system, and make it very easy to test to boot too!</p>
+]]></content:encoded></item></channel></rss>

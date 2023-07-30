@@ -1,11 +1,437 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>process on Andy Dote</title><link>https://andydote.co.uk/tags/process/</link><description>Recent content in process on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Tue, 22 Nov 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/process/rss.xml" rel="self" type="application/rss+xml"/><item><title>Changelog Driven Versioning</title><link>https://andydote.co.uk/2022/11/22/changelogs/</link><pubDate>Tue, 22 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/22/changelogs/</guid><description>Versioning is one of the many hard problems when it comes to writing software. There is no one correct way to do it, and all have various tradeoffs.
-After reading keep a changelog, I was inspired to implement this into a couple of CLI tools that I am working on at the moment: Flagon (feature flags on the CLI, for CI usage), and Cas (Content Addressable Storage for Make), but I also wanted to solve my versioning and release process.</description></item><item><title>QA and Continuous Delivery</title><link>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</link><pubDate>Thu, 10 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</guid><description>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.
-While doing continuous delivery does change the QA process, when done well, it improves everyone&amp;rsquo;s lives and makes the software better quality. Are silver bullets incoming? Not quite, but we don&amp;rsquo;t have to make someone&amp;rsquo;s life worse to improve other people&amp;rsquo;s lives.</description></item><item><title>Architecture Decision Records</title><link>https://andydote.co.uk/2019/06/29/architecture-decision-records/</link><pubDate>Sat, 29 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/29/architecture-decision-records/</guid><description>This is a text version of a short talk (affectionately known as a &amp;ldquo;Coffee Bag&amp;rdquo;) I gave at work this week, on Architecture Design Records. You can see the slides here, but there isn&amp;rsquo;t a recording available, unfortunately.
-It should be noted; these are not to replace full architecture diagrams; you should definitely still write C4 Models to cover the overall architecture. ADRs are for the details, such as serializer formats, convention-over-configuration details, number precisions for timings, or which metrics library is used and why.</description></item><item><title>Branching and Red Builds</title><link>https://andydote.co.uk/2018/08/10/red-builds/</link><pubDate>Fri, 10 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/10/red-builds/</guid><description>So this is a bit of a rant&amp;hellip;but hopefully with some solutions and workarounds too. So let&amp;rsquo;s kick things off with a nice statement:
+After reading keep a changelog, I was inspired to implement this into a couple of CLI tools that I am working on at the moment: Flagon (feature flags on the CLI, for CI usage), and Cas (Content Addressable Storage for Make), but I also wanted to solve my versioning and release process.</description><content:encoded><![CDATA[<p>Versioning is one of the many hard problems when it comes to writing software.  There is no one correct way to do it, and all have various tradeoffs.</p>
+<p>After reading <a href="https://keepachangelog.com/en/1.0.0/">keep a changelog</a>, I was inspired to implement this into a couple of CLI tools that I am working on at the moment: <a href="https://github.com/pondidum/flagon">Flagon</a> (feature flags on the CLI, for CI usage), and <a href="https://github.com/pondidum/cas">Cas</a> (Content Addressable Storage for Make), but I also wanted to solve my versioning and release process.</p>
+<h2 id="requirements">Requirements</h2>
+<ul>
+<li>Version number should be defined in only one place</li>
+<li>A changelog should be associated with the version number</li>
+<li>The binary should be able to print its version and changelog</li>
+<li>The release (Github Release in this case) should also have the changelog and version</li>
+<li>The commit released should be tagged with the version</li>
+</ul>
+<p>I came up with an idea: <strong>drive everything from the changelog.</strong></p>
+<p>The changelog can be the source of truth: it contains the version number, date of release, and the actual changes within that version.  As the changelog is written in a standardised format it should be fairly easy to parse, and thus be handled by the binary itself.</p>
+<h2 id="the-format">The Format</h2>
+<p>I decided to follow the format from <a href="https://keepachangelog.com/en/1.0.0/">keep a changelog</a> as it is pretty minimal, in markdown, and easily parsable with a regex.  As an example, here is one of the versions lifted from <a href="https://github.com/Pondidum/Flagon/blob/main/changelog.md">flagon&rsquo;s changelog</a>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span># Changelog
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## [0.0.1] - 2022-11-14
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">### Added
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">-</span> Exit with code <span style="color:#e6db74">`0`</span> if a flag is <span style="color:#e6db74">`true`</span>, and <span style="color:#e6db74">`1`</span> otherwise
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">-</span> Add <span style="color:#e6db74">`--silent`</span> flag, to suppress console information
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">### Changed
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">-</span> Expand what information is written to traces
+</span></span></code></pre></div><p>Each version entry follows the same format, which is parsable by a regex:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">sectionRegex</span> = <span style="color:#a6e22e">regexp</span>.<span style="color:#a6e22e">MustCompile</span>(<span style="color:#e6db74">`## \[(?P&lt;version&gt;.*)\]\s*-\s*(?P&lt;date&gt;.*)`</span>)</span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/flagon/blob/master/version/changelog.go">Source</a></small>
+</footer>
+
+<p>The parser itself is very short, and the result is an array of <code>ChangelogEntry</code>, giving the <code>version</code>, <code>date</code>, and text of the changes.</p>
+<h2 id="using-the-changelog-from-the-application">Using the changelog from the application</h2>
+<p>The changelog is embedded in the binary using the go <code>embed</code> package, and can then be exposed as CLI commands.  The application&rsquo;s <code>version</code> command exposes this information with several flags:</p>
+<ul>
+<li>
+<p>no flags: print the version number and git short sha</p>
+</li>
+<li>
+<p><code>--short</code>: only print the version number</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>./flagon version --short
+</span></span><span style="display:flex;"><span>0.0.1
+</span></span></code></pre></div></li>
+<li>
+<p><code>--changelog</code>: pretty print the current version&rsquo;s changelog entry</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>./flagon version --changelog
+</span></span></code></pre></div><p><img loading="lazy" src="flagon-changelog.png" alt="flagon changelog as prettified markdown"  />
+</p>
+</li>
+<li>
+<p><code>--raw</code>: causes <code>--changelog</code> to print the markdown as written in the <code>changelog.md</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>./flagon version --changelog
+</span></span><span style="display:flex;"><span>0.0.1 - local
+</span></span><span style="display:flex;"><span><span style="color:#75715e">### Added</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>- Exit with code <span style="color:#e6db74">`</span>0<span style="color:#e6db74">`</span> <span style="color:#66d9ef">if</span> a flag is <span style="color:#e6db74">`</span>true<span style="color:#e6db74">`</span>, and <span style="color:#e6db74">`</span>1<span style="color:#e6db74">`</span> otherwise
+</span></span><span style="display:flex;"><span>- Add <span style="color:#e6db74">`</span>--silent<span style="color:#e6db74">`</span> flag, to suppress console information
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">### Changed</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>- Expand what information is written to traces
+</span></span></code></pre></div></li>
+</ul>
+<h2 id="using-the-changelog-for-releases">Using the changelog for Releases</h2>
+<p>In github actions when building the <code>main</code> branch, I use this to generate a version number, and write the current changelog entry to a temporary file:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>- <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Generate Release Notes</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">if</span>: <span style="color:#ae81ff">github.ref_name == &#39;main&#39;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">run</span>: |<span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    echo &#34;FLAGON_VERSION=$(./flagon version --short)&#34; &gt;&gt; &#34;${GITHUB_ENV}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    ./flagon version --changelog --raw &gt; release-notes.md</span>    
+</span></span></code></pre></div><p>Which are then passed to the <code>action-gh-release</code> step:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>- <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Release</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">if</span>: <span style="color:#ae81ff">github.ref_name == &#39;main&#39;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">softprops/action-gh-release@v1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">with</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">${{ env.FLAGON_VERSION }}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">tag_name</span>: <span style="color:#ae81ff">${{ env.FLAGON_VERSION }}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">body_path</span>: <span style="color:#ae81ff">release-notes.md</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">files</span>: <span style="color:#ae81ff">flagon</span>
+</span></span></code></pre></div><p>Which makes my releases match the version number of the binary, and have the correct release notes.</p>
+<h2 id="further-work">Further Work</h2>
+<p>This system isn&rsquo;t perfect (yet), but it works well for my projects.  I&rsquo;ve considered extracting it into its own package, but so far with only two applications using it I haven&rsquo;t hit the <a href="https://en.wikipedia.org/wiki/Rule_of_three_(computer_programming)">rule of 3 yet</a>.</p>
+]]></content:encoded></item><item><title>QA and Continuous Delivery</title><link>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</link><pubDate>Thu, 10 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</guid><description>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.
+While doing continuous delivery does change the QA process, when done well, it improves everyone&amp;rsquo;s lives and makes the software better quality. Are silver bullets incoming? Not quite, but we don&amp;rsquo;t have to make someone&amp;rsquo;s life worse to improve other people&amp;rsquo;s lives.</description><content:encoded><![CDATA[<p>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.</p>
+<p>While doing continuous delivery does change the QA process, when done well, it improves everyone&rsquo;s lives and makes the software <em>better</em> quality.  Are silver bullets incoming?  Not quite, but we don&rsquo;t have to make someone&rsquo;s life worse to improve other people&rsquo;s lives.</p>
+<p>This article is going to rely heavily on <a href="/tags/feature-flags/">Feature Flags</a>, so a passing familiarity is useful.  In summary, feature flags are the ability to switch features on and off at runtime of the application without requiring re-deployment.  Feature flags can also be used to switch on features for specific users or groups of users.</p>
+<blockquote>
+<p>Aside; this post is a bit different from my usual style.  This time I have written a story about a fictional dev team and QA team and how they move towards continuous delivery together.</p>
+</blockquote>
+<h2 id="tldr">TLDR</h2>
+<p>Move your QA Engineers inside the dev teams; DevOps is a way of working in a cross-functional team; this should include everyone who can contribute.</p>
+<p>Test things early.  Involve QA with features hidden behind flags.  De-couple your deployments from your releases.</p>
+<h2 id="setting-the-scene">Setting The Scene</h2>
+<p>A team has gotten to the point where they want to switch from deploying at the end of each sprint to deployments happening as often as needed, be that 5 minutes for a text change or a few days for a bigger feature.</p>
+<p>When they happily announce this to the rest of their organisation, the QA Team reacts with dismay; how are they going to manage to do full testing before every deployment if the team is constantly deploying?  They object; this is ludicrous.</p>
+<p>Being level-headed people, everyone decides to sit down and talk through their concerns and what to do next.  The key points are written down:</p>
+<ul>
+<li>The development team wants to ship faster</li>
+<li>The QA team wants to test everything before it is deployed</li>
+<li>The management team doesn&rsquo;t want to hire 10 more QAs to try and keep up</li>
+</ul>
+<p>So what to do?</p>
+<h2 id="the-first-step">The first step</h2>
+<p>It is important to realise that while we want quality, not all changes are created equal; some need much closer scrutiny than others.  For example, fixing some spelling mistakes probably needs no one else&rsquo;s input (other than a spell-checking tool, perhaps) other than the person doing it.</p>
+<p>The teams agree on this; after some discussion, they write down the following:</p>
+<ul>
+<li>Small fixes can be released without a QA approval</li>
+</ul>
+<p>This raises a few further questions however:</p>
+<ol>
+<li>How big is small?</li>
+<li>If a small fix can be deployed without QA, what about a small feature?</li>
+<li>Why is QA the final authority on what can be released?</li>
+</ol>
+<h2 id="changing-perspective">Changing Perspective</h2>
+<p>While we could try and answer these questions (and spend countless hours deciding how many lines of code &ldquo;small&rdquo; is.  Does it depend on line length too?), a better tactic is to investigate why the QA process is happening <em>so late in the process</em>.</p>
+<p>We agree that features need QA testing, but what happens if features can be hidden?  What happens if we can move the testing from &ldquo;before deployment&rdquo; to &ldquo;before release&rdquo;?  Because as I have written before <a href="deploy-not-release"><code>deploy doesn't mean release</code></a>.</p>
+<p>The team realises that they have a Feature Flagging tool available.  Currently, they are not really using it, but they have been meaning to for a while.  What if new features were developed behind flags?  It could be deployed to production without affecting anyone, and QA could test at their leisure by enabling the flag for just one tester or for the whole team.</p>
+<p>The QA team thinks this could work in principle, but how do they know a change is <em>really</em> isolated behind a flag?  What happens if it escapes?</p>
+<p>Let&rsquo;s look at the process they came up with, with an example.</p>
+<h2 id="the-new-feature">The New Feature</h2>
+<p>The current web application has a notification system.  It&rsquo;s nothing glamorous; it&rsquo;s an icon in the app which gets a small dot when there is a new notification.  Currently, only notifications from the system itself are supported, but there has been a request to have other parts of the system send notifications there too, along with feature requests for being able to remove read notifications and mark notifications to trigger again later.</p>
+<p>This seems like the ideal candidate for a feature flag, so the development team writes down their next steps:</p>
+<ol>
+<li>create a flag <code>enable-rich-notifications</code></li>
+<li>develop all the capabilities (API, UI)</li>
+<li>deploy</li>
+<li>QA can test it with the flag</li>
+<li>release it to the world</li>
+</ol>
+<p>Someone points out that Step 2 looks like several weeks of work on its own, and that isn&rsquo;t very continuous.  They break down the tasks a bit further:</p>
+<ol>
+<li>create a flag <code>enable-rich-notifications</code></li>
+<li>update the API with a new <code>/rich</code> endpoint, which can only be queried if you have the flag.</li>
+<li>create some fake data for the <code>/rich</code> endpoint to return</li>
+<li>create a new UI component which uses the new endpoint</li>
+<li>update the application to use the new component if you have the flag and the old component otherwise</li>
+</ol>
+<p>With implicit &ldquo;Deploy&rdquo; steps after each step.  This seems reasonable to the development team, but the QA team still have questions: when should they test the UI?  once it is fully complete?  And how do they know it is working?</p>
+<p>The development team also realises that the new notifications system will be using the same data model as the old system, and they need to make sure the old system continues to work correctly.  Come to think of it, QA involvement would be useful here too&hellip;</p>
+<h2 id="moving-qa-earlier">Moving QA Earlier</h2>
+<blockquote>
+<p>As an aside, I find it much better to have a QA Engineer be part of the development team.  The whole DevOps thing is about working in one cross-functional team, and why should QA, Security, or anyone else be excluded from this?  Regrettably, this is a slow organisational change to make, so we come up with ways to make it work as best we can and iterate towards the embedded QA model.</p>
+</blockquote>
+<p>When the new notifications feature is being designed, the development team requests someone from QA be involved from the start; there are things which they should be aware of, and have useful input on.</p>
+<ol>
+<li>Update the data model in place with the new design</li>
+<li>QA to test it in an isolated environment; no changes expected</li>
+<li>Deploy</li>
+</ol>
+<p>The QA points out that as far as they are aware, there aren&rsquo;t any tests for the old notifications system; it was so barebones and unused that no one bothered.  The QA also points out that they have been evaluating switching to a more code-first UI automation tool, and this might be the ideal candidate to start with, and could they put the UI testing code in the repo alongside the feature?</p>
+<p>This is well received by the dev team; this might help the regressions they keep causing when a selector is updated, and the UI tests break; if it&rsquo;s all in the same repository, <code>grep</code> can find all the instances at once!  It&rsquo;s win-win again.</p>
+<p>The again updated list of actions is now:</p>
+<ol>
+<li>QA creates UI tests for the current system (and verifies against isolated environment)</li>
+<li>Devs Update the data model</li>
+<li>QA verifies nothing has changed in a staging environment</li>
+<li>Deploy</li>
+</ol>
+<p>Note there are no flags involved yet!</p>
+<p>The team goes ahead and makes all the discussed changes; however, when the new UI tests are run against the environment with the new data model, they break, and it isn&rsquo;t apparent why.  The QA and the developer sit down and dig around until they find the problem; the format of a field has changed slightly, and the UI tests are catching the problem.</p>
+<p>They fix the issue, test again, and this time deploy into production.</p>
+<h2 id="the-new-api-and-ui">The New API and UI</h2>
+<p>Now that involving QA earlier has been tried and seems to work, the team decide to move forward with the API changes and the feature flag for the original version and the rich version of notifications.</p>
+<p>The flag is created, the API is wrapped with a check for the flag, the developers test it works, and deployment is done.  No problems so far.</p>
+<p>The UI is up next; as this is early on in the process, the dev team, designer, and QA engineer are all sitting together to figure out exactly how it will work.  As the QA is present, they can start writing outlines for UI testing.  As the code for tests is alongside the application code, the developers can help keep the tests working as they flesh out the UI, and they might even write a test themselves too.</p>
+<p>The interesting realisation comes that with a feature flag, two QAs can be involved at once; one is running tests for the flag off, and one is running the tests for the flag on.  It isn&rsquo;t required to be like this of course, but it does mean you can spread the work further.</p>
+<p>Features are developed, tests are written, and deployments are done.</p>
+<h2 id="ready-for-release">Ready for Release</h2>
+<p>The team, which now includes the QA by default, is getting close to being ready to release their new rich notifications to the world.  They have one more test they would like to conduct: what is the load like when users are re-notifying themselves?  How do they even go about testing this?</p>
+<p>The answer, perhaps unsurprisingly, is a feature flag.  In this case, a new feature flag called <code>load-generator-rich-notifications</code>.  When this flag is enabled, the rich notifications system is still hidden, but a small piece of code randomly activates notifications for re-notifying and varying intervals.  The team can switch it on for a few percent of users and then watch their traces and monitoring systems to keep an eye on the health of the system.</p>
+<p>They can add more and more users to the test until they are happy.  Then disable the load generator and clean up all the mess it has left.</p>
+<blockquote>
+<p>Aside; this is how Facebook Messenger was load tested before the public saw anything!</p>
+</blockquote>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>The key takeaway from this is that QA is an important part of the delivery lifecycle.  Your QA Engineers are smart people who want to make things better, so involve them early and see what conversations and ideas can happen when you put smart people together and task them with making things better.</p>
+<p>This was a lot longer than it sounded in my head when I thought this up while cycling home, but I like how it&rsquo;s gone.  I might even turn this into a talk to give to clients if it is well received.</p>
+]]></content:encoded></item><item><title>Architecture Decision Records</title><link>https://andydote.co.uk/2019/06/29/architecture-decision-records/</link><pubDate>Sat, 29 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/29/architecture-decision-records/</guid><description>This is a text version of a short talk (affectionately known as a &amp;ldquo;Coffee Bag&amp;rdquo;) I gave at work this week, on Architecture Design Records. You can see the slides here, but there isn&amp;rsquo;t a recording available, unfortunately.
+It should be noted; these are not to replace full architecture diagrams; you should definitely still write C4 Models to cover the overall architecture. ADRs are for the details, such as serializer formats, convention-over-configuration details, number precisions for timings, or which metrics library is used and why.</description><content:encoded><![CDATA[<p>This is a text version of a short talk (affectionately known as a &ldquo;Coffee Bag&rdquo;) I gave at work this week, on Architecture Design Records.  You can see the <a href="/presentations/index.html?adr">slides here</a>, but there isn&rsquo;t a recording available, unfortunately.</p>
+<p>It should be noted; these are not to replace full architecture diagrams; you should definitely still write <a href="https://c4model.com">C4 Models</a> to cover the overall architecture.  ADRs are for the details, such as serializer formats, convention-over-configuration details, number precisions for timings, or which metrics library is used and why.</p>
+<h2 id="what">What?</h2>
+<p>Architecture Design Records are there to solve the main question people repeatedly ask when they view a new codebase or look at an older part of their current codebase:</p>
+<blockquote>
+<p>Why on earth was it done like this?!</p>
+</blockquote>
+<p>Generally speaking, architectural decisions have been made in good faith at the time, but as time marches on, things change, and the reasoning gets lost.  The reasoning might be discoverable through the commit history, or some comments in a type somewhere, and every once in a while, people remember the Wiki exists, and hope that someone else remembered and put some docs there.  They didn&rsquo;t by the way.</p>
+<p>Architecture Design Records are aiming to solve all of this, with three straightforward attributes: Easy to Write, Easy to Read, and Easy to Find.  Let&rsquo;s look at these on their own, and then have a look at an example.</p>
+<h2 id="easy-to-find">Easy to Find</h2>
+<p>As I alluded to earlier, &ldquo;easy to find&rdquo; doesn&rsquo;t mean &ldquo;hidden in confluence&rdquo; (or any other wiki, for that matter.)  The best place to put records of architecture decisions is in the repository.  If you want them elsewhere, that&rsquo;s fine, but the copy in the repository should be the source of truth.</p>
+<p>As long as the location is consistent (and somewhat reasonable), it doesn&rsquo;t matter too much where they go.  I like to put them in the <code>docs/arch</code> path, but a common option is <code>docs/adr</code> too:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ tree ~/dev/projects/awesome-api
+</span></span><span style="display:flex;"><span>|-- docs
+</span></span><span style="display:flex;"><span>|   <span style="color:#e6db74">`</span>-- arch
+</span></span><span style="display:flex;"><span>|       |-- api-error-codes.md
+</span></span><span style="display:flex;"><span>|       |-- controller-convention.md
+</span></span><span style="display:flex;"><span>|       <span style="color:#e6db74">`</span>-- serialization-format.md
+</span></span><span style="display:flex;"><span>|-- src
+</span></span><span style="display:flex;"><span>|-- test
+</span></span><span style="display:flex;"><span><span style="color:#e6db74">`</span>-- readme.md
+</span></span></code></pre></div><p>The file names for each architecture decision are imperative - e.g. &ldquo;serialization format&rdquo;, rather than &ldquo;figure out what format to use&rdquo;, much like your commit messages are (right?)  You might also note that the files are Markdown.  Because what else would they be really?</p>
+<h2 id="easy-to-write">Easy to Write</h2>
+<p>As just mentioned, I usually use Markdown for writing all documents, but as long as you are consistent (notice a pattern here?) and that it is plain-text viewable (i.e. in a terminal), it doesn&rsquo;t matter too much.  Try and pick a format that doesn&rsquo;t add much mental overhead to writing the documents, and if it can be processed by tools easily, that&rsquo;s a bonus, as we will look into later.</p>
+<h2 id="easy-to-read">Easy to Read</h2>
+<p>There are two components to this:  Rendering and Format.</p>
+<p>Rendering is covering how we actually read it - plain text in a terminal, syntax highlighting in an editor, or rendered into a web page.  Good ADRs can handle all three, and Markdown is a good fit for all of them!  By using Markdown, not only can we render to HTML, we can even use Confluences&rsquo;s questionable &ldquo;Insert Markdown Markup&rdquo; support to write them into a wiki location if desired.</p>
+<p>Format is covering what the content of the document is.  There are <a href="https://github.com/joelparkerhenderson/architecture_decision_record">many different templates you can use</a>, which have different levels of detail, and are aimed at different levels of decisions.  I like to use a template based off <a href="https://github.com/joelparkerhenderson/architecture_decision_record/blob/master/adr_template_by_michael_nygard.md">Michael Nygard&rsquo;s</a>, which I modified a little bit to have the following sections:</p>
+<ul>
+<li>Title</li>
+<li>Status</li>
+<li>Context</li>
+<li>Considered Options</li>
+<li>Chosen Decision</li>
+<li>Consequences</li>
+</ul>
+<p>Let&rsquo;s have a look at these in an example.</p>
+<h2 id="example">Example</h2>
+<p>We have a new API we are developing, and we need to figure out which serialization format we should use for all the requests and responses it will handle.</p>
+<p>We&rsquo;ll start off with our empty document and add in the Title, and Status:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span># Serialization Format
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Status
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>In Progress
+</span></span></code></pre></div><p>The Title is <em>usually</em> the same as the file name, but not necessarily.  The Status indicates where the document is in its lifespan.  What statuses you choose is up to you, but I usually have:</p>
+<ul>
+<li>In Progress</li>
+<li>Accepted</li>
+<li>Rejected</li>
+<li>Superseded</li>
+<li>Deprecated</li>
+</ul>
+<p>Once an ADR is Accepted (or Rejected), the content won&rsquo;t change again.  Any subsequent changes will be a new ADR, and the previous one will be marked as either Deprecated or Superseded, along with a link to the ADR which replaces it, for example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Status
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>Superseded by [<span style="color:#f92672">Api Transport Mechanisms</span>](<span style="color:#a6e22e">api-transport-mechanisms.md</span>)
+</span></span></code></pre></div><p>Next, we need to add some context for the decision being made.  In our serialization example, this will cover what area of the codebase we are covering (the API, rather than storage), and any key points, such as message volume, compatibilities etc.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Context
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>We need to have a consistent serialization scheme for the API.  It needs to be backwards and forwards compatible, as we don&#39;t control all of the clients.  Messages will be fairly high volume and don&#39;t <span style="font-style:italic">*need*</span> to be human readable.
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>Now that we have some context, we need to explain what choices we have available.  This will help when reading past decisions, as it will let us answer the question &ldquo;was xxxx or yyyy considered?&rdquo;.  In our example, we consider JSON, Apache Avro, the inbuilt binary serializer, and a custom built serializer (and others, such as Thrift, ProtoBufs, etc.)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Considered Options
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">1.</span> <span style="font-weight:bold">**Json**</span>: Very portable, and with serializers available for all languages.  We need to agree on a date format, and numeric precision, however.  The serialization should not include white space to save payload size.  Forwards and Backwards compatibility exists but is the developer&#39;s responsibility.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">2.</span> <span style="font-weight:bold">**Apache Avro**</span>: Binary format which includes the schema with the data, meaning no need for schema distribution.  No code generator to run, and libraries are available for most languages.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">3.</span> <span style="font-weight:bold">**Inbuilt Binary**</span>: The API is awkward to use, and its output is not portable to other programming languages, so wouldn&#39;t be easy to consume for other teams, as well as some of our internal services.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">4.</span> <span style="font-weight:bold">**Custom Built**</span>: A lot of overhead for little to no benefit over Avro/gRPC etc.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">5.</span> <span style="font-weight:bold">**Thrift**</span>: ...
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>The second to last section is our Chosen Decision, which will not only list which one we picked (Avro, in this case) but also why it was chosen over other options.  All this helps reading older decisions, as it lets you know what was known at the time the decision was made - and you will always know less at the time of the decision than you do now.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Chosen Decision
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold">**2. Apache Avro**</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Avro was chosen because it has the best combination of message size and schema definition.  No need to have a central schema repository set up is also a huge benefit.
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>In this example, we have selected Avro and listed that our main reasons were message size, and the fact that Avro includes the schema with each message, meaning we don&rsquo;t need a central (or distributed) schema repository to be able to read messages.</p>
+<p>The final section is for Consequences of the decision.  This is <strong>not</strong> to list reasons that we could have picked other decisions, but to explain things that we need to start doing or stop doing because of this decision.  Let&rsquo;s see what our example has:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Consequences
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>As the messages are binary format, we cannot directly view them on the wire.  However, a small CLI will be built to take a message and pretty print it to aid debugging.
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>As we have selected a binary message format, the messages can&rsquo;t be easily viewed any more, so we will build a small CLI which when given a message (which as noted, contains the schema), renders a human-readable version of the message.</p>
+<h2 id="dates">Dates</h2>
+<p>You might notice that the record doesn&rsquo;t contain any dates so far.  That is because it&rsquo;s tracked in source control, which means we can pull all the relevant information from the commit history.  For example, a full list of changes to any ADR could be fetched from Git with this command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>git log --format<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;%ci %s&#39;</span> -- docs/arch/
+</span></span></code></pre></div><p>Likewise, when you&rsquo;re running your build process, you could extract the commit history which effects a single ADR:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>git log --reverse --format<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;%ci %s&#39;</span> -- docs/arch/serialization-format.md
+</span></span></code></pre></div><p>And then take that list and insert it into the rendered output so people can see what changed, and when:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-html" data-lang="html"><span style="display:flex;"><span>&lt;<span style="color:#f92672">div</span> <span style="color:#a6e22e">style</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;float: right&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#f92672">h2</span>&gt;History&lt;/<span style="color:#f92672">h2</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#f92672">ul</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-26&lt;/<span style="color:#f92672">strong</span>&gt; start serialization format docs&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-26&lt;/<span style="color:#f92672">strong</span>&gt; consider json&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-26&lt;/<span style="color:#f92672">strong</span>&gt; consider avro, inbuilt binary and custom binary&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-27&lt;/<span style="color:#f92672">strong</span>&gt; should consider thrift too&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-28&lt;/<span style="color:#f92672">strong</span>&gt; select Avro&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-28&lt;/<span style="color:#f92672">strong</span>&gt; accepted :)&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2019-03-12&lt;/<span style="color:#f92672">strong</span>&gt; accept api transport mechanisms&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;/<span style="color:#f92672">ul</span>&gt;
+</span></span><span style="display:flex;"><span>&lt;/<span style="color:#f92672">div</span>&gt;
+</span></span></code></pre></div><p>Note how that last log entry is the deprecation of this ADR.  You can, of course, expand your log parsing only to detect Status changes etc.</p>
+<h2 id="end">End</h2>
+<p>Hopefully, this gives you a taste of how easily useful documentation can be written, read and found.  I&rsquo;m interested to hear anyone else&rsquo;s thoughts on whether they find this useful, or any other alternatives.</p>
+]]></content:encoded></item><item><title>Branching and Red Builds</title><link>https://andydote.co.uk/2018/08/10/red-builds/</link><pubDate>Fri, 10 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/10/red-builds/</guid><description>So this is a bit of a rant&amp;hellip;but hopefully with some solutions and workarounds too. So let&amp;rsquo;s kick things off with a nice statement:
 I hate broken builds.
 So everyone basically agrees on this point I think. The problem is that I mean all builds, including ones on shared feature branches.
-Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description></item><item><title>Tweaking Processes to Remove Errors</title><link>https://andydote.co.uk/2017/12/09/tweaking-process-remove-errors/</link><pubDate>Sat, 09 Dec 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/12/09/tweaking-process-remove-errors/</guid><description>When we are developing (internal) Nuget packages at work, the process used is the following:
+Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description><content:encoded><![CDATA[<p>So this is a bit of a rant&hellip;but hopefully with some solutions and workarounds too. So let&rsquo;s kick things off with a nice statement:</p>
+<p>I hate broken builds.</p>
+<p>So everyone basically agrees on this point I think.  The problem is that I mean <em>all</em> builds, including ones on shared feature branches.</p>
+<p>Currently, I work on a number of projects which uses small(ish) feature branches.  The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.  Once the feature branch is completed, it&rsquo;s deployed and merged to master.  We&rsquo;ll ignore the fact that Trunk Based Development is just better for now.</p>
+<p><img loading="lazy" src="branching-features.png" alt="branching, developers working on small tasks being merged into a feature branch"  />
+</p>
+<p>The problem occurs when one of the first tasks to be completed is writing behaviour (or acceptance) tests.  These are written in something like SpecFlow, and call out to stubbed methods which throw <code>NotImplementedException</code> s.  When this gets merged, the feature branch build goes red and stays red until all other tasks are done.  And probably for a little while afterwards too.  Nothing like &ldquo;red-green-refactor&rdquo; when your light can&rsquo;t change away from red!</p>
+<h2 id="the-problems">The Problems</h2>
+<ul>
+<li>Local tests are failing, no matter how much you implement</li>
+<li>PullRequests to the feature branch don&rsquo;t have passing build checks</li>
+<li>The failing build is failing because:
+<ul>
+<li>Not everything is implemented yet</li>
+<li>A developer has introduced an error, and no one has noticed yet</li>
+<li>The build machine is playing up</li>
+</ul>
+</li>
+</ul>
+<p><img loading="lazy" src="branching-features-builds.png" alt="branching, developers working on small tasks being merged into a feature branch showing everything as failed builds"  />
+</p>
+<h2 id="bad-solutions">Bad Solutions</h2>
+<p>The first thing we could do is to not run the acceptance tests on a Task branch&rsquo;s build, and only when a feature branch build runs.  This is a bad idea, as someone will have forgotten to check if their task&rsquo;s acceptance tests pass, and will require effort later to fix the broken acceptance tests.</p>
+<p>We could also implement the acceptance file and not call any stubbed methods, making the file a text file and non-executable.  This is also a pretty bad idea - how much would you like to bet that it stays non-executable?</p>
+<h2 id="the-solution">The Solution</h2>
+<p>Don&rsquo;t have the acceptance tests as a separate task.  Instead, split the criteria among the implementation tasks.  This does mean that your other tasks should be Vertical Slices rather than Horizontal, which can be difficult to do depending on the application&rsquo;s architecture.</p>
+<h2 id="an-example">An Example</h2>
+<p>So let&rsquo;s dream up a super simple Acceptance Criteria:</p>
+<ul>
+<li>When a user signs up with a valid email which has not been used, they receive a welcome email with an activation link.</li>
+<li>When a user signs up with an invalid email, they get a validation error.</li>
+<li>When a user signs up with an in-use email, they get an error</li>
+</ul>
+<p>Note how this is already pretty close to being the tasks for the feature?  Our tasks are pretty much:</p>
+<ul>
+<li>implement the happy path</li>
+<li>implement other scenarios</li>
+</ul>
+<p>Of course, this means that not everything can be done in parallel - I imagine you&rsquo;d want the happy path task to be done first, and then the other scenarios are probably parallelisable.</p>
+<p>So our trade-off here is that we lose some parallelisation, but gain feedback. While this may seem insignificant, it has a significant impact on the overall delivery rate - everyone knows if their tasks are complete or not, and when the build goes red, you can be sure of what introduced the problem.</p>
+<p>Not to mention that features are rarely this small - you probably have various separate acceptance criteria, such as being able to view an account page.</p>
+<p>Oh, and once you can split your tasks correctly, there is only a small step to getting to do Trunk Based Development.  Which would make me happy.</p>
+<p>And developer happiness is important.</p>
+]]></content:encoded></item><item><title>Tweaking Processes to Remove Errors</title><link>https://andydote.co.uk/2017/12/09/tweaking-process-remove-errors/</link><pubDate>Sat, 09 Dec 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/12/09/tweaking-process-remove-errors/</guid><description>When we are developing (internal) Nuget packages at work, the process used is the following:
 Get latest of master New branch feature-SomethingDescriptive Implement feature Push to GitHub TeamCity builds Publish package to the nuget feed Pull request Merge to master Obviously 3 to 6 can repeat many times if something doesn&amp;rsquo;t work out quite right.
 There are a number of problems with this process:
-Pull-request after publishing Pull requests are a great tool which we use extensively, but in this case, they are being done too late.</description></item><item><title>Evolutionary Development</title><link>https://andydote.co.uk/2017/11/17/evolutionary-development/</link><pubDate>Fri, 17 Nov 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/11/17/evolutionary-development/</guid><description>Having recently finished reading the Building Evolutionary Architectures: Support Constant Change book, I got to thinking about a system which was fairly representative of an architecture which was fine for it&amp;rsquo;s initial version, but it&amp;rsquo;s usage had outgrown the architecture.
-Example System: Document Storage The system in question was a file store for a multi user, internal, desktop based CRM system. The number of users was very small, and the first implementation was just a network file share.</description></item></channel></rss>
+Pull-request after publishing Pull requests are a great tool which we use extensively, but in this case, they are being done too late.</description><content:encoded><![CDATA[<p>When we are developing (internal) Nuget packages at work, the process used is the following:</p>
+<ol>
+<li>Get latest of master</li>
+<li>New branch <code>feature-SomethingDescriptive</code></li>
+<li>Implement feature</li>
+<li>Push to GitHub</li>
+<li>TeamCity builds</li>
+<li>Publish package to the nuget feed</li>
+<li>Pull request</li>
+<li>Merge to master</li>
+</ol>
+<p>Obviously <code>3</code> to <code>6</code> can repeat many times if something doesn&rsquo;t work out quite right.</p>
+<p>There are a number of problems with this process:</p>
+<h3 id="pull-request-after-publishing">Pull-request after publishing</h3>
+<p>Pull requests are a great tool which we use extensively, but in this case, they are being done too late. By the time another developer has reviewed something, possibly requesting changes, the package is published.</p>
+<h3 id="potentially-broken-packages-published">Potentially broken packages published</h3>
+<p>As packages are test-consumed from the main package feed, there is the chance that someone else is working on another code base, and decides to update the nuget which you have just published. Now they are pulling in a potentially broken, or unreviewed package.</p>
+<h3 id="published-package-is-not-nessacarily-what-is-on-master">Published package is not nessacarily what is on master</h3>
+<p>Assuming the pull-request is approved with no changes, then the code is going to make it to master. However there is nothing to stop another developer&rsquo;s changes getting to master first, and now you have a merge&hellip;and the published package doesn&rsquo;t match what the source says it contains.</p>
+<h3 id="featureversion-conflicts-with-multiple-developers">Feature/version conflicts with multiple developers</h3>
+<p>A few of our packages get updated fairly frequently, and there is a strong likelyhood that two developers are adding things to the same package. Both publish their package off their feature branch, and now someone&rsquo;s changes have been &ldquo;lost&rdquo; as the latest package doesn&rsquo;t have bother developer&rsquo;s changes.</p>
+<h2 id="soltuon-continuous-delivery--master-based-development">Soltuon: Continuous Delivery / Master Based Development</h2>
+<p>We can solve all of these issues by changing the process to be more &ldquo;Trunk Based&rdquo;:</p>
+<ol>
+<li>Get latest of master</li>
+<li>New branch <code>feature-SomethingDescriptive</code></li>
+<li>Implement feature</li>
+<li>Push to GitHub</li>
+<li>Pull request</li>
+<li>TeamCity builds branch</li>
+<li>Merge to master</li>
+<li>TeamCity builds &amp; publishes the package</li>
+</ol>
+<p>All we have really changed here is to publish from master, rather than your feature branch. Now a pull-request has to happen (master branch is Protected in GitHub) before you can publish a package, meaning we have elimnated all of the issues with our previous process.</p>
+<p>Except one, kind of.</p>
+<p>How do developers test their new version of the package is correct from a different project? There are two solutions to this (and you could implement both):</p>
+<ul>
+<li>Publish package to a local nuget feed</li>
+<li>Publish packages from feature branches as <code>-pre</code> versions</li>
+</ul>
+<p>The local nuget feed is super simple to implement: just use a directory e.g. I have <code>/d/dev/local-packages/</code> defined in my machine&rsquo;s nuget.config file. We use Gulp for our builds, so modifying our <code>gulp publish</code> task to publish locally when no arguments are specified would be trivial.</p>
+<p>The publishing of Pre-release packages can also be implemented through our gulp scripts: we just need to adjust TeamCity to pass in the branch name to the gulp command (<code>gulp ci --mode=Release --barnch &quot;%vcsroot.branch%&quot;</code>), and we can modify the script to add the <code>-pre</code> flag to the version number if the branch parameter is not <code>master</code>.</p>
+<p>Personally, I would use local publishing only, and implement the feature branch publishing if the package in question is consumed by multiple teams, and you would want an external team to be able to verify the changes made before a proper release.</p>
+<p>Now our developers can still test their package works from a consuming application, and not clutter the nuget feed with potentially broken packages.</p>
+]]></content:encoded></item><item><title>Evolutionary Development</title><link>https://andydote.co.uk/2017/11/17/evolutionary-development/</link><pubDate>Fri, 17 Nov 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/11/17/evolutionary-development/</guid><description>Having recently finished reading the Building Evolutionary Architectures: Support Constant Change book, I got to thinking about a system which was fairly representative of an architecture which was fine for it&amp;rsquo;s initial version, but it&amp;rsquo;s usage had outgrown the architecture.
+Example System: Document Storage The system in question was a file store for a multi user, internal, desktop based CRM system. The number of users was very small, and the first implementation was just a network file share.</description><content:encoded><![CDATA[<p>Having recently finished reading the <a href="https://www.goodreads.com/book/show/35755822-building-evolutionary-architectures">Building Evolutionary Architectures: Support Constant Change book</a>, I got to thinking about a system which was fairly representative of an architecture which was fine for it&rsquo;s initial version, but it&rsquo;s usage had outgrown the architecture.</p>
+<h2 id="example-system-document-storage">Example System: Document Storage</h2>
+<p>The system in question was a file store for a multi user, internal, desktop based CRM system.  The number of users was very small, and the first implementation was just a network file share.  This was a fine solution to start with, but as the number of CRM users grew, cracks started to appear in the system.</p>
+<p>A few examples of problems seen were:</p>
+<ul>
+<li>Concurrent writes to the same files</li>
+<li>Finding files for a specific record in the CRM</li>
+<li>Response time</li>
+<li>Files &ldquo;going missing&rdquo;</li>
+<li>Storage size</li>
+<li>Data retention rules</li>
+</ul>
+<p>Most of this was caused by the number of file stored, which was well past the 5 million mark.  For example, queries for &ldquo;all files for x record&rdquo; got slower and slower over time.</p>
+<p>Samba shares can&rsquo;t be listed in date-modified order (you actually get all the file names, then sorting is applied), which means you can&rsquo;t auto delete old files, or auto index (e.g. export text to elasticsearch) updated files easily.</p>
+<p>The key to dealing with this problem is to take small steps - if you have a large throughput to support, the last thing you want to do is break it for everyone at once, by doing a &ldquo;big bang&rdquo; release.</p>
+<p>Not only can we take small steps in deploying our software, but we can also utilise Feature Toggles to make things safer.  We can switch on a small part of the new system for a small percentage of users, and slowly ramp up usage while monitoring for errors.</p>
+<h2 id="incremental-replacement">Incremental Replacement</h2>
+<p>To replace this in an incremental manner, we are going to do the following 4 actions for every feature, until all features are done:</p>
+<ol>
+<li>Implement new feature in API and client</li>
+<li>Deploy client (toggle: off)</li>
+<li>Deploy API</li>
+<li>Start toggle roll out</li>
+</ol>
+<p>Now that we know how each feature is going to be delivered, we can write out our list of features, in a rough implementation order:</p>
+<ul>
+<li>Create API, build scripts, CI and deployment pipeline</li>
+<li>Implement authentication on the API</li>
+<li>Implement fetching a list of files for a record</li>
+<li>Implement fetching a single file&rsquo;s content for a record</li>
+<li>Implement storing a single file for a record</li>
+<li>Implement deletion of a single file for a record</li>
+</ul>
+<p>The development and deployment of our features can be overlapped too: we can be deploying the next version of the client with the next feature off while we are still rolling out the previous feature(s).  This all assumes that your features are nice and isolated however!</p>
+<p>Once this list of features is done, and all the toggles are on, from the client perspective we are feature complete.</p>
+<p>We are free to change how the backend of the API works.  As long as we don&rsquo;t change the API&rsquo;s contract, the client doesn&rsquo;t need any more changes.</p>
+<p>Our next set of features could be:</p>
+<ul>
+<li>Implement audit log of API actions</li>
+<li>Publish store and delete events to a queue</li>
+<li>Change our indexing process to consume the store and delete events</li>
+<li>Make the samba hidden (except to the API)</li>
+<li>Implement background delete of old documents</li>
+<li>Move storage backend (to S3, for example)</li>
+</ul>
+<p>This list of features doesn&rsquo;t impact the front end (client) system, but the backend systems can now have a more efficient usage of the file store.  As with the client and initial API development, we would do this with a quick, iterative process.</p>
+<h2 id="but-we-cant-do-iterative-because">But we can&rsquo;t do iterative because&hellip;</h2>
+<p>This is a common reaction when an iterative approach is suggested, and thankfully can be countered in a number of ways.</p>
+<p>First off, if this is an absolute requirement, we can do our iterations an feature toggling rollouts to another environment, such a Pre-Production, or QA.  While this reduces some of the benefits (we loose out on live data ramp up), it does at least keep small chunks of work.</p>
+<p>Another work around is to use feature toggles anyway, but only have a couple of &ldquo;trusted&rdquo; users use the new functionality.  Depending on what you are releasing, this could mean a couple of users you know, or giving a few users a non-visible change (i.e. they&rsquo;re not aware they&rsquo;ve been selected!)  You could also use NDA (Non Disclosure Agreements) if you need to keep them quiet, although this is quite an extreme measure.</p>
+<p>A final option is to use experiments, using an experimentation library (such as <a href="https://github.com/github/scientist">Github&rsquo;s Scientist</a>) which continues to use the existing features, but in parallel runs and records the results of the replacement feature.  This obviously has to be done with care, as you don&rsquo;t want to cause side effects.</p>
+<p>How do you replace old software? Big bang, iterative, experimentation, or some other process?</p>
+]]></content:encoded></item></channel></rss>

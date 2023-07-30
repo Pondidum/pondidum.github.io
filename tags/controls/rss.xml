@@ -1,9 +1,382 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>controls on Andy Dote</title><link>https://andydote.co.uk/tags/controls/</link><description>Recent content in controls on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Mon, 29 Oct 2012 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/controls/rss.xml" rel="self" type="application/rss+xml"/><item><title>Winforms Design Time support: exposing sub designers</title><link>https://andydote.co.uk/2012/10/29/winforms-design-time-support-exposing-sub-designers/</link><pubDate>Mon, 29 Oct 2012 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2012/10/29/winforms-design-time-support-exposing-sub-designers/</guid><description>When writing a UserControl, it is often desired to expose one or more of the sub-controls design-time support to the user of your control. It is reasonably straight forward to do, and here is a rundown of how:
 We start off with our UserControl, in this case the imaginatively named TestControl:
 The code behind looks like this:
-[Designer(typeof(TestControlDesigner))] public partial class TestControl : UserControl { public TestControl() { InitializeComponent(); } [DesignerSerializationVisibility(DesignerSerializationVisibility.</description></item><item><title>Databinding to a DataGridView - The order of columns</title><link>https://andydote.co.uk/2010/10/20/databinding-to-a-datagridview-the-order-of-columns/</link><pubDate>Wed, 20 Oct 2010 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2010/10/20/databinding-to-a-datagridview-the-order-of-columns/</guid><description>A while ago I was writing a small history grid in one of our applications at work. It has a single HistoryItem object, which is fairly straightforward, something like this:
-Class HistoryItem { public int ID { get{ return _id; } } public DateTime CreateDate { get { return _createDate; } } public String Creator { get { return _creatorName; } } public String Note { get { return _note; } } } This was populated into a List&amp;lt;HistoryItem&amp;gt; and bound to the DataGridView directly:</description></item><item><title>Microcontrollers for MenuItems</title><link>https://andydote.co.uk/2009/05/29/microcontrollers-for-menuitems/</link><pubDate>Fri, 29 May 2009 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2009/05/29/microcontrollers-for-menuitems/</guid><description>I have been working my way through Jeremy Miller&amp;rsquo;s excellent Build Your Own CAB Series (which would be even better if he felt like finishing!) and was very interested by the article on controlling menus with Microcontrollers.
-After reading it and writing a version of it myself, I came to the conclusion that some parts of it seem to be wrong. All of the permissioning is done based on the menu items which fire ICommands, and several menu items could use the same ICommand.</description></item><item><title>Creating Non resizable controls</title><link>https://andydote.co.uk/2008/04/13/creating-non-resizable-controls/</link><pubDate>Sun, 13 Apr 2008 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2008/04/13/creating-non-resizable-controls/</guid><description>A control I was recently developing required being non-resizable when on the form. When the application is running, this would be easy enough, just set its AutoSize property to False, and don&amp;rsquo;t dock the control.
+[Designer(typeof(TestControlDesigner))] public partial class TestControl : UserControl { public TestControl() { InitializeComponent(); } [DesignerSerializationVisibility(DesignerSerializationVisibility.</description><content:encoded><![CDATA[<p>When writing a <a href="http://msdn.microsoft.com/en-us/library/system.windows.forms.usercontrol.aspx">UserControl</a>, it is often desired to expose one or more of the sub-controls design-time support to the user of your control.  It is reasonably straight forward to do, and here is a rundown of how:</p>
+<p>We start off with our UserControl, in this case the imaginatively named <code>TestControl</code>:</p>
+<p><img loading="lazy" src="sub-designer-control.png" alt="The TestControl"  />
+</p>
+<p>The code behind looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Designer(typeof(TestControlDesigner))]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">partial</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TestControl</span> : UserControl
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> TestControl()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		InitializeComponent();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">	[DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> ToolStrip ToolStrip
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> tsMain; }
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The first attribute on the class (<code>[Designer(typeof(TestControlDesigner))]</code>) just instructs that we want it to use our own custom designer file (which we create in a minute).
+The next important point is the addition of the <code>ToolStrip</code> property, and the <code>DesignerSerializationVisibility</code> attribute that goes with it.  This informs the winforms designer that any changes made to the ToolStrip should be stored in the hosting container&rsquo;s designer file.  Without this attribute, no changes made in the designer would persist when you closed the designer.</p>
+<p>Next, we add a reference to <code>System.Design</code> in the project, and create our <code>TestControlDesigner</code> class, inheriting from <a href="http://msdn.microsoft.com/en-us/library/system.windows.forms.design.controldesigner.aspx">ControlDesigner</a>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TestControlDesigner</span> : ControlDesigner
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Initialize(System.ComponentModel.IComponent component)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">base</span>.Initialize(component);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> control = (TestControl) component;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		EnableDesignMode(control.ToolStrip, <span style="color:#e6db74">&#34;ToolStrip&#34;</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As you can see, we have very little in here.  The <code>Initialize</code> method is overriden, and we call <code>EnableDesignMode</code> on our ToolStrip (the property added to the TestControl earlier).</p>
+<p>After compiling, we can go to our form (again, imaginatively named Form1), and add a couple of instances of <code>TestControl</code> to it from the tool box:</p>
+<p><img loading="lazy" src="sub-designer-designtime.png" alt="The TestControl"  />
+</p>
+<p>As you can see, the two control&rsquo;s ToolStrips contents is unique, and we have the ToolStrip&rsquo;s designer exposed in the forms designer.</p>
+]]></content:encoded></item><item><title>Databinding to a DataGridView - The order of columns</title><link>https://andydote.co.uk/2010/10/20/databinding-to-a-datagridview-the-order-of-columns/</link><pubDate>Wed, 20 Oct 2010 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2010/10/20/databinding-to-a-datagridview-the-order-of-columns/</guid><description>A while ago I was writing a small history grid in one of our applications at work. It has a single HistoryItem object, which is fairly straightforward, something like this:
+Class HistoryItem { public int ID { get{ return _id; } } public DateTime CreateDate { get { return _createDate; } } public String Creator { get { return _creatorName; } } public String Note { get { return _note; } } } This was populated into a List&amp;lt;HistoryItem&amp;gt; and bound to the DataGridView directly:</description><content:encoded><![CDATA[<p>A while ago I was writing a small history grid in one of our applications at work.  It has a single <code>HistoryItem</code> object, which is fairly straightforward, something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>Class HistoryItem
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>{ <span style="color:#66d9ef">return</span> _id; } }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime CreateDate { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> _createDate; } }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> String Creator { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> _creatorName; } }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> String Note { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> _note; } }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This was populated into a <code>List&lt;HistoryItem&gt;</code> and bound to the <code>DataGridView</code> directly:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>	dgvHistory.DataSource = ScreenEntity.History.ToList();
+</span></span></code></pre></div><p>This exposes something interesting about how the DataGridView picks column order: It&rsquo;s not done by Alphabetical Order; it is done by Definition Order.  So the order in which the properties in the class are defined is the order that the grid view will display. Usually.</p>
+<p>When the piece of software was deployed (in house software, to be used by about 10 people), one user requested the order of the columns be changed.  She didn&rsquo;t like the fact that the order was this for her: <code>Note, ID, CreateDate, Creator</code>.</p>
+<p>After checking my copy of the software and several other users&rsquo; copies, it turned out the order was only different on her machine.  She could login to another machine and it would be fine.  At the time I never got to the bottom of why it was setting the wrong order, but fixed it by manually specifying the column order after binding.</p>
+<p>Yesterday however I was reading an article by <a href="http://www.abhisheksur.com/2010/10/hidden-facts-on-c-constructor-in.html">Abhishek Sur on the Hidden Facts of C# Structures in terms of MSIL</a> and noticed this piece of information:</p>
+<blockquote>
+<p>DemoClass is declared as auto&hellip;Auto allows the loader to change the layout of the class which it sees fit. That means the order of the members will not be kept intact while the object is created. It is also going to ignore any layout information for the class mentioned explicitly.</p>
+</blockquote>
+<p>Now while I am unable to reproduce this problem currently as I am not near work, I do wonder if the reason column orders were fine on most machines was because the CLR was keeping the properties in definition order, with the exception of one machine, where for whatever reason it was reordering the properties.</p>
+<p>If this problem arises again then I will have a go at fixing it by changing to a Structure (which by default are declared as Sequential in IL) and see if that fixes the problem.</p>
+]]></content:encoded></item><item><title>Microcontrollers for MenuItems</title><link>https://andydote.co.uk/2009/05/29/microcontrollers-for-menuitems/</link><pubDate>Fri, 29 May 2009 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2009/05/29/microcontrollers-for-menuitems/</guid><description>I have been working my way through Jeremy Miller&amp;rsquo;s excellent Build Your Own CAB Series (which would be even better if he felt like finishing!) and was very interested by the article on controlling menus with Microcontrollers.
+After reading it and writing a version of it myself, I came to the conclusion that some parts of it seem to be wrong. All of the permissioning is done based on the menu items which fire ICommands, and several menu items could use the same ICommand.</description><content:encoded><![CDATA[<p>I have been working my way through Jeremy Miller&rsquo;s excellent <a href="http://codebetter.com/blogs/jeremy.miller/archive/2007/07/25/the-build-your-own-cab-series-table-of-contents.aspx">Build Your Own CAB Series</a> (which would be even better if he felt like finishing!) and was very interested by the article on controlling menus with <a href="http://codebetter.com/blogs/jeremy.miller/pages/build-your-own-cab-14-managing-menu-state-with-microcontroller-s-command-s-a-layer-supertype-some-structuremap-pixie-dust-and-a-dollop-of-fluent-interface.aspx">Microcontrollers</a>.</p>
+<p>After reading it and writing a version of it myself, I came to the conclusion that some parts of it seem to be wrong.  All of the permissioning is done based on the menu items which fire <code>ICommands</code>, and several menu items could use the same <code>ICommand</code>.  This means that you need to use the interface something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span>MenuController.MenuItem(mnuFileNew).Executes(Commands.Open).IsAvailableToRoles(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;editor&#34;</span>, <span style="color:#e6db74">&#34;su&#34;</span>)<span style="color:#960050;background-color:#1e0010">;</span>
+</span></span><span style="display:flex;"><span>MenuController.MenuItem(tsbStandardNew).Executes(Commands.Open).IsAvailableToRoles(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;editor&#34;</span>, <span style="color:#e6db74">&#34;su&#34;</span>)<span style="color:#960050;background-color:#1e0010">;</span>
+</span></span></code></pre></div><p>Now to me this seems somewhat wrong, I would rather have something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span>MenuController.Command(<span style="color:#66d9ef">new</span> MenuCommands.New).IsAttachedTo(mnuFileNew, tsbStandardNew).IsAvailableToRoles(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;editor&#34;</span>, <span style="color:#e6db74">&#34;su&#34;</span>)<span style="color:#960050;background-color:#1e0010">;</span>
+</span></span></code></pre></div><p>So I decided to have a go at re-working it to my liking.  To start with we have the mandatory <code>ICommand</code> interface:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Interface</span> ICommand
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Execute</span>()
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Interface</span>
+</span></span></code></pre></div><p>Then a class that manages the actual <code>ICommand</code> and its menuitem(s):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">NotInheritable</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">CommandItem</span>(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Implements</span> IDisposable      <span style="color:#75715e">&#39;used to remove handlers that we dont want to leave lying around
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">ReadOnly</span> _command <span style="color:#f92672">As</span> ICommand
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">ReadOnly</span> _id <span style="color:#f92672">As</span> T
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _roles <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> List(<span style="color:#66d9ef">Of</span> <span style="color:#66d9ef">String</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _menuItems <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> List(<span style="color:#66d9ef">Of</span> ToolStripItem)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _alwaysEnabled <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">False</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _disposed <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">False</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">AlwaysEnabled</span>() <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> _alwaysEnabled
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Set</span>(<span style="color:#66d9ef">ByVal</span> value <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>)
+</span></span><span style="display:flex;"><span>            _alwaysEnabled <span style="color:#f92672">=</span> value
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Set</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">Roles</span>() <span style="color:#f92672">As</span> List(<span style="color:#66d9ef">Of</span> <span style="color:#66d9ef">String</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> _roles
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Set</span>(<span style="color:#66d9ef">ByVal</span> value <span style="color:#f92672">As</span> List(<span style="color:#66d9ef">Of</span> <span style="color:#66d9ef">String</span>))
+</span></span><span style="display:flex;"><span>            _roles <span style="color:#f92672">=</span> value
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Set</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">ReadOnly</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">MenuItems</span>() <span style="color:#f92672">As</span> ToolStripItem()
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> _menuItems.ToArray
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">ReadOnly</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">IsDisposed</span>() <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> _disposed
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">New</span>(<span style="color:#66d9ef">ByVal</span> cmd <span style="color:#f92672">As</span> ICommand, <span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T)
+</span></span><span style="display:flex;"><span>        _command <span style="color:#f92672">=</span> cmd
+</span></span><span style="display:flex;"><span>        _id <span style="color:#f92672">=</span> id
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">AddMenuItem</span>(<span style="color:#66d9ef">ByVal</span> menuItem <span style="color:#f92672">As</span> ToolStripItem)
+</span></span><span style="display:flex;"><span>        _menuItems.Add(menuItem)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">AddHandler</span> menuItem.Click, <span style="color:#f92672">AddressOf</span> _item_Click
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">RemoveMenuItem</span>(<span style="color:#66d9ef">ByVal</span> menuItem <span style="color:#f92672">As</span> ToolStripItem)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">RemoveHandler</span> menuItem.Click, <span style="color:#f92672">AddressOf</span> _item_Click
+</span></span><span style="display:flex;"><span>        _menuItems.Remove(menuItem)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsEnabled</span>(<span style="color:#66d9ef">ByVal</span> state <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T)) <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> _alwaysEnabled <span style="color:#66d9ef">Then</span> <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">True</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> <span style="color:#66d9ef">Not</span> state.IsEnabled(_id) <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">False</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">For</span> i <span style="color:#f92672">As</span> <span style="color:#66d9ef">Integer</span> <span style="color:#f92672">=</span> 0 <span style="color:#66d9ef">To</span> _roles.Count <span style="color:#f92672">-</span> 1
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">If</span> Thread.CurrentPrincipal.IsInRole(_roles(i)) <span style="color:#66d9ef">Then</span> <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">True</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Next</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">False</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">SetState</span>(<span style="color:#66d9ef">ByVal</span> state <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Dim</span> enabled <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span> <span style="color:#f92672">=</span> IsEnabled(state)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">For</span> <span style="color:#66d9ef">Each</span> ts <span style="color:#f92672">As</span> ToolStripItem <span style="color:#f92672">In</span> _menuItems
+</span></span><span style="display:flex;"><span>            ts.Enabled <span style="color:#f92672">=</span> enabled
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Next</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Dispose</span>(<span style="color:#66d9ef">ByVal</span> disposing <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> <span style="color:#66d9ef">Not</span> _disposed <span style="color:#f92672">AndAlso</span> disposing <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">For</span> <span style="color:#66d9ef">Each</span> menuItem <span style="color:#f92672">As</span> ToolStripItem <span style="color:#f92672">In</span> _menuItems
+</span></span><span style="display:flex;"><span>                RemoveMenuItem(menuItem)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Next</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        _disposed <span style="color:#f92672">=</span> <span style="color:#66d9ef">True</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Dispose</span>() <span style="color:#66d9ef">Implements</span> IDisposable.Dispose
+</span></span><span style="display:flex;"><span>        Dispose(<span style="color:#66d9ef">True</span>)
+</span></span><span style="display:flex;"><span>        GC.SuppressFinalize(<span style="color:#66d9ef">Me</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">_item_Click</span>(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> <span style="color:#66d9ef">Object</span>, <span style="color:#66d9ef">ByVal</span> e <span style="color:#f92672">As</span> EventArgs)
+</span></span><span style="display:flex;"><span>        _command.Execute()
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span></code></pre></div><p>As you can see, the <code>Dispose</code> Method is used to allow for handlers to be removed, otherwise the objects might be hanging around longer than they should be. We also have a list of menu items that this command controls, and a list of roles that the command is available to.</p>
+<p>Next we have the class that holds the state of each menu item, which is generic to allow the end user to use whatever they wish to identify each menu item:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">NotInheritable</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">CommandState</span>(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _enabledCommands <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> List(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">Enable</span>(<span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T) <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> <span style="color:#66d9ef">Not</span> _enabledCommands.Contains(id) <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>            _enabledCommands.Add(id)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">Disable</span>(<span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T) <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> _enabledCommands.Contains(id) <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>            _enabledCommands.Remove(id)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsEnabled</span>(<span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T) <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> _enabledCommands.Contains(id)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span></code></pre></div><p>Finally we have the Manager class which stitches the whole lot together with a health dollop of Fluent Interfaces.  We have a unique list of Commands (as I wrote this in VS2005, I just had to make a unique List class, rather than use a dictionary of <code>CommmandItem</code> and <code>Null</code>) and a sub class which provides the Fluent Interface to the manager. (<code>IDisposeable</code> parts have been trimmed out for brevity, it&rsquo;s just contains a loop that disposes all child objects).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">NotInheritable</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">Manager</span>(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _commands <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> UniqueList(<span style="color:#66d9ef">Of</span> CommandItem(<span style="color:#66d9ef">Of</span> T))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">Command</span>(<span style="color:#66d9ef">ByVal</span> cmd <span style="color:#f92672">As</span> ICommand, <span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T) <span style="color:#f92672">As</span> CommandExpression
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">New</span> CommandExpression(<span style="color:#66d9ef">Me</span>, cmd, id)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">SetState</span>(<span style="color:#66d9ef">ByVal</span> state <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">For</span> <span style="color:#66d9ef">Each</span> ci <span style="color:#f92672">As</span> CommandItem(<span style="color:#66d9ef">Of</span> T) <span style="color:#f92672">In</span> _commands
+</span></span><span style="display:flex;"><span>            ci.SetState(state)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Next</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">NotInheritable</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">CommandExpression</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">ReadOnly</span> _manager <span style="color:#f92672">As</span> Manager(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">ReadOnly</span> _commandItem <span style="color:#f92672">As</span> CommandItem(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Friend</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">New</span>(<span style="color:#66d9ef">ByVal</span> mgr <span style="color:#f92672">As</span> Manager(<span style="color:#66d9ef">Of</span> T), <span style="color:#66d9ef">ByVal</span> cmd <span style="color:#f92672">As</span> ICommand, <span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            _manager <span style="color:#f92672">=</span> mgr
+</span></span><span style="display:flex;"><span>            _commandItem <span style="color:#f92672">=</span> <span style="color:#66d9ef">New</span> CommandItem(<span style="color:#66d9ef">Of</span> T)(cmd, id)
+</span></span><span style="display:flex;"><span>            _manager._commands.Add(_commandItem)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsAttachedTo</span>(<span style="color:#66d9ef">ByVal</span> menuItem <span style="color:#f92672">As</span> ToolStripItem) <span style="color:#f92672">As</span> CommandExpression
+</span></span><span style="display:flex;"><span>            _commandItem.AddMenuItem(menuItem)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsInRole</span>(<span style="color:#66d9ef">ByVal</span> <span style="color:#66d9ef">ParamArray</span> roles() <span style="color:#f92672">As</span> <span style="color:#66d9ef">String</span>) <span style="color:#f92672">As</span> CommandExpression
+</span></span><span style="display:flex;"><span>            _commandItem.Roles.AddRange(roles)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsAlwaysEnabled</span>() <span style="color:#f92672">As</span> CommandExpression
+</span></span><span style="display:flex;"><span>            _commandItem.AlwaysEnabled <span style="color:#f92672">=</span> <span style="color:#66d9ef">True</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">UniqueList</span>(<span style="color:#66d9ef">Of</span> TKey)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Inherits</span> List(<span style="color:#66d9ef">Of</span> TKey)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Shadows</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Add</span>(<span style="color:#66d9ef">ByVal</span> item <span style="color:#f92672">As</span> TKey)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">If</span> <span style="color:#66d9ef">Not</span> <span style="color:#66d9ef">MyBase</span>.Contains(item) <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">MyBase</span>.Add(item)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span></code></pre></div><p>In my test application I have a file containing my menuCommands and an Enum used for identification:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Namespace</span> MenuCommands
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Enum</span> <span style="color:#a6e22e">Commands</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">[</span><span style="color:#66d9ef">New</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>        Open
+</span></span><span style="display:flex;"><span>        Save
+</span></span><span style="display:flex;"><span>        Close
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Enum</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">Open</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Implements</span> ICommand
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Execute</span>() <span style="color:#66d9ef">Implements</span> ICommand.Execute
+</span></span><span style="display:flex;"><span>            MessageBox.Show(<span style="color:#e6db74">&#34;Open&#34;</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Namespace</span>
+</span></span></code></pre></div><p>And in the main form I have this code.  The Thread Principle is used for the roles, and the actual roles could (should) be loaded from a database or anywhere other than hard coded constants of course.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> _menuManager <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> Manager(<span style="color:#66d9ef">Of</span> MenuCommands.Commands)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> _state <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> CommandState(<span style="color:#66d9ef">Of</span> MenuCommands.Commands)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Form1_Load</span>(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> System.Object, <span style="color:#66d9ef">ByVal</span> e <span style="color:#f92672">As</span> System.EventArgs) <span style="color:#66d9ef">Handles</span> <span style="color:#66d9ef">MyBase</span>.Load
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Thread.CurrentPrincipal <span style="color:#f92672">=</span> <span style="color:#66d9ef">New</span> GenericPrincipal(Thread.CurrentPrincipal.Identity, <span style="color:#66d9ef">New</span> <span style="color:#66d9ef">String</span>() {<span style="color:#e6db74">&#34;normal&#34;</span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.Command(<span style="color:#66d9ef">New</span> MenuCommands.<span style="color:#f92672">[</span><span style="color:#66d9ef">New</span><span style="color:#f92672">]</span>, MenuCommands.Commands.<span style="color:#f92672">[</span><span style="color:#66d9ef">New</span><span style="color:#f92672">]</span>) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(mnuFileNew) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(tsbNew) _
+</span></span><span style="display:flex;"><span>                .IsInRole(<span style="color:#e6db74">&#34;normal&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.Command(<span style="color:#66d9ef">New</span> MenuCommands.Open, MenuCommands.Commands.Open) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(mnuFileOpen) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(tsbOpen) _
+</span></span><span style="display:flex;"><span>                .IsInRole(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;reviewer&#34;</span>, <span style="color:#e6db74">&#34;viewer&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.Command(<span style="color:#66d9ef">New</span> MenuCommands.Save, MenuCommands.Commands.Save) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(mnuFileSave) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(tsbSave) _
+</span></span><span style="display:flex;"><span>                .IsInRole(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;reviewer&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.Command(<span style="color:#66d9ef">New</span> MenuCommands.Close, MenuCommands.Commands.Close) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(mnuFileExit) _
+</span></span><span style="display:flex;"><span>                .IsAlwaysEnabled()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _state.Enable(MenuCommands.Commands.Open) _
+</span></span><span style="display:flex;"><span>          .Enable(MenuCommands.Commands.Save) _
+</span></span><span style="display:flex;"><span>          .Enable(MenuCommands.Commands.Close)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.SetState(_state)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span></code></pre></div><p>The state object is used to enable and disable menu items and could be wrapped in another object if it needed to be exposed further than the form.</p>
+]]></content:encoded></item><item><title>Creating Non resizable controls</title><link>https://andydote.co.uk/2008/04/13/creating-non-resizable-controls/</link><pubDate>Sun, 13 Apr 2008 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2008/04/13/creating-non-resizable-controls/</guid><description>A control I was recently developing required being non-resizable when on the form. When the application is running, this would be easy enough, just set its AutoSize property to False, and don&amp;rsquo;t dock the control.
 However, this leaves the problem of resizing in the designer. You could override the resize event of the control, but for reasons outlined earlier, such as flickering, I decided against this.
-Somewhere on the internet (where else&amp;hellip;?</description></item><item><title>VB.NET &amp;amp; C# Fixed height User Controls</title><link>https://andydote.co.uk/2008/03/29/vbnet-c-fixed-height-user-controls/</link><pubDate>Sat, 29 Mar 2008 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2008/03/29/vbnet-c-fixed-height-user-controls/</guid><description>Another problem I came across recently was fixed height user controls. Someone at work had created a fixed height user control, by putting the following code in the paint event:
-Me.Width = 20 Now while for the majority of cases this works, it doesn&amp;rsquo;t if you dock the control to the left or right of the form, as each time the Layout Engine tries to stick the top of the control to the top of the parent and the bottom of the control to the bottom of the parent, it fires the Paint() event.</description></item></channel></rss>
+Somewhere on the internet (where else&amp;hellip;?</description><content:encoded><![CDATA[<p>A control I was recently developing required being non-resizable when on the form.  When the application is running, this would be easy enough, just set its <code>AutoSize</code> property to False, and don&rsquo;t dock the control.</p>
+<p>However, this leaves the problem of resizing in the designer.  You could override the resize event of the control, but for <a href="http://www.stormbase.net/index.php?id=32">reasons outlined earlier</a>, such as flickering, I decided against this.</p>
+<p>Somewhere on the internet (where else&hellip;?) I can upon the idea of using a custom designer.  The <code>ControlDesigner</code> class allows us to specify the designer behaviours of the control it is attached to.</p>
+<p>To do this, we create Friend Class, and make it inherit from <code>System.Windows.Forms.Design.ControlDesigner</code>, then override the <code>SelectionRules</code> property:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Friend</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">NonResizableDesigner</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Inherits</span> System.Windows.Forms.Design.ControlDesigner
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Overrides</span> <span style="color:#66d9ef">ReadOnly</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">SelectionRules</span>() <span style="color:#f92672">As</span> System.Windows.Forms.Design.SelectionRules
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">MyBase</span>.SelectionRules
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span></code></pre></div><p>As SelectionRules is a FlagsEnum, to remove the particular functionality from it, we have to NOT the flag we want to remove, then AND it with the existing flags.  In other words, take the controls existing flags and add <code>And Not SelectionRules.AllSizeable</code> to it.  So the entire designer class becomes this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Friend</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">NonResizableDesigner</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Inherits</span> System.Windows.Forms.Design.ControlDesigner
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Overrides</span> <span style="color:#66d9ef">ReadOnly</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">SelectionRules</span>() <span style="color:#f92672">As</span> System.Windows.Forms.Design.SelectionRules
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">MyBase</span>.SelectionRules <span style="color:#f92672">And</span> <span style="color:#66d9ef">Not</span> SelectionRules.AllSizeable
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span></code></pre></div><p>Simple huh?  Now all we need to do is apply it to the control that we wish to be non-resizable, which just takes one attribute on the class:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#a6e22e">&lt;Designer(GetType(NonResizableDesigner))&gt;</span> _
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">Foo</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">Bar</span>()
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">False</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span></code></pre></div><p>Now when this control is viewed in the designer, it has the same outline as a label when the AutoSize property is set to true.  You can move the control to your hearts content, but no resizing.</p>
+]]></content:encoded></item><item><title>VB.NET &amp;amp; C# Fixed height User Controls</title><link>https://andydote.co.uk/2008/03/29/vbnet-c-fixed-height-user-controls/</link><pubDate>Sat, 29 Mar 2008 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2008/03/29/vbnet-c-fixed-height-user-controls/</guid><description>Another problem I came across recently was fixed height user controls. Someone at work had created a fixed height user control, by putting the following code in the paint event:
+Me.Width = 20 Now while for the majority of cases this works, it doesn&amp;rsquo;t if you dock the control to the left or right of the form, as each time the Layout Engine tries to stick the top of the control to the top of the parent and the bottom of the control to the bottom of the parent, it fires the Paint() event.</description><content:encoded><![CDATA[<p>Another problem I came across recently was fixed height user controls.  Someone at work had created a fixed height user control, by putting the following code in the paint event:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Me</span>.Width <span style="color:#f92672">=</span> 20
+</span></span></code></pre></div><p>Now while for the majority of cases this works, it doesn&rsquo;t if you dock the control to the left or right of the form, as each time the Layout Engine tries to stick the top of the control to the top of the parent and the bottom of the control to the bottom of the parent, it fires the <code>Paint()</code> event.  This causes the user control to change its size, which causes the Layout Engine to activate, and the whole cycle starts over, and as a by product, creates a horrid flickering.</p>
+<p>Some suggestions were made to fix the problem such as disabling docking (why fix a problem by causing another one?), moving the code to the resize event (same effect, with the added benefit of allowing a resize until it is complete, then resizing&hellip;).</p>
+<p>Some googling revealed one very angry fellow on the <a href="http://www.xtremedotnettalk.com/showthread.php?t=94118">xtreme dot net talk</a> forums, and no real answer.  The method he had tried was to set the following flag in the initialize event:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span>Control.SetStyle(ControlStyles.FixedHeight, <span style="color:#66d9ef">true</span>)
+</span></span></code></pre></div><p>Which if you read the documentation for ControlStyles.FixedHeight (it&rsquo;s on the intellitype, so there&rsquo;s no reason for not doing so) it says the following:</p>
+<p>If true, the control has a fixed height when auto-scaled. For example, if a layout operation attempts to rescale the control to accommodate a new Font, the control&rsquo;s Height remains unchanged.</p>
+<p>So another solution was needed.  In the end, I and a fellow developer found that overriding the controls MaximumHeight and MinimumHeight was the way to do it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Const</span> MaxHeight <span style="color:#f92672">As</span> <span style="color:#66d9ef">Integer</span> <span style="color:#f92672">=</span> 20
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Overrides</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">MaximumSize</span>() <span style="color:#f92672">As</span> Drawing.Size
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">New</span> Drawing.Size(<span style="color:#66d9ef">MyBase</span>.MaximumSize.Width, MaxHeight)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Set</span>(<span style="color:#66d9ef">ByVal</span> value <span style="color:#f92672">As</span> Drawing.Size)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">MyBase</span>.MaximumSize <span style="color:#f92672">=</span> <span style="color:#66d9ef">New</span> Drawing.Size(value.Width, MaxHeight)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Set</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Overrides</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">MinimumSize</span>() <span style="color:#f92672">As</span> Drawing.Size
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">New</span> Drawing.Size(<span style="color:#66d9ef">MyBase</span>.MinimumSize.Width, MaxHeight)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">Set</span>(<span style="color:#66d9ef">ByVal</span> value <span style="color:#f92672">As</span> Drawing.Size)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">MyBase</span>.MinimumSize <span style="color:#f92672">=</span> <span style="color:#66d9ef">New</span> Drawing.Size(value.Width, MaxHeight)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Set</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span></code></pre></div><p>This allows the end user to modify the maximum width (in this case) to their heart&rsquo;s content, and still have a control of fixed height, that can be docked properly, doesn&rsquo;t flicker, and above all resizes properly in the forms designer.</p>
+]]></content:encoded></item></channel></rss>

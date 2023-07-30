@@ -1,2 +1,302 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>traefik on Andy Dote</title><link>https://andydote.co.uk/tags/traefik/</link><description>Recent content in traefik on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 23 Jun 2019 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/traefik/rss.xml" rel="self" type="application/rss+xml"/><item><title>Canary Routing with Traefik in Nomad</title><link>https://andydote.co.uk/2019/06/23/nomad-traefik-canary/</link><pubDate>Sun, 23 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/23/nomad-traefik-canary/</guid><description>I wanted to implement canary routing for some HTTP services deployed via Nomad the other day, but rather than having the traffic split by weighting to the containers, I wanted to direct the traffic based on a header.
-My first choice of tech was to use Fabio, but it only supports routing by URL prefix, and additionally with a route weight. While I was at JustDevOps in Poland, I heard about another router/loadbalancer which worked in a similar way to Fabio: Traefik.</description></item></channel></rss>
+My first choice of tech was to use Fabio, but it only supports routing by URL prefix, and additionally with a route weight. While I was at JustDevOps in Poland, I heard about another router/loadbalancer which worked in a similar way to Fabio: Traefik.</description><content:encoded><![CDATA[<p>I wanted to implement canary routing for some HTTP services deployed via <a href="https://www.nomadproject.io/">Nomad</a> the other day, but rather than having the traffic split by weighting to the containers, I wanted to direct the traffic based on a header.</p>
+<p>My first choice of tech was to use <a href="https://fabiolb.net/">Fabio</a>, but it only supports routing by URL prefix, and additionally with a route weight.  While I was at <a href="https://justdevops.org/">JustDevOps</a> in Poland, I heard about another router/loadbalancer which worked in a similar way to Fabio: <a href="https://traefik.io/">Traefik</a>.</p>
+<p>While Traefik also doesn&rsquo;t directly support canary routing, it is much more flexible than Fabio, also allowing request filtering based on HTTP headers.  Traefik integrates with a number of container schedulers directly, but Nomad is not one of them.  It does however also support using the Consul Service Catalog so that you can use it as an almost drop-in replacement for Fabio.</p>
+<p>So let&rsquo;s get to the setup.  As usual, there is a complete repository on GitHub: <a href="https://github.com/Pondidum/nomad-traefik-canary-demo">Nomad Traefik Canary Routing</a>.</p>
+<h2 id="nomad">Nomad</h2>
+<p>As usual, I am using my <a href="https://github.com/Pondidum/hashibox">Hashibox</a> <a href="https://vagrantup.com/">Vagrant</a> base image, and provisioning it as a single Nomad server and client node, using <a href="https://github.com/Pondidum/nomad-traefik-canary-demo/blob/master/scripts/server.sh">this script</a>.  I won&rsquo;t dig into all the setup in that, as I&rsquo;ve written it a few times now.</p>
+<h2 id="consul">Consul</h2>
+<p>Consul is already running on the Hashibox base, so we have no further configuration to do.</p>
+<h2 id="traefik">Traefik</h2>
+<p>Traefik can be deployed as a Docker container, and either configured through a TOML file (yay, <a href="https://noyaml.com/">not yaml!</a>) or with command line switches.  As we only need a minimal configuration, I opted to use the command line.</p>
+<p>The container exposes two ports we need to care about: <code>80</code> for incoming traffic to be routed, and <code>8080</code> for the UI, which are statically allocated to the host as <code>8000</code> and <code>8080</code> for this demo.</p>
+<p>The command line configuration used is as follows:</p>
+<ul>
+<li><code>--api</code> - enable the UI.</li>
+<li><code>--consulcatalog</code> - Traefik has two ways to use Consul - <code>--consul</code> uses the KV store for service definitions, and <code>--consulcatalog</code> makes use Consul&rsquo;s service catalogue.</li>
+<li><code>--consulcatalog.endpoint=consul.service.consul:8500</code> as Consul is not running in the same container as Traefik, we need to tell it where Consul is listening, and as we have <a href="">DNS Forwarding for <code>*.consul</code> domains</a>, we use the address <code>consul.service.consul</code>.  If DNS forwarding was not available, you could use the Nomad variable <code>${attr.unique.network.ip-address}</code> to get the current task&rsquo;s host&rsquo;s IP.</li>
+<li><code>--consulcatalog.frontEndRule</code> disable the default rule - each service needs to specify <code>traefik.frontend.rule</code>.</li>
+<li><code>--consulcatalog.exposedByDefault=false</code> - lastly, we stop Traefik showing all services registered into consul, the will need to have the <code>traefik.enable=true</code> tag to be processed.</li>
+</ul>
+<p>The entire job file is listed below:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>job <span style="color:#e6db74">&#34;traefik&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  datacenters <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;dc1&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>  type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;service&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  group <span style="color:#e6db74">&#34;loadbalancers&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    count <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    task <span style="color:#e6db74">&#34;traefik&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;docker&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      config <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>        image <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;traefik:1.7.12&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        args <span style="color:#f92672">=</span> <span style="color:#f92672">[</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;--api&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;--consulcatalog&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;--consulcatalog.endpoint=consul.service.consul:8500&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;--consulcatalog.frontEndRule=&#39;&#39;&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;--consulcatalog.exposedByDefault=false&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        port_map <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>          http <span style="color:#f92672">=</span> <span style="color:#ae81ff">80</span>
+</span></span><span style="display:flex;"><span>          ui <span style="color:#f92672">=</span> <span style="color:#ae81ff">8080</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      resources <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>        network <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>          port <span style="color:#e6db74">&#34;http&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">8000</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>          port <span style="color:#e6db74">&#34;ui&#34;</span> <span style="color:#f92672">{</span> static <span style="color:#f92672">=</span> <span style="color:#ae81ff">8080</span> <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">50</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>We register the job into Nomad, and then start on the backend services we will route to:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nomad job run jobs/traefik.nomad
+</span></span></code></pre></div><h2 id="the-backend-services">The Backend Services</h2>
+<p>To demonstrate the services can be routed to correctly, we can use the <code>containersol/k8s-deployment-strategies</code> docker container.  This image exposes an HTTP service which responds with the container&rsquo;s hostname and the content of the <code>VERSION</code> environment variable, something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ curl http://echo.service.consul:8080
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Host: 23351e48dc98, Version: 1.0.0</span>
+</span></span></code></pre></div><p>We&rsquo;ll start by making a standard nomad job for this container, and then update it to support canarying.  The entire job is listed below:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>job <span style="color:#e6db74">&#34;echo&#34;</span> {
+</span></span><span style="display:flex;"><span>  datacenters <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;dc1&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>  type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;service&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  group <span style="color:#e6db74">&#34;apis&#34;</span> {
+</span></span><span style="display:flex;"><span>    count <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    task <span style="color:#e6db74">&#34;echo&#34;</span> {
+</span></span><span style="display:flex;"><span>      driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;docker&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      config {
+</span></span><span style="display:flex;"><span>        image <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;containersol/k8s-deployment-strategies&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        port_map {
+</span></span><span style="display:flex;"><span>          http <span style="color:#f92672">=</span> <span style="color:#ae81ff">8080</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      env {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">VERSION</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;1.0.0&#34;</span>
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      resources {
+</span></span><span style="display:flex;"><span>        network {
+</span></span><span style="display:flex;"><span>          port <span style="color:#e6db74">&#34;http&#34;</span> { }
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      service {
+</span></span><span style="display:flex;"><span>        name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;echo&#34;</span>
+</span></span><span style="display:flex;"><span>        port <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        tags <span style="color:#f92672">=</span> <span style="color:#f92672">[</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;traefik.enable=true&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;traefik.frontend.rule=Host:api.localhost&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        check {
+</span></span><span style="display:flex;"><span>          type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>          path <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/&#34;</span>
+</span></span><span style="display:flex;"><span>          interval <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;5s&#34;</span>
+</span></span><span style="display:flex;"><span>          timeout <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;1s&#34;</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The only part of interest in this version of the job is the <code>service</code> stanza, which is registering our echo service into consul, with a few tags to control how it is routed by Traefik:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>service {
+</span></span><span style="display:flex;"><span>  name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;echo&#34;</span>
+</span></span><span style="display:flex;"><span>  port <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  tags <span style="color:#f92672">=</span> <span style="color:#f92672">[</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;traefik.enable=true&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;traefik.frontend.rule=Host:api.localhost&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  check {
+</span></span><span style="display:flex;"><span>    type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>    path <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/&#34;</span>
+</span></span><span style="display:flex;"><span>    interval <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;5s&#34;</span>
+</span></span><span style="display:flex;"><span>    timeout <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;1s&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>traefik.enabled=true</code> tag allows this service to be handled by Traefik (as we set <code>exposedByDefault=false</code> in Traefik), and <code>traefik.frontend.rule=Host:api.localhost</code> the rule means that any traffic with the <code>Host</code> header set to <code>api.localhost</code> will be routed to the service.</p>
+<p>Which we can now run the job in Nomad:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nomad job run jobs/echo.nomad
+</span></span></code></pre></div><p>Once it is up and running, we&rsquo;ll get 3 instances of <code>echo</code> running which will be round-robin routed by Traefik:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ curl http://traefik.service.consul:8080 -H <span style="color:#e6db74">&#39;Host: api.localhost&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#Host: 1ac8a49cbaee, Version: 1.0.0</span>
+</span></span><span style="display:flex;"><span>$ curl http://traefik.service.consul:8080 -H <span style="color:#e6db74">&#39;Host: api.localhost&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#Host: 23351e48dc98, Version: 1.0.0</span>
+</span></span><span style="display:flex;"><span>$ curl http://traefik.service.consul:8080 -H <span style="color:#e6db74">&#39;Host: api.localhost&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#Host: c2f8a9dcab95, Version: 1.0.0</span>
+</span></span></code></pre></div><p>Now that we have working routing for the Echo service let&rsquo;s make it canaryable.</p>
+<h2 id="canaries">Canaries</h2>
+<p>To show canary routing, we will create a second version of the service to respond to HTTP traffic with a <code>Canary</code> header.</p>
+<p>The first change to make is to add in the <code>update</code> stanza, which controls how the containers get updated when Nomad pushes a new version.  The <code>canary</code> parameter controls how many instances of the task will be created for canary purposes (and must be less than the total number of containers).  Likewise, the <code>max_parallel</code> parameter controls how many containers will be replaced at a time when a deployment happens.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>group &#34;apis&#34; {
+</span></span><span style="display:flex;"><span>  count = 3
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  update {
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+    max_parallel = 1
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+    canary = 1
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  }
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex;"><span>  task &#34;echo&#34; {
+</span></span></code></pre></div><p>Next, we need to modify the <code>service</code> stanza to write different tags to Consul when a task is a canary instance so that it does not get included in the &ldquo;normal&rdquo; backend routing group.</p>
+<p>If we don&rsquo;t specify at least 1 value in <code>canary_tags</code>, Nomad will use the <code>tags</code> even in the canary version - an empty <code>canary_tags = []</code> declaration is not enough!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>service {
+</span></span><span style="display:flex;"><span>  name = &#34;echo&#34;
+</span></span><span style="display:flex;"><span>  port = &#34;http&#34;
+</span></span><span style="display:flex;"><span>  tags = [
+</span></span><span style="display:flex;"><span>    &#34;traefik.enable=true&#34;,
+</span></span><span style="display:flex;"><span>    &#34;traefik.frontend.rule=Host:api.localhost&#34;
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  canary_tags = [
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+    &#34;traefik.enable=false&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  ]
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>  check {
+</span></span></code></pre></div><p>Finally, we need to add a separate <code>service</code> stanza to create a second backend group which will contain the canary versions.  Note how this group has a different name, and has no <code>tags</code>, but does have a set of <code>canary_tags</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>service {
+</span></span><span style="display:flex;"><span>  name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;echo-canary&#34;</span>
+</span></span><span style="display:flex;"><span>  port <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>  tags <span style="color:#f92672">=</span> <span style="color:#f92672">[]</span>
+</span></span><span style="display:flex;"><span>  canary_tags <span style="color:#f92672">=</span> <span style="color:#f92672">[</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;traefik.enable=true&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;traefik.frontend.rule=Host:api.localhost;Headers: Canary,true&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>  check {
+</span></span><span style="display:flex;"><span>    type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>    path <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/&#34;</span>
+</span></span><span style="display:flex;"><span>    interval <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;5s&#34;</span>
+</span></span><span style="display:flex;"><span>    timeout <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;1s&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The reason we need two <code>service</code> stanzas is that Traefik can only create backends based on the name of the service registered to Consul and not from a tag in that registration.  If we just used one <code>service</code> stanza, then the canary version of the container would be added to both the canary backend and standard backend.  I was hoping for <code>traefik.backend=echo-canary</code> to work, but alas no.</p>
+<p>The entire updated jobfile is as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>job <span style="color:#e6db74">&#34;echo&#34;</span> {
+</span></span><span style="display:flex;"><span>  datacenters <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;dc1&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>  type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;service&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  group <span style="color:#e6db74">&#34;apis&#34;</span> {
+</span></span><span style="display:flex;"><span>    count <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    update {
+</span></span><span style="display:flex;"><span>      max_parallel <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>      canary <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    task <span style="color:#e6db74">&#34;echo&#34;</span> {
+</span></span><span style="display:flex;"><span>      driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;docker&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      config {
+</span></span><span style="display:flex;"><span>        image <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;containersol/k8s-deployment-strategies&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        port_map {
+</span></span><span style="display:flex;"><span>          http <span style="color:#f92672">=</span> <span style="color:#ae81ff">8080</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      env {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">VERSION</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;1.0.0&#34;</span>
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      resources {
+</span></span><span style="display:flex;"><span>        network {
+</span></span><span style="display:flex;"><span>          port <span style="color:#e6db74">&#34;http&#34;</span> { }
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">50</span>
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      service {
+</span></span><span style="display:flex;"><span>        name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;echo-canary&#34;</span>
+</span></span><span style="display:flex;"><span>        port <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        tags <span style="color:#f92672">=</span> <span style="color:#f92672">[]</span>
+</span></span><span style="display:flex;"><span>        canary_tags <span style="color:#f92672">=</span> <span style="color:#f92672">[</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;traefik.enable=true&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;traefik.frontend.rule=Host:api.localhost;Headers: Canary,true&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        check {
+</span></span><span style="display:flex;"><span>          type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>          path <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/&#34;</span>
+</span></span><span style="display:flex;"><span>          interval <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;5s&#34;</span>
+</span></span><span style="display:flex;"><span>          timeout <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;1s&#34;</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      service {
+</span></span><span style="display:flex;"><span>        name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;echo&#34;</span>
+</span></span><span style="display:flex;"><span>        port <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        tags <span style="color:#f92672">=</span> <span style="color:#f92672">[</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;traefik.enable=true&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;traefik.frontend.rule=Host:api.localhost&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>        canary_tags <span style="color:#f92672">=</span> <span style="color:#f92672">[</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;traefik.enable=false&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        check {
+</span></span><span style="display:flex;"><span>          type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http&#34;</span>
+</span></span><span style="display:flex;"><span>          path <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/&#34;</span>
+</span></span><span style="display:flex;"><span>          interval <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;5s&#34;</span>
+</span></span><span style="display:flex;"><span>          timeout <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;1s&#34;</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="testing">Testing</h2>
+<p>First, we will change the <code>VERSION</code> environment variable so that Nomad sees the job as changed, and we get a different response from HTTP calls to the canary:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>env {
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-  VERSION = &#34;1.0.0&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+  VERSION = &#34;2.0.0&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>}
+</span></span></code></pre></div><p>Now we will update the job in Nomad:</p>
+<pre tabindex="0"><code>nomad job run jobs/echo.nomad
+</code></pre><p>If we run the status command, we can see that the deployment has started, and there is one canary instance running.  Nothing further will happen until we promote it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ nomad status echo
+</span></span><span style="display:flex;"><span>ID            <span style="color:#f92672">=</span> echo
+</span></span><span style="display:flex;"><span>Status        <span style="color:#f92672">=</span> running
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Latest Deployment
+</span></span><span style="display:flex;"><span>ID          <span style="color:#f92672">=</span> 330216b9
+</span></span><span style="display:flex;"><span>Status      <span style="color:#f92672">=</span> running
+</span></span><span style="display:flex;"><span>Description <span style="color:#f92672">=</span> Deployment is running but requires promotion
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Deployed
+</span></span><span style="display:flex;"><span>Task Group  Promoted  Desired  Canaries  Placed  Healthy  Unhealthy  Progress Deadline
+</span></span><span style="display:flex;"><span>apis        false     <span style="color:#ae81ff">3</span>        <span style="color:#ae81ff">1</span>         <span style="color:#ae81ff">1</span>       <span style="color:#ae81ff">1</span>        <span style="color:#ae81ff">0</span>          2019-06-19T11:19:31Z
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Allocations
+</span></span><span style="display:flex;"><span>ID        Node ID   Task Group  Version  Desired  Status   Created    Modified
+</span></span><span style="display:flex;"><span>dcff2555  82f6ea8b  apis        <span style="color:#ae81ff">1</span>        run      running  18s ago    2s ago
+</span></span><span style="display:flex;"><span>5b2710ed  82f6ea8b  apis        <span style="color:#ae81ff">0</span>        run      running  6m52s ago  6m26s ago
+</span></span><span style="display:flex;"><span>698bd8a7  82f6ea8b  apis        <span style="color:#ae81ff">0</span>        run      running  6m52s ago  6m27s ago
+</span></span><span style="display:flex;"><span>b315bcd3  82f6ea8b  apis        <span style="color:#ae81ff">0</span>        run      running  6m52s ago  6m25s ago
+</span></span></code></pre></div><p>We can now test that the original containers still work, and that the canary version works:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ curl http://traefik.service.consul:8080 -H <span style="color:#e6db74">&#39;Host: api.localhost&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#Host: 1ac8a49cbaee, Version: 1.0.0</span>
+</span></span><span style="display:flex;"><span>$ curl http://traefik.service.consul:8080 -H <span style="color:#e6db74">&#39;Host: api.localhost&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#Host: 23351e48dc98, Version: 1.0.0</span>
+</span></span><span style="display:flex;"><span>$ curl http://traefik.service.consul:8080 -H <span style="color:#e6db74">&#39;Host: api.localhost&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#Host: c2f8a9dcab95, Version: 1.0.0</span>
+</span></span><span style="display:flex;"><span>$ curl http://traefik.service.consul:8080 -H <span style="color:#e6db74">&#39;Host: api.localhost&#39;</span> -H <span style="color:#e6db74">&#39;Canary: true&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#Host: 496840b438f2, Version: 2.0.0</span>
+</span></span></code></pre></div><p>Assuming we are happy with our new version, we can tell Nomad to promote the deployment, which will remove the canary and start a rolling update of the three tasks, one at a time:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nomad deployment promote 330216b9
+</span></span></code></pre></div><h2 id="end">End</h2>
+<p>My hope is that the next version of Traefik will have better support for canary by header, meaning I could simplify the Nomad jobs a little, but as it stands, this doesn&rsquo;t add much complexity to the jobs, and can be easily put into an Architecture Decision Record (or documented in a wiki page, never to be seen or read from again!)</p>
+]]></content:encoded></item></channel></rss>

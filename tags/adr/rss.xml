@@ -1,5 +1,354 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>adr on Andy Dote</title><link>https://andydote.co.uk/tags/adr/</link><description>Recent content in adr on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 23 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/adr/rss.xml" rel="self" type="application/rss+xml"/><item><title>Architecture Testing</title><link>https://andydote.co.uk/2023/07/23/architecture-testing/</link><pubDate>Sun, 23 Jul 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/07/23/architecture-testing/</guid><description>One of the many reasons given for using microservices rather than a mono repository is that it enforces boundaries between services/modules. However, there are ways to achieve strong boundaries between modules/services in one repository, using tools which are already available: test runners.
 Given a repository with the following structure:
-. ├── libraries │ ├── core │ ├── events │ └── ui ├── services │ ├── catalogue │ ├── billing │ └── shipping └── tools └── admin-cli There are a few rules we should enforce:</description></item><item><title>How do you tag docker images?</title><link>https://andydote.co.uk/2021/11/10/docker-tagging/</link><pubDate>Wed, 10 Nov 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/11/10/docker-tagging/</guid><description>An interesting question came up at work today: how do you tag your Docker images? In previous projects, I&amp;rsquo;ve always used a short git sha, or sometimes a semver, but with no great consistency.
-As luck would have it, I had pushed for a change in tagging format at a client not so long ago as the method we were using didn&amp;rsquo;t make a lot of sense and, worst of all, it was a manual process.</description></item><item><title>Architecture Decision Records</title><link>https://andydote.co.uk/2019/06/29/architecture-decision-records/</link><pubDate>Sat, 29 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/29/architecture-decision-records/</guid><description>This is a text version of a short talk (affectionately known as a &amp;ldquo;Coffee Bag&amp;rdquo;) I gave at work this week, on Architecture Design Records. You can see the slides here, but there isn&amp;rsquo;t a recording available, unfortunately.
-It should be noted; these are not to replace full architecture diagrams; you should definitely still write C4 Models to cover the overall architecture. ADRs are for the details, such as serializer formats, convention-over-configuration details, number precisions for timings, or which metrics library is used and why.</description></item></channel></rss>
+. ├── libraries │ ├── core │ ├── events │ └── ui ├── services │ ├── catalogue │ ├── billing │ └── shipping └── tools └── admin-cli There are a few rules we should enforce:</description><content:encoded><![CDATA[<p>One of the many reasons given for using microservices rather than a mono repository is that it enforces boundaries between services/modules.  However, there are ways to achieve strong boundaries between modules/services in one repository, using tools which are already available: test runners.</p>
+<p>Given a repository with the following structure:</p>
+<pre tabindex="0"><code>.
+├── libraries
+│   ├── core
+│   ├── events
+│   └── ui
+├── services
+│   ├── catalogue
+│   ├── billing
+│   └── shipping
+└── tools
+    └── admin-cli
+</code></pre><p>There are a few rules we should enforce:</p>
+<ul>
+<li>Services cannot reference each other</li>
+<li>tools cannot reference each other</li>
+<li>Services cannot reference tools</li>
+<li>Libraries can only reference other libraries</li>
+<li>Libraries cannot have circular dependencies</li>
+</ul>
+<p>There are also the conventions that we want to enforce:</p>
+<ul>
+<li>Feature folders should be used, not <code>models</code>, <code>views</code> and <code>controllers</code></li>
+<li>Specific libraries should not be used</li>
+<li>all services should expose a <code>/api/stats</code> endpoint</li>
+</ul>
+<p>How to write these tests will vary greatly depending on what programming languages and tools you use, but I know for sure they can be written in Go, C#, and TypeScript.  Not only that, but the tests can be written in a different language than the applications; in this example, our applications are written in a mix of NodeJS and Go, and the architectural tests are written in Go.</p>
+<h2 id="testing-for-a-convention">Testing for a Convention</h2>
+<p>The convention we will test for is that we strongly prefer folder-by-feature over folder-by-type.</p>
+<p>The test itself uses a couple of helper methods: <code>repositoryFolders</code> returns a slice of every folder recursively in the project, with information such as all child folders and all child files, along with names, paths, etc., populated.</p>
+<p>The <code>hasLayers</code> function itself is just checking if the direct children of a folder contain &ldquo;models&rdquo;, &ldquo;views&rdquo; and &ldquo;controllers&rdquo; or &ldquo;models&rdquo;, &ldquo;views&rdquo; and &ldquo;presenters&rdquo;.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestFolderByFeature</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">folders</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">repositoryFolders</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">folder</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">folders</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">hasLayers</span>(<span style="color:#a6e22e">folder</span>) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Failf</span>(<span style="color:#a6e22e">t</span>, <span style="color:#e6db74">&#34;found type folders, not slices&#34;</span>, <span style="color:#a6e22e">wrap80</span>(<span style="color:#e6db74">`
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">It looks like &#39;%s&#39; is using this folder structure, known as &#34;folder-by-type&#34;, which is discouraged:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Instead, you should use folders-by-feature:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">For more information, see this ADR: ./docs/arch/005-folder-layout.md
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">If this test failure is a false positive, please let us know, or you can either improve the test or add your folder path to the &#39;.architecture-ignore&#39; file.  Here is the fragment that can be added:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      `</span>, <span style="color:#a6e22e">folder</span>.<span style="color:#a6e22e">Path</span>, <span style="color:#a6e22e">layers</span>(<span style="color:#a6e22e">folder</span>), <span style="color:#a6e22e">slices</span>(<span style="color:#a6e22e">folder</span>), <span style="color:#a6e22e">folderByTypeArchitectureIgnore</span>(<span style="color:#a6e22e">folder</span>)))
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The error message in this kind of test is very important; it needs to cover:</p>
+<ul>
+<li>What was wrong</li>
+<li>Where the failure was (i.e. the path)</li>
+<li>Why this is considered wrong (with links to more information if needed)</li>
+<li>How to fix it</li>
+<li>How to add an exception to the rules (if desired)</li>
+<li>How to handle false positives</li>
+</ul>
+<p>For example, this is what the rendered output of the test above looks like, showing the folder that was detected to have folder-by-type, showing an example of how it should look, and linking to the <a href="/tags/adr/">adr</a>, which documents why this was chosen.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>It looks like &#39;services/catalogue/src&#39; is using this folder structure, known as
+</span></span><span style="display:flex;"><span>&#34;folder-by-type&#34;, which is discouraged:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>services/catalogue/src
+</span></span><span style="display:flex;"><span>├── controllers
+</span></span><span style="display:flex;"><span>├── models
+</span></span><span style="display:flex;"><span>└── views
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Instead, you should use folder-by-feature:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>services/catalogue/src
+</span></span><span style="display:flex;"><span>├── details
+</span></span><span style="display:flex;"><span>│   ├── controller.ts
+</span></span><span style="display:flex;"><span>│   ├── model.ts
+</span></span><span style="display:flex;"><span>│   └── view.ts
+</span></span><span style="display:flex;"><span>├── indexing
+</span></span><span style="display:flex;"><span>└── search
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>For more information, see this ADR: ./docs/arch/005-folder-layout.md
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>If this test failure is a false positive, please let us know, or you can either
+</span></span><span style="display:flex;"><span>improve the test or add your folder path to the &#39;.architecture-ignore&#39; file.
+</span></span><span style="display:flex;"><span>Here is the fragment that can be added:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>```toml
+</span></span><span style="display:flex;"><span>[[services]]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>[service.catalogue]
+</span></span><span style="display:flex;"><span>allowFolderByType = true
+</span></span><span style="display:flex;"><span>```.
+</span></span></code></pre></div><p>There is also the text on how to skip a test if there is a good reason to or the test failure is a false negative.  Adding to the <code>.architecture-ignore</code> file notifies the core team about an addition, but <strong>does not block the PR</strong>, as teams are all trusted; we just want to verify if something is happening a lot or if there is some case the tests are not handling.</p>
+<p>An example of a good reason for ignoring this test is when a team is taking ownership of a service and adding it to the repository: they want to pull its source in and make as few changes as possible until it is under their control; refactoring can then happen later.</p>
+<h2 id="testing-a-project-rule">Testing a Project Rule</h2>
+<p>Now let&rsquo;s look at how we verify that our services don&rsquo;t reference other services.  The test is similar to the previous one other than the <code>repositoryServices()</code> function returns a map of service names and Services.  The <code>Service</code> struct is an abstraction which allows us to handle both NodeJS projects and Go projects with the same test.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestServicesCannotReferenceOtherServices</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">allServices</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">repositoryServices</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">service</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">allServices</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">reference</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">service</span>.<span style="color:#a6e22e">References</span> {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">other</span>, <span style="color:#a6e22e">found</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">allServices</span>[<span style="color:#a6e22e">reference</span>.<span style="color:#a6e22e">Name</span>]; <span style="color:#a6e22e">found</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>         <span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Failf</span>(<span style="color:#a6e22e">t</span>, <span style="color:#e6db74">&#34;service references another service&#34;</span>, <span style="color:#a6e22e">wrap80</span>(<span style="color:#e6db74">`
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">It looks like the &#39;%s&#39; service is referencing the &#39;%s&#39; service.
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">1.  Service Boundary
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Needing data from another service is often an indication of non-optimal service boundary, which could mean we need to refactor our design a bit.
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">1.  Distributed Ball of Mud
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Having many service to service dependencies make all our services more tightly coupled, making refactoring and deployment harder.
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Sometimes a service to service reference is fine however!  You can add your service to service definition to the &#39;.architecture-ignore&#39; file if this is the case.  Here is the fragment that can be added:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">         `</span>, <span style="color:#a6e22e">service</span>.<span style="color:#a6e22e">Name</span>, <span style="color:#a6e22e">other</span>.<span style="color:#a6e22e">Name</span>, <span style="color:#a6e22e">serviceToServiceArchitectureIgnore</span>(<span style="color:#a6e22e">service</span>, <span style="color:#a6e22e">other</span>)))
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span></code></pre></div><p>The error message when rendered looks like this, again adding as much detail as we can along with how to add the exception if needed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-md" data-lang="md"><span style="display:flex;"><span>It looks like the catalogue &#39;service&#39; is referencing the &#39;offers&#39; service.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Service to Service references are discouraged for two main reasons:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">1.</span>  Service Boundary
+</span></span><span style="display:flex;"><span>Needing data from another service is often an indication of non-optimal service
+</span></span><span style="display:flex;"><span>boundary, which could mean we need to refactor our design a bit.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">2.</span>  Distributed Ball of Mud
+</span></span><span style="display:flex;"><span>Having many service to service dependencies make all our services more tightly
+</span></span><span style="display:flex;"><span>coupled, making refactoring and deployment harder.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Sometimes a service to service reference is fine however!  You can add your
+</span></span><span style="display:flex;"><span>service to service definition to the &#39;.architecture-ignore&#39; file if this is the
+</span></span><span style="display:flex;"><span>case.  Here is the fragment that can be added:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>```toml
+</span></span><span style="display:flex;"><span>[[services]]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>[services.catalogue]
+</span></span><span style="display:flex;"><span>references = [
+</span></span><span style="display:flex;"><span>    &#34;offers&#34;
+</span></span><span style="display:flex;"><span>]
+</span></span><span style="display:flex;"><span>```.
+</span></span></code></pre></div><h2 id="further-work">Further Work</h2>
+<p>Using tests like this also allows you to build extra things on top of them; for migrating from one library to another, you can add tests that specify that the number of usages can only go down over time, never up.</p>
+<p>You can also use <code>codeowners</code> (or equivalent) to keep an eye on what is being added to the <code>.architecture-ignore</code> file, allowing you to react to emerging patterns and either guide teams towards the pattern or away from it.</p>
+<p>The key with this is that you trust your teams; this is all &ldquo;trust but verify&rdquo; with the ignore file.  You should (almost) never be blocking a team from working.</p>
+]]></content:encoded></item><item><title>How do you tag docker images?</title><link>https://andydote.co.uk/2021/11/10/docker-tagging/</link><pubDate>Wed, 10 Nov 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/11/10/docker-tagging/</guid><description>An interesting question came up at work today: how do you tag your Docker images? In previous projects, I&amp;rsquo;ve always used a short git sha, or sometimes a semver, but with no great consistency.
+As luck would have it, I had pushed for a change in tagging format at a client not so long ago as the method we were using didn&amp;rsquo;t make a lot of sense and, worst of all, it was a manual process.</description><content:encoded><![CDATA[<p>An interesting question came up at work today: how do you tag your Docker images?  In previous projects, I&rsquo;ve always used a short git sha, or sometimes a semver, but with no great consistency.</p>
+<p>As luck would have it, I had pushed for a change in tagging format at a client not so long ago as the method we were using didn&rsquo;t make a lot of sense and, worst of all, it was a <em>manual</em> process.  One of the things that I push at all clients is documenting all architectural decisions made, in the form of <a href="/2019/06/29/architecture-decision-records">Architecture Decision Records</a>, so I&rsquo;m reproducing it here, with a few details changed to mask where this happened.</p>
+<p>One of the most interesting points of this is that I went in with an idea on the right way to do this, and over the course of discussion and review of the document, <em>changed my mind</em>.</p>
+<hr>
+<h2 id="change-versioning-scheme">Change Versioning Scheme</h2>
+<h3 id="status">Status</h3>
+<p>Accepted</p>
+<h3 id="context">Context</h3>
+<p>Currently, the UI uses a <a href="https://semver.org/">SemVer</a> style version number. However, we have no convention for what kind of modifications constitute a major, minor, or patch change.  We also have no processes or people who care specifically about what kind of change it is, just that a new version was deployed.</p>
+<p>The other problem with using SemVer is that people wait until a branch has been approved, and then make an additional commit with the version number change (as another prod deployment might have happened in the meantime), meaning they need to wait for an additional build before they can deploy.</p>
+<p>Not to mention, it&rsquo;s possible to accidentally go backwards in numbers if a value was misread or if someone forgets to update the version number in their branch.</p>
+<h3 id="considered-options">Considered Options</h3>
+<h4 id="1-auto-incrementing-integer-version">1. Auto-incrementing integer version</h4>
+<p>On production deployment, we would write a version number to the application.  The negative of this approach is not having a version number in pre-production environments, such as test environments.</p>
+<p>We could generate the number on the build phase (when the container is created), but this means that we might not release versions &ldquo;in order&rdquo;, as the order of what feature is deployed to production is not guaranteed, although the need to merge <code>master</code> into your branch would mean a rebuild, so a new version could be generated.</p>
+<p>This method would also mean gaps in version numbers, as not all builds hit production, which might be a touch confusing.</p>
+<p>Another issue with this method is that we build multiple containers from the same commit in separate pipelines, so we would need some way to generate a version in both pipelines which would match, which would mean either a function deriving from the commit hash or a service which would calculate and cache version numbers so they could be generated and looked up by multiple pipelines.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>1870
+</code></pre><h4 id="2-git-short-sha-of-the-commit">2. Git (short) sha of the commit</h4>
+<p>On build, write the short (7 char) SHA as the version number.  The negative of this approach is not having an easy to understand order of version numbers.  However, this scheme means we can easily see exactly which commit is currently running in production (or any environment, for that matter.)</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>84d33bb
+</code></pre><h4 id="3-build-id-from-ci-system">3. Build ID from CI System</h4>
+<p>On build, embed the buildID as the version number.  The pipeline id is a 24 character string consisting of numbers and letters, so this is functionally similar to <a href="#2-git-short-sha-of-the-commit">Option 2</a>, but with a longer number that doesn&rsquo;t tie back to a commit.</p>
+<p>As with <a href="#1-auto-incrementing-integer-version">Option 1</a>, we would need to decide if this number comes from the build pipeline, or from the deployment pipeline.  This also has the same multi-pipeline problem too.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>611a0be261ddea19dab67c22
+</code></pre><h4 id="4-datestamp">4. Datestamp</h4>
+<p>On build, use the current commit&rsquo;s datestamp as the tag.</p>
+<p>As long as we keep the resolution of the datestamp large enough, the multiple pipelines needing to generate the same ID shouldn&rsquo;t be a problem.  I guess 1-minute resolution would be enough, although if a rebuild is needed (e.g. flakey internet connection), we would end up with a different datestamp.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>2021-08-16.13-07
+</code></pre><h4 id="5-commit-datestamp">5. Commit Datestamp</h4>
+<p>Similar to <a href="#4-datestamp">Option 4</a>, except we use the commit&rsquo;s commit date to build the version number.  This solves multiple pipelines needing to generate the same tag in parallel, as well as being unique and ordered.  The timestamps can also be higher precision than <a href="#4-datestamp">Option 4</a>, as we don&rsquo;t need to hope that pipelines start at a close enough time.</p>
+<p>This is how we would generate it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>timestamp<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>git show -s --format<span style="color:#f92672">=</span>%cd --date<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;format:%Y-%m-%d.%H-%M-%S&#34;</span><span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>Example Version:</p>
+<pre tabindex="0"><code>2021-08-16.13-07-34
+</code></pre><h4 id="6-automatic-semver">6. Automatic SemVer</h4>
+<p>On build, calculate the version number using <a href="https://github.com/semantic-release/semantic-release">Semantic-Release</a>.</p>
+<p>This method means that we would need to start enforcing commit message styles, and I am not sure the format that Semantic Release is ideal for us, so it might be better to cover the commit message formatting outside this process.</p>
+<p>The commit format would be as follows:</p>
+<pre tabindex="0"><code>&lt;type&gt;(&lt;scope&gt;): &lt;short summary&gt;
+│       │             │
+│       │             └─⫸ Summary in the present tense. Not capitalized. No period at the end.
+│       │
+│       └─⫸ Commit Scope: animations|bazel|benchpress|common|compiler|compiler-cli|core|
+│                          elements|forms|http|language-service|localize|platform-browser|
+│                          platform-browser-dynamic|platform-server|router|service-worker|
+│                          upgrade|zone.js|packaging|changelog|dev-infra|docs-infra|migrations|
+│                          ngcc|ve
+│
+└─⫸ Commit Type: build|ci|docs|feat|fix|perf|refactor|test
+</code></pre><p>Having worked in repositories with this enforced, I would recommend against it, as it causes a lot of frustration (&ldquo;omg <em>why</em> has my commit been rejected again?!&rdquo;) and as mentioned in other options, I am not sure semver itself makes sense for our UI (or UI projects in general.)</p>
+<p>We will still need developers to decide if a given commit is a major/minor/patch.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>13.4.17
+</code></pre><h4 id="6-combination-datestamp--git">6. Combination: Datestamp + Git</h4>
+<p>On build, use a combination of <a href="#5-commit-datestamp">Option 5</a> and <a href="#2-git-short-sha-of-the-commit">Option 2</a> to generate a unique build number.</p>
+<p>This method had the advantage of the meaning of the date, with the uniqueness of the git commit, but the likelihood of us needing to distinguish two commits made at identical times by their commit sha is unlikely, especially as we require clean merges to master.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>2021-08-16.13-07-34.84d33bb
+</code></pre><h3 id="chosen-decision">Chosen Decision</h3>
+<p><a href="#5-commit-datestamp">Option 5</a></p>
+<p>We will also embed other build information as labels in the docker container, such as:</p>
+<ul>
+<li>branch name</li>
+<li>pipeline/build number</li>
+<li>git hash</li>
+<li>git commit timestamp</li>
+</ul>
+<h3 id="consequences">Consequences</h3>
+<ul>
+<li>No need to tag commits as a released version, but we could automate this if we wanted</li>
+<li>No need to rebuild for changing the version number</li>
+<li>No need to remember to change the version number</li>
+<li>No need to decide on major/minor/patch semantics</li>
+<li>Gain an understandable version number, with meaning</li>
+</ul>
+<hr>
+<h2 id="summary">Summary</h2>
+<p>As I said earlier, I went into this process (which I drove) wanting to pick the 2nd option - Short Git Sha, and I came away agreeing that the commit datestamp was the best thing to use.</p>
+<p>Not only was my mind changed in the course of this, but also people who join the project later can check out the <code>./docs/adr/</code> and see what options we considered for everything about this project, and how we arrived at the conclusions.  It also means I have examples to refer back to when people ask interesting questions at work.</p>
+<p>How do <em>you</em> tag your containers?</p>
+]]></content:encoded></item><item><title>Architecture Decision Records</title><link>https://andydote.co.uk/2019/06/29/architecture-decision-records/</link><pubDate>Sat, 29 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/29/architecture-decision-records/</guid><description>This is a text version of a short talk (affectionately known as a &amp;ldquo;Coffee Bag&amp;rdquo;) I gave at work this week, on Architecture Design Records. You can see the slides here, but there isn&amp;rsquo;t a recording available, unfortunately.
+It should be noted; these are not to replace full architecture diagrams; you should definitely still write C4 Models to cover the overall architecture. ADRs are for the details, such as serializer formats, convention-over-configuration details, number precisions for timings, or which metrics library is used and why.</description><content:encoded><![CDATA[<p>This is a text version of a short talk (affectionately known as a &ldquo;Coffee Bag&rdquo;) I gave at work this week, on Architecture Design Records.  You can see the <a href="/presentations/index.html?adr">slides here</a>, but there isn&rsquo;t a recording available, unfortunately.</p>
+<p>It should be noted; these are not to replace full architecture diagrams; you should definitely still write <a href="https://c4model.com">C4 Models</a> to cover the overall architecture.  ADRs are for the details, such as serializer formats, convention-over-configuration details, number precisions for timings, or which metrics library is used and why.</p>
+<h2 id="what">What?</h2>
+<p>Architecture Design Records are there to solve the main question people repeatedly ask when they view a new codebase or look at an older part of their current codebase:</p>
+<blockquote>
+<p>Why on earth was it done like this?!</p>
+</blockquote>
+<p>Generally speaking, architectural decisions have been made in good faith at the time, but as time marches on, things change, and the reasoning gets lost.  The reasoning might be discoverable through the commit history, or some comments in a type somewhere, and every once in a while, people remember the Wiki exists, and hope that someone else remembered and put some docs there.  They didn&rsquo;t by the way.</p>
+<p>Architecture Design Records are aiming to solve all of this, with three straightforward attributes: Easy to Write, Easy to Read, and Easy to Find.  Let&rsquo;s look at these on their own, and then have a look at an example.</p>
+<h2 id="easy-to-find">Easy to Find</h2>
+<p>As I alluded to earlier, &ldquo;easy to find&rdquo; doesn&rsquo;t mean &ldquo;hidden in confluence&rdquo; (or any other wiki, for that matter.)  The best place to put records of architecture decisions is in the repository.  If you want them elsewhere, that&rsquo;s fine, but the copy in the repository should be the source of truth.</p>
+<p>As long as the location is consistent (and somewhat reasonable), it doesn&rsquo;t matter too much where they go.  I like to put them in the <code>docs/arch</code> path, but a common option is <code>docs/adr</code> too:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ tree ~/dev/projects/awesome-api
+</span></span><span style="display:flex;"><span>|-- docs
+</span></span><span style="display:flex;"><span>|   <span style="color:#e6db74">`</span>-- arch
+</span></span><span style="display:flex;"><span>|       |-- api-error-codes.md
+</span></span><span style="display:flex;"><span>|       |-- controller-convention.md
+</span></span><span style="display:flex;"><span>|       <span style="color:#e6db74">`</span>-- serialization-format.md
+</span></span><span style="display:flex;"><span>|-- src
+</span></span><span style="display:flex;"><span>|-- test
+</span></span><span style="display:flex;"><span><span style="color:#e6db74">`</span>-- readme.md
+</span></span></code></pre></div><p>The file names for each architecture decision are imperative - e.g. &ldquo;serialization format&rdquo;, rather than &ldquo;figure out what format to use&rdquo;, much like your commit messages are (right?)  You might also note that the files are Markdown.  Because what else would they be really?</p>
+<h2 id="easy-to-write">Easy to Write</h2>
+<p>As just mentioned, I usually use Markdown for writing all documents, but as long as you are consistent (notice a pattern here?) and that it is plain-text viewable (i.e. in a terminal), it doesn&rsquo;t matter too much.  Try and pick a format that doesn&rsquo;t add much mental overhead to writing the documents, and if it can be processed by tools easily, that&rsquo;s a bonus, as we will look into later.</p>
+<h2 id="easy-to-read">Easy to Read</h2>
+<p>There are two components to this:  Rendering and Format.</p>
+<p>Rendering is covering how we actually read it - plain text in a terminal, syntax highlighting in an editor, or rendered into a web page.  Good ADRs can handle all three, and Markdown is a good fit for all of them!  By using Markdown, not only can we render to HTML, we can even use Confluences&rsquo;s questionable &ldquo;Insert Markdown Markup&rdquo; support to write them into a wiki location if desired.</p>
+<p>Format is covering what the content of the document is.  There are <a href="https://github.com/joelparkerhenderson/architecture_decision_record">many different templates you can use</a>, which have different levels of detail, and are aimed at different levels of decisions.  I like to use a template based off <a href="https://github.com/joelparkerhenderson/architecture_decision_record/blob/master/adr_template_by_michael_nygard.md">Michael Nygard&rsquo;s</a>, which I modified a little bit to have the following sections:</p>
+<ul>
+<li>Title</li>
+<li>Status</li>
+<li>Context</li>
+<li>Considered Options</li>
+<li>Chosen Decision</li>
+<li>Consequences</li>
+</ul>
+<p>Let&rsquo;s have a look at these in an example.</p>
+<h2 id="example">Example</h2>
+<p>We have a new API we are developing, and we need to figure out which serialization format we should use for all the requests and responses it will handle.</p>
+<p>We&rsquo;ll start off with our empty document and add in the Title, and Status:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span># Serialization Format
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Status
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>In Progress
+</span></span></code></pre></div><p>The Title is <em>usually</em> the same as the file name, but not necessarily.  The Status indicates where the document is in its lifespan.  What statuses you choose is up to you, but I usually have:</p>
+<ul>
+<li>In Progress</li>
+<li>Accepted</li>
+<li>Rejected</li>
+<li>Superseded</li>
+<li>Deprecated</li>
+</ul>
+<p>Once an ADR is Accepted (or Rejected), the content won&rsquo;t change again.  Any subsequent changes will be a new ADR, and the previous one will be marked as either Deprecated or Superseded, along with a link to the ADR which replaces it, for example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Status
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>Superseded by [<span style="color:#f92672">Api Transport Mechanisms</span>](<span style="color:#a6e22e">api-transport-mechanisms.md</span>)
+</span></span></code></pre></div><p>Next, we need to add some context for the decision being made.  In our serialization example, this will cover what area of the codebase we are covering (the API, rather than storage), and any key points, such as message volume, compatibilities etc.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Context
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>We need to have a consistent serialization scheme for the API.  It needs to be backwards and forwards compatible, as we don&#39;t control all of the clients.  Messages will be fairly high volume and don&#39;t <span style="font-style:italic">*need*</span> to be human readable.
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>Now that we have some context, we need to explain what choices we have available.  This will help when reading past decisions, as it will let us answer the question &ldquo;was xxxx or yyyy considered?&rdquo;.  In our example, we consider JSON, Apache Avro, the inbuilt binary serializer, and a custom built serializer (and others, such as Thrift, ProtoBufs, etc.)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Considered Options
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">1.</span> <span style="font-weight:bold">**Json**</span>: Very portable, and with serializers available for all languages.  We need to agree on a date format, and numeric precision, however.  The serialization should not include white space to save payload size.  Forwards and Backwards compatibility exists but is the developer&#39;s responsibility.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">2.</span> <span style="font-weight:bold">**Apache Avro**</span>: Binary format which includes the schema with the data, meaning no need for schema distribution.  No code generator to run, and libraries are available for most languages.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">3.</span> <span style="font-weight:bold">**Inbuilt Binary**</span>: The API is awkward to use, and its output is not portable to other programming languages, so wouldn&#39;t be easy to consume for other teams, as well as some of our internal services.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">4.</span> <span style="font-weight:bold">**Custom Built**</span>: A lot of overhead for little to no benefit over Avro/gRPC etc.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">5.</span> <span style="font-weight:bold">**Thrift**</span>: ...
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>The second to last section is our Chosen Decision, which will not only list which one we picked (Avro, in this case) but also why it was chosen over other options.  All this helps reading older decisions, as it lets you know what was known at the time the decision was made - and you will always know less at the time of the decision than you do now.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Chosen Decision
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold">**2. Apache Avro**</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Avro was chosen because it has the best combination of message size and schema definition.  No need to have a central schema repository set up is also a huge benefit.
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>In this example, we have selected Avro and listed that our main reasons were message size, and the fact that Avro includes the schema with each message, meaning we don&rsquo;t need a central (or distributed) schema repository to be able to read messages.</p>
+<p>The final section is for Consequences of the decision.  This is <strong>not</strong> to list reasons that we could have picked other decisions, but to explain things that we need to start doing or stop doing because of this decision.  Let&rsquo;s see what our example has:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Consequences
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>As the messages are binary format, we cannot directly view them on the wire.  However, a small CLI will be built to take a message and pretty print it to aid debugging.
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>As we have selected a binary message format, the messages can&rsquo;t be easily viewed any more, so we will build a small CLI which when given a message (which as noted, contains the schema), renders a human-readable version of the message.</p>
+<h2 id="dates">Dates</h2>
+<p>You might notice that the record doesn&rsquo;t contain any dates so far.  That is because it&rsquo;s tracked in source control, which means we can pull all the relevant information from the commit history.  For example, a full list of changes to any ADR could be fetched from Git with this command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>git log --format<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;%ci %s&#39;</span> -- docs/arch/
+</span></span></code></pre></div><p>Likewise, when you&rsquo;re running your build process, you could extract the commit history which effects a single ADR:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>git log --reverse --format<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;%ci %s&#39;</span> -- docs/arch/serialization-format.md
+</span></span></code></pre></div><p>And then take that list and insert it into the rendered output so people can see what changed, and when:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-html" data-lang="html"><span style="display:flex;"><span>&lt;<span style="color:#f92672">div</span> <span style="color:#a6e22e">style</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;float: right&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#f92672">h2</span>&gt;History&lt;/<span style="color:#f92672">h2</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#f92672">ul</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-26&lt;/<span style="color:#f92672">strong</span>&gt; start serialization format docs&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-26&lt;/<span style="color:#f92672">strong</span>&gt; consider json&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-26&lt;/<span style="color:#f92672">strong</span>&gt; consider avro, inbuilt binary and custom binary&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-27&lt;/<span style="color:#f92672">strong</span>&gt; should consider thrift too&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-28&lt;/<span style="color:#f92672">strong</span>&gt; select Avro&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-28&lt;/<span style="color:#f92672">strong</span>&gt; accepted :)&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2019-03-12&lt;/<span style="color:#f92672">strong</span>&gt; accept api transport mechanisms&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;/<span style="color:#f92672">ul</span>&gt;
+</span></span><span style="display:flex;"><span>&lt;/<span style="color:#f92672">div</span>&gt;
+</span></span></code></pre></div><p>Note how that last log entry is the deprecation of this ADR.  You can, of course, expand your log parsing only to detect Status changes etc.</p>
+<h2 id="end">End</h2>
+<p>Hopefully, this gives you a taste of how easily useful documentation can be written, read and found.  I&rsquo;m interested to hear anyone else&rsquo;s thoughts on whether they find this useful, or any other alternatives.</p>
+]]></content:encoded></item></channel></rss>

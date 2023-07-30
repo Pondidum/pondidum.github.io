@@ -1,18 +1,688 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>docker on Andy Dote</title><link>https://andydote.co.uk/tags/docker/</link><description>Recent content in docker on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Wed, 10 Nov 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/docker/rss.xml" rel="self" type="application/rss+xml"/><item><title>How do you tag docker images?</title><link>https://andydote.co.uk/2021/11/10/docker-tagging/</link><pubDate>Wed, 10 Nov 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/11/10/docker-tagging/</guid><description>An interesting question came up at work today: how do you tag your Docker images? In previous projects, I&amp;rsquo;ve always used a short git sha, or sometimes a semver, but with no great consistency.
-As luck would have it, I had pushed for a change in tagging format at a client not so long ago as the method we were using didn&amp;rsquo;t make a lot of sense and, worst of all, it was a manual process.</description></item><item><title>Forking Multi Container Docker Builds</title><link>https://andydote.co.uk/2020/11/03/docker-multi-output/</link><pubDate>Tue, 03 Nov 2020 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2020/11/03/docker-multi-output/</guid><description>Following on from my last post on Isolated Multistage Docker Builds, I thought it would be useful to cover another advantage to splitting your dockerfiles: building different output containers from a common base.
+As luck would have it, I had pushed for a change in tagging format at a client not so long ago as the method we were using didn&amp;rsquo;t make a lot of sense and, worst of all, it was a manual process.</description><content:encoded><![CDATA[<p>An interesting question came up at work today: how do you tag your Docker images?  In previous projects, I&rsquo;ve always used a short git sha, or sometimes a semver, but with no great consistency.</p>
+<p>As luck would have it, I had pushed for a change in tagging format at a client not so long ago as the method we were using didn&rsquo;t make a lot of sense and, worst of all, it was a <em>manual</em> process.  One of the things that I push at all clients is documenting all architectural decisions made, in the form of <a href="/2019/06/29/architecture-decision-records">Architecture Decision Records</a>, so I&rsquo;m reproducing it here, with a few details changed to mask where this happened.</p>
+<p>One of the most interesting points of this is that I went in with an idea on the right way to do this, and over the course of discussion and review of the document, <em>changed my mind</em>.</p>
+<hr>
+<h2 id="change-versioning-scheme">Change Versioning Scheme</h2>
+<h3 id="status">Status</h3>
+<p>Accepted</p>
+<h3 id="context">Context</h3>
+<p>Currently, the UI uses a <a href="https://semver.org/">SemVer</a> style version number. However, we have no convention for what kind of modifications constitute a major, minor, or patch change.  We also have no processes or people who care specifically about what kind of change it is, just that a new version was deployed.</p>
+<p>The other problem with using SemVer is that people wait until a branch has been approved, and then make an additional commit with the version number change (as another prod deployment might have happened in the meantime), meaning they need to wait for an additional build before they can deploy.</p>
+<p>Not to mention, it&rsquo;s possible to accidentally go backwards in numbers if a value was misread or if someone forgets to update the version number in their branch.</p>
+<h3 id="considered-options">Considered Options</h3>
+<h4 id="1-auto-incrementing-integer-version">1. Auto-incrementing integer version</h4>
+<p>On production deployment, we would write a version number to the application.  The negative of this approach is not having a version number in pre-production environments, such as test environments.</p>
+<p>We could generate the number on the build phase (when the container is created), but this means that we might not release versions &ldquo;in order&rdquo;, as the order of what feature is deployed to production is not guaranteed, although the need to merge <code>master</code> into your branch would mean a rebuild, so a new version could be generated.</p>
+<p>This method would also mean gaps in version numbers, as not all builds hit production, which might be a touch confusing.</p>
+<p>Another issue with this method is that we build multiple containers from the same commit in separate pipelines, so we would need some way to generate a version in both pipelines which would match, which would mean either a function deriving from the commit hash or a service which would calculate and cache version numbers so they could be generated and looked up by multiple pipelines.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>1870
+</code></pre><h4 id="2-git-short-sha-of-the-commit">2. Git (short) sha of the commit</h4>
+<p>On build, write the short (7 char) SHA as the version number.  The negative of this approach is not having an easy to understand order of version numbers.  However, this scheme means we can easily see exactly which commit is currently running in production (or any environment, for that matter.)</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>84d33bb
+</code></pre><h4 id="3-build-id-from-ci-system">3. Build ID from CI System</h4>
+<p>On build, embed the buildID as the version number.  The pipeline id is a 24 character string consisting of numbers and letters, so this is functionally similar to <a href="#2-git-short-sha-of-the-commit">Option 2</a>, but with a longer number that doesn&rsquo;t tie back to a commit.</p>
+<p>As with <a href="#1-auto-incrementing-integer-version">Option 1</a>, we would need to decide if this number comes from the build pipeline, or from the deployment pipeline.  This also has the same multi-pipeline problem too.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>611a0be261ddea19dab67c22
+</code></pre><h4 id="4-datestamp">4. Datestamp</h4>
+<p>On build, use the current commit&rsquo;s datestamp as the tag.</p>
+<p>As long as we keep the resolution of the datestamp large enough, the multiple pipelines needing to generate the same ID shouldn&rsquo;t be a problem.  I guess 1-minute resolution would be enough, although if a rebuild is needed (e.g. flakey internet connection), we would end up with a different datestamp.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>2021-08-16.13-07
+</code></pre><h4 id="5-commit-datestamp">5. Commit Datestamp</h4>
+<p>Similar to <a href="#4-datestamp">Option 4</a>, except we use the commit&rsquo;s commit date to build the version number.  This solves multiple pipelines needing to generate the same tag in parallel, as well as being unique and ordered.  The timestamps can also be higher precision than <a href="#4-datestamp">Option 4</a>, as we don&rsquo;t need to hope that pipelines start at a close enough time.</p>
+<p>This is how we would generate it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>timestamp<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>git show -s --format<span style="color:#f92672">=</span>%cd --date<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;format:%Y-%m-%d.%H-%M-%S&#34;</span><span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>Example Version:</p>
+<pre tabindex="0"><code>2021-08-16.13-07-34
+</code></pre><h4 id="6-automatic-semver">6. Automatic SemVer</h4>
+<p>On build, calculate the version number using <a href="https://github.com/semantic-release/semantic-release">Semantic-Release</a>.</p>
+<p>This method means that we would need to start enforcing commit message styles, and I am not sure the format that Semantic Release is ideal for us, so it might be better to cover the commit message formatting outside this process.</p>
+<p>The commit format would be as follows:</p>
+<pre tabindex="0"><code>&lt;type&gt;(&lt;scope&gt;): &lt;short summary&gt;
+│       │             │
+│       │             └─⫸ Summary in the present tense. Not capitalized. No period at the end.
+│       │
+│       └─⫸ Commit Scope: animations|bazel|benchpress|common|compiler|compiler-cli|core|
+│                          elements|forms|http|language-service|localize|platform-browser|
+│                          platform-browser-dynamic|platform-server|router|service-worker|
+│                          upgrade|zone.js|packaging|changelog|dev-infra|docs-infra|migrations|
+│                          ngcc|ve
+│
+└─⫸ Commit Type: build|ci|docs|feat|fix|perf|refactor|test
+</code></pre><p>Having worked in repositories with this enforced, I would recommend against it, as it causes a lot of frustration (&ldquo;omg <em>why</em> has my commit been rejected again?!&rdquo;) and as mentioned in other options, I am not sure semver itself makes sense for our UI (or UI projects in general.)</p>
+<p>We will still need developers to decide if a given commit is a major/minor/patch.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>13.4.17
+</code></pre><h4 id="6-combination-datestamp--git">6. Combination: Datestamp + Git</h4>
+<p>On build, use a combination of <a href="#5-commit-datestamp">Option 5</a> and <a href="#2-git-short-sha-of-the-commit">Option 2</a> to generate a unique build number.</p>
+<p>This method had the advantage of the meaning of the date, with the uniqueness of the git commit, but the likelihood of us needing to distinguish two commits made at identical times by their commit sha is unlikely, especially as we require clean merges to master.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>2021-08-16.13-07-34.84d33bb
+</code></pre><h3 id="chosen-decision">Chosen Decision</h3>
+<p><a href="#5-commit-datestamp">Option 5</a></p>
+<p>We will also embed other build information as labels in the docker container, such as:</p>
+<ul>
+<li>branch name</li>
+<li>pipeline/build number</li>
+<li>git hash</li>
+<li>git commit timestamp</li>
+</ul>
+<h3 id="consequences">Consequences</h3>
+<ul>
+<li>No need to tag commits as a released version, but we could automate this if we wanted</li>
+<li>No need to rebuild for changing the version number</li>
+<li>No need to remember to change the version number</li>
+<li>No need to decide on major/minor/patch semantics</li>
+<li>Gain an understandable version number, with meaning</li>
+</ul>
+<hr>
+<h2 id="summary">Summary</h2>
+<p>As I said earlier, I went into this process (which I drove) wanting to pick the 2nd option - Short Git Sha, and I came away agreeing that the commit datestamp was the best thing to use.</p>
+<p>Not only was my mind changed in the course of this, but also people who join the project later can check out the <code>./docs/adr/</code> and see what options we considered for everything about this project, and how we arrived at the conclusions.  It also means I have examples to refer back to when people ask interesting questions at work.</p>
+<p>How do <em>you</em> tag your containers?</p>
+]]></content:encoded></item><item><title>Forking Multi Container Docker Builds</title><link>https://andydote.co.uk/2020/11/03/docker-multi-output/</link><pubDate>Tue, 03 Nov 2020 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2020/11/03/docker-multi-output/</guid><description>Following on from my last post on Isolated Multistage Docker Builds, I thought it would be useful to cover another advantage to splitting your dockerfiles: building different output containers from a common base.
 The Problem When I have an application which when built, needs to have all assets in one container, and a subset of assets in a second container.
-For example, writing a node webapp, where you want the compiled/bundled static assets available in the container as a fallback, and also stored in an nginx container for serving.</description></item><item><title>Isolated Docker Multistage Images</title><link>https://andydote.co.uk/2020/11/01/docker-multistage-containers/</link><pubDate>Sun, 01 Nov 2020 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2020/11/01/docker-multistage-containers/</guid><description>Often when building applications, I will use a multistage docker build for output container size and efficiency, but will run the build in two halves, to make use of the extra assets in the builder container, something like this:
-docker build \ --target builder \ -t builder:$GIT_COMMIT \ . docker run --rm \ -v &amp;#34;$PWD/artefacts/tests:/artefacts/tests&amp;#34; \ builder:$GIT_COMMIT \ yarn ci:test docker run --rm \ -v &amp;#34;$PWD/artefacts/lint:/artefacts/lint&amp;#34; \ builder:$GIT_COMMIT \ yarn ci:lint docker build \ --cache-from builder:$GIT_COMMIT \ --target output \ -t app:$GIT_COMMIT \ .</description></item><item><title>Sharing Docker Layers Between Build Agents</title><link>https://andydote.co.uk/2020/05/14/docker-layer-sharing/</link><pubDate>Thu, 14 May 2020 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2020/05/14/docker-layer-sharing/</guid><description>Recently, I noticed that when we pull a new version of our application&amp;rsquo;s docker container, it fetches all layers, not just the ones that change.
-The problem is that we use ephemeral build agents, which means that each version of the application is built using a different agent, so Docker doesn&amp;rsquo;t know how to share the layers used. While we can pull the published container before we run the build, this only helps with the final stage of the build.</description></item><item><title>Nomad Isolated Exec</title><link>https://andydote.co.uk/2020/02/29/nomad-isolated-exec/</link><pubDate>Sat, 29 Feb 2020 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2020/02/29/nomad-isolated-exec/</guid><description>One of the many features of Nomad that I like is the ability to run things other than Docker containers. It has built-in support for Java, QEMU, and Rkt, although the latter is deprecated. Besides these inbuilt &amp;ldquo;Task Drivers&amp;rdquo; there are community maintained ones too, covering Podman, LXC, Firecraker and BSD Jails, amongst others.
-The one I want to talk about today, however, is called exec. This Task Driver runs any given executable, so if you have an application which you don&amp;rsquo;t want (or can&amp;rsquo;t) put into a container, you can still schedule it with Nomad.</description></item><item><title>Hyper-V, Docker, and Networking Drama</title><link>https://andydote.co.uk/2019/03/22/hyperv-networking/</link><pubDate>Fri, 22 Mar 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/03/22/hyperv-networking/</guid><description>I had a major problem a few hours before giving my Nomad: Kubernetes Without the Complexity talk this morning: the demo stopped working.
+For example, writing a node webapp, where you want the compiled/bundled static assets available in the container as a fallback, and also stored in an nginx container for serving.</description><content:encoded><![CDATA[<p>Following on from <a href="/2020/11/01/docker-multistage-containers/">my last post on Isolated Multistage Docker Builds</a>, I thought it would be useful to cover another advantage to splitting your dockerfiles: building different output containers from a common base.</p>
+<h2 id="the-problem">The Problem</h2>
+<p>When I have an application which when built, needs to have all assets in one container, and a subset of assets in a second container.</p>
+<p>For example, writing a node webapp, where you want the compiled/bundled static assets available in the container as a fallback, and also stored in an nginx container for serving.  One of the reasons to do this is separation of concerns: I don&rsquo;t want to put my backend code where it doesn&rsquo;t need to be.  There is also, in this case, the fact that the backend code and nginx version need different base containers, meaning deploying the same container twice won&rsquo;t work.</p>
+<p>So let&rsquo;s see how we solve this!</p>
+<h2 id="creating-separate-dockerfiles">Creating Separate Dockerfiles</h2>
+<p>The first dockerfile to write is the common base, which I name <code>Dockerfile.builder</code>.  This is the same as the previous post - we are assuming that the <code>yarn ci:build</code> step transpiles the typescript, and generates the static assets for our application.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> node:15.0.1-alpine3.12 as builder</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> . ./<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn install --frozen-lockfile <span style="color:#f92672">&amp;&amp;</span> yarn cache clean<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn ci:build<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>Next up is the server container, which will be in the <code>Dockerfile.backend</code> file, as try to name the files based on their purpose, rather than their technology used.  As in the previous post, this installs the production dependencies for the application, and copies in the compiled output from the <code>builder</code> stage:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">ARG</span> builder_image<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> ${builder_image} as builder</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> node:15.0.1-alpine3.12 as output</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> package.json yarn.lock /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn install --frozen-lockfile --production <span style="color:#f92672">&amp;&amp;</span> yarn cache clean<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> --from builder /app/dist /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>Now let&rsquo;s deal with the <code>Dockerfile.frontend</code>.  This uses <code>nginx:1.19.3-alpine</code> as a base, and copies in the <code>nginx.conf</code> file from the host, and the static assets directory from the <code>builder</code> container:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">ARG</span> builder_image<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> ${builder_image} as builder</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> nginx:1.19.3-alpine as output</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> ./nginx.conf /etc/nginx/nginx.conf<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> --from builder /app/dist/static /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><h2 id="building-containers">Building Containers</h2>
+<p>The reason we rely on the <code>builder</code> stage rather than the <code>backend</code> output stage is that we are now decoupled from layout/structural changes in that container, and we gain the ability to run the builds in parallel too (the <code>&amp;</code> at the end of the lines), for a bit of a speed up on our build agents:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>version<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>GIT_COMMIT:0:7<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>builder_tag<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;builder:</span>$version<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker build --file Dockerfile.builder -t <span style="color:#e6db74">&#34;</span>$builder_tag<span style="color:#e6db74">&#34;</span> .
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># run the builder container here to do tests, lint, static analysis etc.</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker build --file dockerfile.backend --build-arg <span style="color:#e6db74">&#34;builder_image=</span>$builder_tag<span style="color:#e6db74">&#34;</span> -t backend:$version . &amp;
+</span></span><span style="display:flex;"><span>docker build --file Dockerfile.frontend --build-arg <span style="color:#e6db74">&#34;builder_image=</span>$builder_tag<span style="color:#e6db74">&#34;</span> -t frontend:$version . &amp;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>wait
+</span></span></code></pre></div><p>The result of this is 3 containers, all labled with the short version of the current git commit:</p>
+<ul>
+<li><code>builder:abc123e</code> - contains all packages, compiled output</li>
+<li><code>backend:abc123e</code> - node based, contains the node backend and static assets</li>
+<li><code>frontend:abc123e</code> - nginx based, contains the static assets</li>
+</ul>
+<p>I can now publish the builder internally (so it can be cloned before builds for <a href="/2020/05/14/docker-layer-sharing/">caching and speed</a>), and deploy the <code>backend</code> and <code>frontend</code> to their different locations.</p>
+]]></content:encoded></item><item><title>Isolated Docker Multistage Images</title><link>https://andydote.co.uk/2020/11/01/docker-multistage-containers/</link><pubDate>Sun, 01 Nov 2020 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2020/11/01/docker-multistage-containers/</guid><description>Often when building applications, I will use a multistage docker build for output container size and efficiency, but will run the build in two halves, to make use of the extra assets in the builder container, something like this:
+docker build \ --target builder \ -t builder:$GIT_COMMIT \ . docker run --rm \ -v &amp;#34;$PWD/artefacts/tests:/artefacts/tests&amp;#34; \ builder:$GIT_COMMIT \ yarn ci:test docker run --rm \ -v &amp;#34;$PWD/artefacts/lint:/artefacts/lint&amp;#34; \ builder:$GIT_COMMIT \ yarn ci:lint docker build \ --cache-from builder:$GIT_COMMIT \ --target output \ -t app:$GIT_COMMIT \ .</description><content:encoded><![CDATA[<p>Often when building applications, I will use a multistage docker build for output container size and efficiency, but will run the build in two halves, to make use of the extra assets in the builder container, something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --target builder <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -t builder:$GIT_COMMIT <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  .
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker run --rm <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -v <span style="color:#e6db74">&#34;</span>$PWD<span style="color:#e6db74">/artefacts/tests:/artefacts/tests&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  builder:$GIT_COMMIT <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  yarn ci:test
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker run --rm <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -v <span style="color:#e6db74">&#34;</span>$PWD<span style="color:#e6db74">/artefacts/lint:/artefacts/lint&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  builder:$GIT_COMMIT <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  yarn ci:lint
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker build <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --cache-from builder:$GIT_COMMIT <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --target output <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -t app:$GIT_COMMIT <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  .
+</span></span></code></pre></div><p>This usually works fine, but sometimes the <code>.dockerignore</code> file won&rsquo;t have everything set correctly, and docker will decide that when it runs the last <code>build</code> command, that it needs to rebuild the <code>builder</code> container too, which is pretty irritating.</p>
+<p>The first solution is to try and figure out what you need to add to your <code>.dockerignore</code> file, which depending on your repository structure and container usage, might be more hassle than it&rsquo;s worth.</p>
+<p>The second solution is to prevent docker invalidating the first layers at all, by splitting the build into separate files.</p>
+<h2 id="splitting-the-dockerfile">Splitting the Dockerfile</h2>
+<p>Let&rsquo;s start with an example docker file, which is a generic yarn based application with multistage build configured:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> node:15.0.1-alpine3.12 as builder</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> . ./<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn install --frozen-lockfile <span style="color:#f92672">&amp;&amp;</span> yarn cache clean<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn ci:build<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> node:15.0.1-alpine3.12 as output</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> package.json yarn.lock /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn install --frozen-lockfile --production <span style="color:#f92672">&amp;&amp;</span> yarn cache clean<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> --from builder /app/dist /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>The first file will be our <code>Docker.builder</code>, which is a direct copy paste:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> node:15.0.1-alpine3.12 as builder</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> . ./<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn install --frozen-lockfile <span style="color:#f92672">&amp;&amp;</span> yarn cache clean<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn ci:build<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>The second file can also be a direct copy paste, saved as <code>Dockerfile.output</code>, but it has a problem:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> node:15.0.1-alpine3.12 as output</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> package.json yarn.lock /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn install --frozen-lockfile --production <span style="color:#f92672">&amp;&amp;</span> yarn cache clean<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> --from builder /app/dist /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>We want to copy from a different container, not a different stage, and while the <code>COPY</code> command does let you specify another container in the <code>--from</code> parameter, but we really want to specify which container it is at build time.  The first attempt at solving this was using a buildarg:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">ARG</span> builder_image<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> --from <span style="color:#e6db74">${</span>builder_image<span style="color:#e6db74">}</span> /app/dist /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>But alas, this doesn&rsquo;t work either, as the <code>--from</code> parameter doesn&rsquo;t support variables. The solution turns out to be that <code>FROM</code> command <em>does</em> support parameterisation, so we can (ab)use that:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">ARG</span> builder_image<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> ${builder_image} as builder</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> node:15.0.1-alpine3.12 as output</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> package.json yarn.lock /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn install --frozen-lockfile --production <span style="color:#f92672">&amp;&amp;</span> yarn cache clean<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> --from builder /app/dist /app<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>Now our build script can use the <code>--build-arg</code> parameter to force the right container:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>docker build \
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-  --target builder \
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+  --file Dockerfile.builder \
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>  -t builder:$GIT_COMMIT \
+</span></span><span style="display:flex;"><span>  .
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker run --rm \
+</span></span><span style="display:flex;"><span>  -v &#34;$PWD/artefacts/tests:/artefacts/tests&#34; \
+</span></span><span style="display:flex;"><span>  builder:$GIT_COMMIT \
+</span></span><span style="display:flex;"><span>  yarn ci:test
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker run --rm \
+</span></span><span style="display:flex;"><span>  -v &#34;$PWD/artefacts/lint:/artefacts/lint&#34; \
+</span></span><span style="display:flex;"><span>  builder:$GIT_COMMIT \
+</span></span><span style="display:flex;"><span>  yarn ci:lint
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker build \
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-  --cache-from builder:$GIT_COMMIT \
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+  --build-arg &#34;builder_image=builder:$GIT_COMMIT&#34; \
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  --file Dockerfile.output \
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>  -t app:$GIT_COMMIT \
+</span></span><span style="display:flex;"><span>  .
+</span></span></code></pre></div><p>We can now safely modfiy the working directory to our heart&rsquo;s content without worring about invalidating the layer caches.</p>
+]]></content:encoded></item><item><title>Sharing Docker Layers Between Build Agents</title><link>https://andydote.co.uk/2020/05/14/docker-layer-sharing/</link><pubDate>Thu, 14 May 2020 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2020/05/14/docker-layer-sharing/</guid><description>Recently, I noticed that when we pull a new version of our application&amp;rsquo;s docker container, it fetches all layers, not just the ones that change.
+The problem is that we use ephemeral build agents, which means that each version of the application is built using a different agent, so Docker doesn&amp;rsquo;t know how to share the layers used. While we can pull the published container before we run the build, this only helps with the final stage of the build.</description><content:encoded><![CDATA[<p>Recently, I noticed that when we pull a new version of our application&rsquo;s docker container, it fetches all layers, not just the ones that change.</p>
+<p>The problem is that we use ephemeral build agents, which means that each version of the application is built using a different agent, so Docker doesn&rsquo;t know how to share the layers used.  While we can pull the published container before we run the build, this only helps with the final stage of the build.  We want to cache the other stages of the build too, as the earlier layers don&rsquo;t change often, and can be quite slow to build.</p>
+<p>We can achieve this by tweaking how we build our stages, which will also allow some other interesting optimisations.</p>
+<h2 id="the-dockerfile">The Dockerfile</h2>
+<p>An example dockerfile is below.  There are two stages, <code>builder</code> and <code>prod</code>.  In the case we are looking at, both the OS packages and application dependencies rarely change, but can take quite a while to install.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> node:14.2.0-alpine3.11 AS builder</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> apk add --no-cache make gcc g++ python<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> package.json yarn.lock ./<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn install --no-progress --frozen-lockfile <span style="color:#f92672">&amp;&amp;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    yarn cache clean<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> ./src ./src<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn build<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> node:14.2.0-alpine3.11 AS prod</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> package.json yarn.lock ./<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> yarn install --production --no-progress --frozen-lockfile <span style="color:#f92672">&amp;&amp;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    yarn cache clean<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> --from<span style="color:#f92672">=</span>builder /app/dist ./dist<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">CMD</span> [<span style="color:#e6db74">&#34;yarn&#34;</span>, <span style="color:#e6db74">&#34;start&#34;</span>]<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>The first step is to try and pull both <code>:builder</code> and <code>:latest</code> images.  We append <code>|| true</code> as the images might not exist yet, and we want the build to pass if they don&rsquo;t!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker pull app:builder <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>docker pull app:latest <span style="color:#f92672">||</span> true
+</span></span></code></pre></div><p>Now that we have the application images locally, we can proceed to building the <code>:builder</code> stage.  We tag it twice: once with just <code>app:builder</code> and once with the short-commit that built it.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --cache-from<span style="color:#f92672">=</span>app:builder <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --target builder <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -t app:builder-$COMMIT_SHORT <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -t app:builder <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    .
+</span></span></code></pre></div><p>Now that we have built our <code>builder</code> stage, we can use this to do lots of other things which require both <code>dependencies</code> and <code>devDependencies</code>, such as running tests and linters, and we could even distribute these tasks to multiple other machines if we wanted extra parallelism:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker run --rm -it app:builder-$COMMIT_SHORT yarn test
+</span></span><span style="display:flex;"><span>docker run --rm -it app:builder-$COMMIT_SHORT yarn test:integration
+</span></span><span style="display:flex;"><span>docker run --rm -it app:builder-$COMMIT_SHORT yarn lint
+</span></span></code></pre></div><p>Once we are happy with our tests, we can now build the production container, which we do by using the <code>--cache-from</code> directive twice; once with the builder image we just created, and once with the latest version of our application.  Note the order of the <code>--cache-from</code> parameters matters; this won&rsquo;t work if you specify the <code>app:latest</code> before <code>app:builder</code>!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --cache-from<span style="color:#f92672">=</span>app:builder <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --cache-from<span style="color:#f92672">=</span>app:latest <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -t app:$COMMIT_SHORT <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -t app:latest <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    .
+</span></span></code></pre></div><p>Now we can publish everything.  We always publish the commit tagged version so that separate branch builds can be fetched and tested, and if the branch is <code>master</code>, we publish both the <code>:builder</code> and <code>:latest</code> tags:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker push app:$COMMIT_SHORT
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$BRANCH<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;master&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    docker push app:builder
+</span></span><span style="display:flex;"><span>    docker push app:latest
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>The full build script looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker pull app:builder <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>docker pull app:latest <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker build <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --cache-from<span style="color:#f92672">=</span>app:builder <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --target builder <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -t app:builder-$COMMIT_SHORT <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -t app:builder <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    .
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># run these in parallel</span>
+</span></span><span style="display:flex;"><span>docker run --rm -it app:builder-$COMMIT_SHORT yarn test
+</span></span><span style="display:flex;"><span>docker run --rm -it app:builder-$COMMIT_SHORT yarn test:integration
+</span></span><span style="display:flex;"><span>docker run --rm -it app:builder-$COMMIT_SHORT yarn lint
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker build <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --cache-from<span style="color:#f92672">=</span>app:builder <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --cache-from<span style="color:#f92672">=</span>app:latest <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -t app:$COMMIT_SHORT <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -t app:latest <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    .
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker push app:$COMMIT_SHORT
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$BRANCH<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;master&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    docker push app:builder
+</span></span><span style="display:flex;"><span>    docker push app:latest
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><h2 id="effects">Effects</h2>
+<p>By publishing both our <code>:builder</code> and <code>:latest</code> tags, we can effectively share the layer caches for all build stages across all build agents.  As the layers are shared, pulling the images at the beginning of the builds is pretty fast, and the publishes at the end of the build are very, very fast.</p>
+<p>The real benefit comes with building our monolith, which now only needs a small layer to be pulled on deployment, rather than all of the layers, which speeds up our deployments by minutes per host.</p>
+]]></content:encoded></item><item><title>Nomad Isolated Exec</title><link>https://andydote.co.uk/2020/02/29/nomad-isolated-exec/</link><pubDate>Sat, 29 Feb 2020 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2020/02/29/nomad-isolated-exec/</guid><description>One of the many features of Nomad that I like is the ability to run things other than Docker containers. It has built-in support for Java, QEMU, and Rkt, although the latter is deprecated. Besides these inbuilt &amp;ldquo;Task Drivers&amp;rdquo; there are community maintained ones too, covering Podman, LXC, Firecraker and BSD Jails, amongst others.
+The one I want to talk about today, however, is called exec. This Task Driver runs any given executable, so if you have an application which you don&amp;rsquo;t want (or can&amp;rsquo;t) put into a container, you can still schedule it with Nomad.</description><content:encoded><![CDATA[<p>One of the many features of <a href="https://nomadproject.io">Nomad</a> that I like is the ability to run things other than Docker containers.  It has built-in support for Java, QEMU, and Rkt, although the latter is deprecated.  Besides these inbuilt &ldquo;Task Drivers&rdquo; there are community maintained ones too, covering Podman, LXC, Firecraker and BSD Jails, amongst others.</p>
+<p>The one I want to talk about today, however, is called <code>exec</code>.  This Task Driver runs any given executable, so if you have an application which you don&rsquo;t want (or can&rsquo;t) put into a container, you can still schedule it with Nomad.  When I run demos (particularly at conferences), I try to have everything runnable without an internet connection, which means I have to make sure all the Docker containers I wish to run are within a local Docker Registry already, and, well, sometimes I forget.  By using <code>exec</code>, I can serve a binary off my machine with no container overheads involved.</p>
+<h2 id="insecurity">Insecurity?</h2>
+<p>Until recently, I had always considered <code>exec</code> as a tradeoff: I don&rsquo;t need a docker container, but I lose the isolation of the container, and the application I run has full access to everything on this host.</p>
+<p>What I hadn&rsquo;t realised, is that <code>exec</code> actually uses the host operating system&rsquo;s isolation features via the <a href="https://pkg.go.dev/github.com/opencontainers/runc/libcontainer?tab=doc">libcontainer</a> package to contain the application.  On Linux, this means using <code>cgroups</code> and a <code>chroot</code>, making the level of isolation roughly the same as a docker container provides.</p>
+<p>When you specify a binary to run, it must meet a few criteria:</p>
+<ul>
+<li>An absolute path within Nomad&rsquo;s <code>chroot</code></li>
+<li>A relative path within the Allocation Directory</li>
+</ul>
+<p>For instance, to run a dotnet core application consists of invoking <code>/usr/bin/dotnet</code> with the relative path of the dll extracted from the artifact:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>task <span style="color:#e6db74">&#34;consumer&#34;</span> {
+</span></span><span style="display:flex;"><span>    driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;exec&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    config {
+</span></span><span style="display:flex;"><span>        command <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/usr/bin/dotnet&#34;</span>
+</span></span><span style="display:flex;"><span>        args <span style="color:#f92672">=</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;local/Consumer.dll&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    artifact {
+</span></span><span style="display:flex;"><span>        source <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http://s3.internal.net/consumer-dotnet.zip&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Whereas running a go binary can be done with a path relative to the allocation directory:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>task <span style="color:#e6db74">&#34;consumer&#34;</span> {
+</span></span><span style="display:flex;"><span>    driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;exec&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    config {
+</span></span><span style="display:flex;"><span>        command <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;local/consumer&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    artifact {
+</span></span><span style="display:flex;"><span>        source <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;http://s3.internal.net/consumer-go.zip&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>But what happens if we want to run a binary which is not within the default chroot environment used by <code>exec</code>?</p>
+<h2 id="configuring-the-chroot-environment">Configuring The chroot Environment</h2>
+<p>By default, Nomad links the following paths into the task&rsquo;s chroot:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>[
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/bin&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/etc&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/lib&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/lib32&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/lib64&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/run/resolvconf&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/sbin&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/usr&#34;</span>
+</span></span><span style="display:flex;"><span>]
+</span></span></code></pre></div><p>We can configure the <code>chroot</code> per Nomad client, meaning we can provision nodes with different capabilities if necessary.  This is done with the <code>chroot_env</code> setting in the client&rsquo;s configuration file:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>client {
+</span></span><span style="display:flex;"><span>  chroot_env {
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/bin&#34;</span>            <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/bin&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/etc&#34;</span>            <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/etc&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/lib&#34;</span>            <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/lib&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/lib32&#34;</span>          <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/lib32&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/lib64&#34;</span>          <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/lib64&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/run/resolvconf&#34;</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/run/resolvconf&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/sbin&#34;</span>           <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/sbin&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/usr&#34;</span>            <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/usr&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;/vagrant&#34;</span>        <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/vagrant&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>In this case, I have added in the <code>/vagrant</code> path, which is useful as I usually provision a Nomad cluster using <a href="https://vagrantup.com">Vagrant</a>, and thus have all my binaries etc. available in <code>/vagrant</code>.  It means that my <code>.nomad</code> files for the demo have something like this for their tasks:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>task <span style="color:#e6db74">&#34;dashboard&#34;</span> {
+</span></span><span style="display:flex;"><span>    driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;exec&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    config {
+</span></span><span style="display:flex;"><span>        command <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/vagrant/apps/bin/dashboard&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Meaning I don&rsquo;t need to host a Docker Registry, or HTTP server to expose my applications to the Nomad cluster.</p>
+<h2 id="need-full-access">Need Full Access?</h2>
+<p>If you need full access to the host machine, you can use the non-isolating version of <code>exec</code>, called <code>raw_exec</code>.  <code>raw_exec</code> works in the same way as <code>exec</code>, but without using <code>cgroups</code> and <code>chroot</code>.  As this would be a security risk, it must be enabled on each Nomad client:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>client {
+</span></span><span style="display:flex;"><span>    enabled <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>plugin <span style="color:#e6db74">&#34;raw_exec&#34;</span> {
+</span></span><span style="display:flex;"><span>    config {
+</span></span><span style="display:flex;"><span>        enabled <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="wrapping-up">Wrapping Up</h2>
+<p>One of the many reasons I like Nomad is its simplicity, especially when compared to something as big and complex as Kubernetes.  Whenever I look into how Nomad works, I always seem to come away with the feeling that it has been well thought out, and how flexible it is because of this.</p>
+<p>Being able to configure the chroot used by the Nomad clients means I can simplify my various demos further, as I can remove the need to have a webserver for an artifact source. As always, the less accidental complexity you have in your system, the better.</p>
+]]></content:encoded></item><item><title>Hyper-V, Docker, and Networking Drama</title><link>https://andydote.co.uk/2019/03/22/hyperv-networking/</link><pubDate>Fri, 22 Mar 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/03/22/hyperv-networking/</guid><description>I had a major problem a few hours before giving my Nomad: Kubernetes Without the Complexity talk this morning: the demo stopped working.
 Now, the first thing to note is the entire setup of the demo is scripted, and the scripts hadn&amp;rsquo;t changed. The only thing I had done was restart the machine, and now things were breaking.
-The Symptoms A docker container started inside the guest VMs with a port mapped to the machine&amp;rsquo;s public IP wasn&amp;rsquo;t resolvable outside the host.</description></item><item><title>Fixing Docker volume paths on Git Bash on Windows</title><link>https://andydote.co.uk/2018/06/18/git-bash-docker-volume-paths/</link><pubDate>Mon, 18 Jun 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/06/18/git-bash-docker-volume-paths/</guid><description>My normal development laptop runs Windows, but like a lot of developers, I make huge use of Docker, which I run under Hyper-V. I also heavily use the git bash terminal on windows to work.
-Usually, everything works as expected, but I was recently trying to run an ELK (Elasticsearch, Logstash, Kibana) container, and needed to pass in an extra configuration file for Logstash. This caused me a lot of trouble, as nothing was working as expected.</description></item><item><title>Vagrant in the world of Docker</title><link>https://andydote.co.uk/2017/10/22/vagrant-in-a-world-of-docker/</link><pubDate>Sun, 22 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/22/vagrant-in-a-world-of-docker/</guid><description>I gave a little talk at work recently on my use of Vagrant, what it is, and why it is still useful in a world full of Docker containers.
-So, What is Vagrant? Vagrant is a product by Hashicorp, and is for scripting the creation of (temporary) virtual machines. It&amp;rsquo;s pretty fast to create a virtual machine with too, as it creates them from a base image (known as a &amp;ldquo;box&amp;rdquo;.</description></item><item><title>Integration Testing with Dotnet Core, Docker and RabbitMQ</title><link>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</link><pubDate>Mon, 02 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</guid><description>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.
-For one of my libraries (RabbitHarness) I have a set of tests which check it behaves as expected against a real instance of RabbitMQ. Ideally these tests will always be run, but sometimes RabbitMQ just isn&amp;rsquo;t available such as when running on AppVeyor builds, or if I haven&amp;rsquo;t started my local RabbitMQ Docker container.</description></item><item><title>Update all Docker images</title><link>https://andydote.co.uk/2017/01/16/update-all-docker-images/</link><pubDate>Mon, 16 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/16/update-all-docker-images/</guid><description>My work&amp;rsquo;s wifi is much faster than my 4G connection, so periodically I want to update all my docker images on my personal laptop while at work.
+The Symptoms A docker container started inside the guest VMs with a port mapped to the machine&amp;rsquo;s public IP wasn&amp;rsquo;t resolvable outside the host.</description><content:encoded><![CDATA[<p>I had a major problem a few hours before giving my <a href="https://andydote.co.uk/presentations/index.html?nomad">Nomad: Kubernetes Without the Complexity</a> talk this morning: the demo stopped working.</p>
+<p>Now, the first thing to note is the entire setup of the demo <a href="https://github.com/pondidum/nomad-demo">is scripted</a>, and the scripts hadn&rsquo;t changed.  The only thing I had done was restart the machine, and now things were breaking.</p>
+<h2 id="the-symptoms">The Symptoms</h2>
+<p>A docker container started inside the guest VMs with a port mapped to the machine&rsquo;s public IP wasn&rsquo;t resolvable outside the host.</p>
+<p>For example, using a machine based off the <code>bento/ubuntu-16.04</code> base box, provisioned with docker, running this from inside an SSH connection to the machine would work:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant ssh
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># launch a container which can respond to a http get</span>
+</span></span><span style="display:flex;"><span>docker run -d --rm -p 172.127.48.105:5000:5000 registry:latest
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># curl by public ip</span>
+</span></span><span style="display:flex;"><span>curl http://172.127.48.105:5000 --silent -w <span style="color:#e6db74">&#34;%{http_code}&#34;</span>   <span style="color:#75715e"># 200</span>
+</span></span></code></pre></div><p>But running the same <code>curl</code> command on the host would fail:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># container is still running</span>
+</span></span><span style="display:flex;"><span>curl http://172.127.48.105:5000 --silent -w <span style="color:#e6db74">&#34;%{http_code}&#34;</span>   <span style="color:#75715e"># timeout</span>
+</span></span></code></pre></div><h2 id="investigation">Investigation</h2>
+<p>So it&rsquo;s 5 hours before the demo (thankfully it&rsquo;s not 10 minutes before), so let&rsquo;s start digging into what could be causing this.</p>
+<h2 id="docker-networking">Docker Networking</h2>
+<p>I also was searching for Nomad and Docker networking issues - as I figured I could change the Nomad job to bind the container to all interfaces (e.g. <code>-p 5000:5000</code>) instead of just the one IP.  <a href="https://github.com/hashicorp/nomad/issues/209#issuecomment-145313928">This reply</a> mentioned the <code>docker0</code> network, and when I checked the guest machines, I saw that this network is also in the <code>172.*</code> range.</p>
+<p>So my guest machines had public addresses which happened to fall in the same range as a separate network adaptor on that machine.</p>
+<h2 id="hyper-v-ip-addresses">Hyper-V IP Addresses</h2>
+<p>While I was checking the Windows Firewall to see if anything was weird in there, I stumbled across a rule I&rsquo;d added to allow exposure of a NodeJS service from my host to Hyper-v guests (but not anywhere else).  I noticed that the IP range it defined was <code>192.168.*</code>, and I now had machines with <code>172.*</code> addresses.</p>
+<p>So the IP address range for guest machines had changed.</p>
+<h2 id="the-solution">The Solution</h2>
+<p>Luckily, there is a straightforward solution to this:</p>
+<p><strong>Reboot until you get the range you want</strong></p>
+<p>Really.</p>
+<p>The other solution is to use an External Switch in Hyper-V and bridge it with your host&rsquo;s internet connection, which doesn&rsquo;t really help me, as I am on a laptop, on different WiFi networks, and sometimes I use a thunderbolt based network adaptor too.  And having to update/rebuild machines on every network change would be an absolute pain.</p>
+<p>So I rebooted — a lot.</p>
+<p>So if anyone from Microsoft is reading this: Please let us configure the Default Switch.  Or have a way to recreate it without rebooting at least.</p>
+]]></content:encoded></item><item><title>Fixing Docker volume paths on Git Bash on Windows</title><link>https://andydote.co.uk/2018/06/18/git-bash-docker-volume-paths/</link><pubDate>Mon, 18 Jun 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/06/18/git-bash-docker-volume-paths/</guid><description>My normal development laptop runs Windows, but like a lot of developers, I make huge use of Docker, which I run under Hyper-V. I also heavily use the git bash terminal on windows to work.
+Usually, everything works as expected, but I was recently trying to run an ELK (Elasticsearch, Logstash, Kibana) container, and needed to pass in an extra configuration file for Logstash. This caused me a lot of trouble, as nothing was working as expected.</description><content:encoded><![CDATA[<p>My normal development laptop runs Windows, but like a lot of developers, I make huge use of Docker, which I run under Hyper-V.  I also heavily use the git bash terminal on windows to work.</p>
+<p>Usually, everything works as expected, but I was recently trying to run an ELK (Elasticsearch, Logstash, Kibana) container, and needed to pass in an extra configuration file for Logstash.  This caused me a lot of trouble, as nothing was working as expected.</p>
+<p>The command I was running is as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker run <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -d --rm <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --name elk_temp <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 5044:5044 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 5601:5601 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 9200:9200 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -v logstash/app.conf:/etc/logstash/conf.d/app.conf <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    sebp/elk
+</span></span></code></pre></div><p>But this has the interesting effect of mounting the <code>app.conf</code> in the container as a directory (which is empty), rather than doing the useful thing of mounting it as a file. Hmm.  I realised it was git bash doing path transformations to the windows style causing the issue, but all the work arounds I tried failed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># single quotes</span>
+</span></span><span style="display:flex;"><span>docker run ... -v <span style="color:#e6db74">&#39;logstash/app.conf:/etc/logstash/conf.d/app.conf&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># absolute path</span>
+</span></span><span style="display:flex;"><span>docker run ... -v /d/dev/temp/logstash/app.conf:/etc/logstash/conf.d/app.conf
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># absolute path with // prefix</span>
+</span></span><span style="display:flex;"><span>docker run ... -v //d/dev/temp/logstash/app.conf:/etc/logstash/conf.d/app.conf
+</span></span></code></pre></div><p>In the end, I found a way to switch off MSYS&rsquo;s (what git bash is based on) path conversion:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>MSYS_NO_PATHCONV<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> docker run <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -d --rm <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --name elk_temp <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 5044:5044 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 5601:5601 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 9200:9200 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -v logstash/app.conf:/etc/logstash/conf.d/app.conf <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    sebp/elk
+</span></span></code></pre></div><p>And Voila, the paths get passed through correctly, and I can go back to hacking away at Logstash!</p>
+]]></content:encoded></item><item><title>Vagrant in the world of Docker</title><link>https://andydote.co.uk/2017/10/22/vagrant-in-a-world-of-docker/</link><pubDate>Sun, 22 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/22/vagrant-in-a-world-of-docker/</guid><description>I gave a little talk at work recently on my use of Vagrant, what it is, and why it is still useful in a world full of Docker containers.
+So, What is Vagrant? Vagrant is a product by Hashicorp, and is for scripting the creation of (temporary) virtual machines. It&amp;rsquo;s pretty fast to create a virtual machine with too, as it creates them from a base image (known as a &amp;ldquo;box&amp;rdquo;.</description><content:encoded><![CDATA[<p>I gave a little talk at work recently on my use of Vagrant, what it is, and why it is still useful in a world full of Docker containers.</p>
+<h2 id="so-what-is-vagrant">So, What is Vagrant?</h2>
+<p><a href="">Vagrant</a> is a product by Hashicorp, and is for scripting the creation of (temporary) virtual machines.  It&rsquo;s pretty fast to create a virtual machine with too, as it creates them from a base image (known as a &ldquo;box&rdquo;.)</p>
+<p>It also supports multiple virtualisation tools, such as VirtualBox and HyperV.  If you are already using <a href="https://www.packer.io">Packer</a> to create AMIs for your Amazon infrastructure, you can modify your packerfile to also output a Vagrant box.</p>
+<p>As an example, this is a really basic VagrantFile for creating a basic Ubuntu box:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;hashicorp/precise64&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provider <span style="color:#e6db74">&#34;hyperv&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>h<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>vmname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;UbuntuPrecise&#34;</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>cpus <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">2048</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>To create the vm, on your command line just run</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant up <span style="color:#75715e"># creates the virtual machine</span>
+</span></span><span style="display:flex;"><span>vagrant ssh <span style="color:#75715e"># ssh into the virtual machine</span>
+</span></span><span style="display:flex;"><span>vagrant destroy -f <span style="color:#75715e"># destroy the virtual machine</span>
+</span></span></code></pre></div><h2 id="what-can-i-use-it-for">What can I use it for?</h2>
+<p>Personally I have three main uses for a Vagrant boxes; Performance/Environment Testing, Cluster Testing, and Complete Environment Setup.</p>
+<h3 id="performance-and-environment-testing">Performance and Environment Testing</h3>
+<p>When I am developing a service which will be deployed to AWS, we tend to know rougly what kind of instance it will be deployed to, for example <code>T2.Small</code>.  The code we develop local performs well&hellip;but that is on a development machine with anywhere from 4 to 16 CPU cores, and 8 to 32 GB of memory, and SSD storage.  How do you know what performance will be like when running on a 2 core, 2048 MB machine in AWS?</p>
+<p>While you can&rsquo;t emulate AWS exactly, it has certainly helped us tune applications - for example modifying how many parallel messages to handle when receiving from RabbitMQ (you can see about how to configure this in my previous post <a href="2017/10/11/masstransit-rabbitmq-concurrency-testing/">Concurrency in RabbitMQ</a>.)</p>
+<h3 id="cluster-testing">Cluster Testing</h3>
+<p>When you want to test a service which will operate in a cluster, Vagrant comes to the rescue again - you can use the <code>define</code> block to setup multiple copies of the machine, and provide common provisioning:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;hashicorp/precise64&#34;</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">inline</span>: <span style="color:#e6db74">&lt;&lt;SCRIPT
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74"></span>  <span style="color:#75715e"># a bash script to setup your service might go here</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">SCRIPT</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provider <span style="color:#e6db74">&#34;hyperv&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>h<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>vmname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;UbuntuPrecise&#34;</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>cpus <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">1024</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;first&#34;</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;second&#34;</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;third&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>If you want to do more configuration of your separate instances, you can provider a block to do so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;third&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>third<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    third<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">inline</span>: <span style="color:#e6db74">&#34;./vagrant/boot-cluster.sh&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><h3 id="complete-environment">Complete Environment</h3>
+<p>If you&rsquo;re developing a microservice in an environment with many other microservies which it needs to interact with, it can be a pain to setup all the hosts and supporting infrastructure.</p>
+<p>Instead, we can create a single base box which contains all of the setup and services, then each microservice can have a VagrantFile which is based off the base box, but also: stops the service you are developing, and starts the version which is located in the <code>/vagrant</code> share instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;mycorp/complete-environment&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provider <span style="color:#e6db74">&#34;hyperv&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>h<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>vmname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;WhateverServiceEnvironment&#34;</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>cpus <span style="color:#f92672">=</span> <span style="color:#ae81ff">4</span>
+</span></span><span style="display:flex;"><span>    h<span style="color:#f92672">.</span>memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">4096</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># replace-service is a script which stops/removes an existing service,</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># and installs/starts a replacement. it uses a convention which expects</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># a service to have a script at `/vagrant/&lt;name&gt;/bin/&lt;name&gt;.sh`</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">inline</span>: <span style="color:#e6db74">&#34;./replace-service.sh WhateverService&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>In this case, the <code>mycorp/complete-environment</code> box would have all the services installed and started, and also a script in the machine root which does all the work to replace a service with the one under development.</p>
+<p>This base box could also be used to provide a complete testing environment too - just create a Vagrant file with no additional provisioning, and call <code>vagrant up</code>.</p>
+<h2 id="couldnt-you-use-docker-for-this-instead">Couldn&rsquo;t you use Docker for this instead?</h2>
+<p>Well yes, you can user Docker&hellip;but for some tasks, this is just easier.  We can also utilise Docker as both input and output for this; the base image could run docker internally to run all the services, or we could use a Packer script which would generate a Docker container of this setup <strong>and</strong> a vagrant box.</p>
+<p>Just because Docker is the cool thing to be using these days, doesn&rsquo;t mean Vagrant doesn&rsquo;t have any uses any more.  Far from it!</p>
+]]></content:encoded></item><item><title>Integration Testing with Dotnet Core, Docker and RabbitMQ</title><link>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</link><pubDate>Mon, 02 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</guid><description>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.
+For one of my libraries (RabbitHarness) I have a set of tests which check it behaves as expected against a real instance of RabbitMQ. Ideally these tests will always be run, but sometimes RabbitMQ just isn&amp;rsquo;t available such as when running on AppVeyor builds, or if I haven&amp;rsquo;t started my local RabbitMQ Docker container.</description><content:encoded><![CDATA[<p>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.</p>
+<p>For one of my libraries (<a href="https://github.com/pondidum/rabbitharness">RabbitHarness</a>) I have a set of tests which check it behaves as expected against a real instance of <a href="http://www.rabbitmq.com/">RabbitMQ</a>.  Ideally these tests will always be run, but sometimes RabbitMQ just isn&rsquo;t available such as when running on <a href="https://ci.appveyor.com/project/Pondidum/rabbitharness">AppVeyor</a> builds, or if I haven&rsquo;t started my local RabbitMQ Docker container.</p>
+<h2 id="skipping-tests-if-rabbitmq-is-not-available">Skipping tests if RabbitMQ is not available</h2>
+<p>First off, I prevent the tests from running if RabbitMQ is not available by using a custom <a href="https://xunit.github.io/">XUnit</a> <code>FactAttribute</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RequiresRabbitFactAttribute</span> : FactAttribute
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">readonly</span> Lazy&lt;<span style="color:#66d9ef">bool</span>&gt; IsAvailable = <span style="color:#66d9ef">new</span> Lazy&lt;<span style="color:#66d9ef">bool</span>&gt;(() =&gt;
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> factory = <span style="color:#66d9ef">new</span> ConnectionFactory { HostName = <span style="color:#e6db74">&#34;localhost&#34;</span>, RequestedConnectionTimeout = <span style="color:#ae81ff">1000</span> };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = factory.CreateConnection())
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> connection.IsOpen;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">catch</span> (Exception)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">false</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">string</span> Skip
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> IsAvailable.Value ? <span style="color:#e6db74">&#34;&#34;</span> : <span style="color:#e6db74">&#34;RabbitMQ is not available&#34;</span>;  }
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">set</span> { <span style="color:#75715e">/* nothing */</span> }
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This attribute will try connecting to a RabbitMQ instance on <code>localhost</code> once for all tests per run, and cause any test with this attribute to be skipped if RabbitMQ is not available.</p>
+<h2 id="build-script--docker">Build Script &amp; Docker</h2>
+<p>I decided the build script should start a RabbitMQ container, and use that for the tests, but I didn&rsquo;t want to re-use my standard RabbitMQ instance which I use for all kinds of things, and may well be broken at any given time.</p>
+<p>As my build script is just a <code>bash</code> script, I can check if the <code>docker</code> command is available, and then start a container if it is (relying on the assumption that if <code>docker</code> is available, I can start a container).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -x <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>command -v docker<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  CONTAINER<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>docker run -d --rm -p 5672:5672 rabbitmq:3.6.11-alpine<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Started RabbitMQ container: </span>$CONTAINER<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>If <code>docker</code> is available, we start a new container.  I use <code>rabbitmq:3.6.11-alpine</code> as it is a tiny image, with no frills, and also start it with the <code>-d</code> and <code>--rm</code> flags, which starts the container in a disconnected mode (e.g. the <code>docker run</code> command returns instantly), and will delete the container when it is stopped, taking care of clean up for us! I only bother binding the main data connection port (<code>5672</code>), as that is all we are going to be using. Finally, the container&rsquo;s ID, which is returned by the <code>docker run</code> command, is stored in the <code>CONTAINER</code> variable.</p>
+<p>I recommend putting this step as the very first part of your build script, as it gives the container time to start up RabbitMQ and be ready for connections while your build is running.  Otherwise I found I was needing to put a <code>sleep 5</code> command in afterwards to pause the script for a short time.</p>
+<p>The script then continues on with the normal build process:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>dotnet restore <span style="color:#e6db74">&#34;</span>$NAME<span style="color:#e6db74">.sln&#34;</span>
+</span></span><span style="display:flex;"><span>dotnet build <span style="color:#e6db74">&#34;</span>$NAME<span style="color:#e6db74">.sln&#34;</span> --configuration $MODE
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>find . -iname <span style="color:#e6db74">&#34;*.Tests.csproj&#34;</span> -type f -exec dotnet test <span style="color:#e6db74">&#34;{}&#34;</span> --configuration $MODE <span style="color:#ae81ff">\;</span>
+</span></span><span style="display:flex;"><span>dotnet pack ./src/$NAME --configuration $MODE --output ../../.build
+</span></span></code></pre></div><p>Once this is all done, I have another check that <code>docker</code> exists, and stop the container we started earlier, by using the container ID in <code>CONTAINER</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -x <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>command -v docker<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  docker stop $CONTAINER
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>And that&rsquo;s it!  You can see the full <a href="https://github.com/Pondidum/RabbitHarness/blob/master/build.sh">build script for RabbitHarness here</a>.</p>
+<p>The only problem with this script is if you try and start a RabbitMQ container while you already have one running, the command will fail, but the build should succeed anyway as the running instance of RabbitMQ will work for the tests, and the <code>docker stop</code> command will just output that it can&rsquo;t find a container with a blank ID.</p>
+<p>I think I will be using this technique more to help provide isolation for builds - I think that the <a href="https://hub.docker.com/r/microsoft/mssql-server-linux/">Microsoft/mssql-server-linux</a> containers might be very useful for some of our work codebases (which do work against the Linux instances of MSSQL, even if they weren&rsquo;t designed to!)</p>
+]]></content:encoded></item><item><title>Update all Docker images</title><link>https://andydote.co.uk/2017/01/16/update-all-docker-images/</link><pubDate>Mon, 16 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/16/update-all-docker-images/</guid><description>My work&amp;rsquo;s wifi is much faster than my 4G connection, so periodically I want to update all my docker images on my personal laptop while at work.
 As I want to just set it going and then forget about it, I use the following one liner to do a docker pull against each image on my local machine:
-docker images | grep -v REPOSITORY | awk &amp;#39;{print $1}&amp;#39;| xargs -L1 docker pull If you only want to fetch the versions you have the tags for:</description></item><item><title>Running pre-compiled microservices in Docker with Mono</title><link>https://andydote.co.uk/2015/09/15/pre-compiled-microservices/</link><pubDate>Tue, 15 Sep 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/09/15/pre-compiled-microservices/</guid><description>Last time we went through creating a Dockerfile for a microservice, with the service being compiled on creation of the container image, using xbuild.
+docker images | grep -v REPOSITORY | awk &amp;#39;{print $1}&amp;#39;| xargs -L1 docker pull If you only want to fetch the versions you have the tags for:</description><content:encoded><![CDATA[<p>My work&rsquo;s wifi is <em>much</em> faster than my 4G connection, so periodically I want to update all my docker images on my personal laptop while at work.</p>
+<p>As I want to just set it going and then forget about it, I use the following one liner to do a <code>docker pull</code> against each image on my local machine:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker images | grep -v REPOSITORY | awk <span style="color:#e6db74">&#39;{print $1}&#39;</span>| xargs -L1 docker pull
+</span></span></code></pre></div><p>If you only want to fetch the versions you have the tags for:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker images | grep -v REPOSITORY | awk <span style="color:#e6db74">&#39;{ if ($2 != &#34;&lt;none&gt;&#34;) { print $1&#34;:&#34;$2 } else { print $1 } }&#39;</span> | xargs -L1 docker pull
+</span></span></code></pre></div><p>Now if only I could get git bash to do TTY properly so I get the pretty download indicators too :(</p>
+]]></content:encoded></item><item><title>Running pre-compiled microservices in Docker with Mono</title><link>https://andydote.co.uk/2015/09/15/pre-compiled-microservices/</link><pubDate>Tue, 15 Sep 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/09/15/pre-compiled-microservices/</guid><description>Last time we went through creating a Dockerfile for a microservice, with the service being compiled on creation of the container image, using xbuild.
 However we might not want to compile the application to create the container image, and use an existing version (e.g. one created by a build server.)
 Our original Dockerfile was this:
-FROM mono:3.10-onbuild RUN apt-get update &amp;amp;&amp;amp; apt-get install mono-4.0-service -y CMD [ &amp;#34;mono-service&amp;#34;, &amp;#34;./MicroServiceDemo.exe&amp;#34;, &amp;#34;--no-daemon&amp;#34; ] EXPOSE 12345 We only need to make a few modifications to use a pre-compiled application:</description></item><item><title>Running microservices in Docker with Mono</title><link>https://andydote.co.uk/2015/09/05/running-microservices-in-docker-with-mono/</link><pubDate>Sat, 05 Sep 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/09/05/running-microservices-in-docker-with-mono/</guid><description>Getting a service running under Docker is fairly straight forward once you have all the working parts together. I have an app written (following my guide on service and console in one), which uses Owin to serve a web page as a demo:
-install-package Microsoft.Owin.SelfHost public partial class Service : ServiceBase { //see the service console post for the rest of this protected override void OnStart(string[] args) { _app = WebApp.</description></item></channel></rss>
+FROM mono:3.10-onbuild RUN apt-get update &amp;amp;&amp;amp; apt-get install mono-4.0-service -y CMD [ &amp;#34;mono-service&amp;#34;, &amp;#34;./MicroServiceDemo.exe&amp;#34;, &amp;#34;--no-daemon&amp;#34; ] EXPOSE 12345 We only need to make a few modifications to use a pre-compiled application:</description><content:encoded><![CDATA[<p>Last time we went through <a href="/2015/09/05/running-microservices-in-docker-with-mono.html">creating a Dockerfile for a microservice</a>, with the service being compiled on creation of the container image, using xbuild.</p>
+<p>However we might not want to compile the application to create the container image, and use an existing version (e.g. one created by a build server.)</p>
+<p>Our original Dockerfile was this:</p>
+<pre tabindex="0"><code>FROM mono:3.10-onbuild
+RUN apt-get update &amp;&amp; apt-get install mono-4.0-service -y
+
+CMD [ &#34;mono-service&#34;,  &#34;./MicroServiceDemo.exe&#34;, &#34;--no-daemon&#34; ]
+EXPOSE 12345
+</code></pre><p>We only need to make a few modifications to use a pre-compiled application:</p>
+<pre tabindex="0"><code>FROM mono:3.10.0
+RUN apt-get update &amp;&amp; apt-get install mono-4.0-service -y
+
+RUN mkdir -p /usr/src/app
+COPY . /usr/src/app
+WORKDIR /usr/src/app
+
+CMD [ &#34;mono-service&#34;,  &#34;./MicroServiceDemo.exe&#34;, &#34;--no-daemon&#34; ]
+EXPOSE 12345
+</code></pre><p>Asides from changing the base image to <code>mono:3.10.0</code>, the only changes made are to add the following lines:</p>
+<pre tabindex="0"><code>RUN mkdir -p /usr/src/app
+COPY . /usr/src/app
+WORKDIR /usr/src/app
+</code></pre><p>These lines create a new directory for our application, copy the contents of the current directory (e.g. the paths specified when you type <code>docker build -t servicedemo .</code>) and make the directory our working directory.</p>
+<p>You can now create a container with the same commands as last time:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build -t servicedemo .
+</span></span><span style="display:flex;"><span>docker run -d -p 12345:12345 --name demo servicedemo
+</span></span></code></pre></div><p>There is a demo project for all of this on my github: <a href="https://github.com/Pondidum/DockerMonoDemo">DockerMonoDemo</a>.</p>
+]]></content:encoded></item><item><title>Running microservices in Docker with Mono</title><link>https://andydote.co.uk/2015/09/05/running-microservices-in-docker-with-mono/</link><pubDate>Sat, 05 Sep 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/09/05/running-microservices-in-docker-with-mono/</guid><description>Getting a service running under Docker is fairly straight forward once you have all the working parts together. I have an app written (following my guide on service and console in one), which uses Owin to serve a web page as a demo:
+install-package Microsoft.Owin.SelfHost public partial class Service : ServiceBase { //see the service console post for the rest of this protected override void OnStart(string[] args) { _app = WebApp.</description><content:encoded><![CDATA[<p>Getting a service running under <a href="https://www.docker.com">Docker</a> is fairly straight forward once you have all the working parts together.  I have an app written (following <a href="/2015/08/30/single-project-service-and-console.html">my guide</a> on service and console in one), which uses Owin to serve a web page as a demo:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-powershell" data-lang="powershell"><span style="display:flex;"><span>install-package Microsoft.Owin.SelfHost
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">partial</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Service</span> : ServiceBase
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">//see the service console post for the rest of this</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> OnStart(<span style="color:#66d9ef">string</span>[] args)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_app = WebApp.Start(<span style="color:#e6db74">&#34;http://*:12345&#34;</span>, app =&gt;
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			app.UseWelcomePage(<span style="color:#e6db74">&#34;/&#34;</span>);
+</span></span><span style="display:flex;"><span>		});
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> OnStop()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_app.Dispose();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To run this under docker/mono we just need to add a <code>Dockerfile</code> to the root directory of the solution, which is based off the <a href="https://hub.docker.com/_/mono">documentation here</a>.</p>
+<p>Using <code>mono-service</code> instead of <code>mono</code> to run the application caused me a number of headaches to start with, as the container was exiting instantly.  This is because Docker detects the process has exited, and stops the container.  As we will be running the container detached from the console, we just need to supply the <code>--no-daemon</code> argument to <code>mono-service</code>.</p>
+<pre tabindex="0"><code>FROM mono:3.10-onbuild
+RUN apt-get update &amp;&amp; apt-get install mono-4.0-service -y
+CMD [ &#34;mono-service&#34;,  &#34;./MicroServiceDemo.exe&#34;, &#34;--no-daemon&#34; ]
+EXPOSE 12345
+</code></pre><p>You can then go to your solution directory, and run the following two commands to create your image, and start a container of it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build -t servicedemo .
+</span></span><span style="display:flex;"><span>docker run -d -p 12345:12345 --name demo servicedemo
+</span></span></code></pre></div><p>You can now open your browser and go to your Docker host&rsquo;s IP:12345 and see the Owin welcome page.</p>
+<h2 id="improvements-speed-and-lack-of-internet">Improvements: Speed and lack of internet</h2>
+<p>Quite often I have no internet access, so having to <code>apt-get install mono-4.0-service</code> each time I build the image can be a pain.  This however is also very easily resolved: by making another image with the package already installed.</p>
+<p>Create a new directory (outside of your project directory), and create a <code>Dockerfile</code>.  This Dockerfile is identical to the <a href="https://github.com/mono/docker/blob/adc7a3ec47f7d590f75a4dec0203a2103daf8db0/3.10.0/onbuild/Dockerfile">mono:3.10-onbuild</a> image, but with the added apt-get line.</p>
+<pre tabindex="0"><code>FROM mono:3.10.0
+
+MAINTAINER Jo Shields &lt;jo.shields@xamarin.com&gt;
+
+RUN apt-get update &amp;&amp; apt-get install mono-4.0-service -y
+
+RUN mkdir -p /usr/src/app/source /usr/src/app/build
+WORKDIR /usr/src/app/source
+
+ONBUILD COPY . /usr/src/app/source
+ONBUILD RUN nuget restore -NonInteractive
+ONBUILD RUN xbuild /property:Configuration=Release /property:OutDir=/usr/src/app/build/
+ONBUILD WORKDIR /usr/src/app/build
+</code></pre><p>Now run the build command to make your new base image:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build -t mono-service-onbuild .
+</span></span></code></pre></div><p>Now you can go back to your project and update the <code>Dockerfile</code> to use this image base instead:</p>
+<pre tabindex="0"><code>FROM mono-service-onbuild
+CMD [ &#34;mono-service&#34;,  &#34;./MicroServiceDemo.exe&#34;, &#34;--no-daemon&#34; ]
+EXPOSE 12345
+</code></pre><p>Now when you run <code>docker build -t &lt;project name&gt; .</code> it will only need to do the compile steps.</p>
+<p>Much faster :)</p>
+]]></content:encoded></item></channel></rss>

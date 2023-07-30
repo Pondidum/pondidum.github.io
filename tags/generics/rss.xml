@@ -1,3 +1,293 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>generics on Andy Dote</title><link>https://andydote.co.uk/tags/generics/</link><description>Recent content in generics on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Fri, 29 May 2009 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/generics/rss.xml" rel="self" type="application/rss+xml"/><item><title>Microcontrollers for MenuItems</title><link>https://andydote.co.uk/2009/05/29/microcontrollers-for-menuitems/</link><pubDate>Fri, 29 May 2009 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2009/05/29/microcontrollers-for-menuitems/</guid><description>I have been working my way through Jeremy Miller&amp;rsquo;s excellent Build Your Own CAB Series (which would be even better if he felt like finishing!) and was very interested by the article on controlling menus with Microcontrollers.
-After reading it and writing a version of it myself, I came to the conclusion that some parts of it seem to be wrong. All of the permissioning is done based on the menu items which fire ICommands, and several menu items could use the same ICommand.</description></item><item><title>Generics to the rescue! Again!</title><link>https://andydote.co.uk/2009/05/22/generics-to-the-rescue-again/</link><pubDate>Fri, 22 May 2009 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2009/05/22/generics-to-the-rescue-again/</guid><description>I was writing a component at work that has many events that all need to be thread safe, and was getting annoyed at the amount of duplicate code I was writing:
-Public Event FilterStart(ByVal sender As Object, ByVal e As EventArgs) &amp;#39;... Private Delegate Sub OnFilterCompleteDelegate(ByVal sender As Object, ByVal e As FilterCompleteEventArgs) &amp;#39;... Private Sub OnFilterComplete(ByVal sender As Object, ByVal e As DataAccess.LoadEventArgs) If _parent.InvokeRequired Then _parent.Invoke(new OnFilterCompleteDelegate(AddressOf OnFilterComplete), new Object() {sender, e}) Else RaiseEvent FullResultsStart(sender, e) End If End Sub &amp;#39;.</description></item></channel></rss>
+After reading it and writing a version of it myself, I came to the conclusion that some parts of it seem to be wrong. All of the permissioning is done based on the menu items which fire ICommands, and several menu items could use the same ICommand.</description><content:encoded><![CDATA[<p>I have been working my way through Jeremy Miller&rsquo;s excellent <a href="http://codebetter.com/blogs/jeremy.miller/archive/2007/07/25/the-build-your-own-cab-series-table-of-contents.aspx">Build Your Own CAB Series</a> (which would be even better if he felt like finishing!) and was very interested by the article on controlling menus with <a href="http://codebetter.com/blogs/jeremy.miller/pages/build-your-own-cab-14-managing-menu-state-with-microcontroller-s-command-s-a-layer-supertype-some-structuremap-pixie-dust-and-a-dollop-of-fluent-interface.aspx">Microcontrollers</a>.</p>
+<p>After reading it and writing a version of it myself, I came to the conclusion that some parts of it seem to be wrong.  All of the permissioning is done based on the menu items which fire <code>ICommands</code>, and several menu items could use the same <code>ICommand</code>.  This means that you need to use the interface something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span>MenuController.MenuItem(mnuFileNew).Executes(Commands.Open).IsAvailableToRoles(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;editor&#34;</span>, <span style="color:#e6db74">&#34;su&#34;</span>)<span style="color:#960050;background-color:#1e0010">;</span>
+</span></span><span style="display:flex;"><span>MenuController.MenuItem(tsbStandardNew).Executes(Commands.Open).IsAvailableToRoles(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;editor&#34;</span>, <span style="color:#e6db74">&#34;su&#34;</span>)<span style="color:#960050;background-color:#1e0010">;</span>
+</span></span></code></pre></div><p>Now to me this seems somewhat wrong, I would rather have something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span>MenuController.Command(<span style="color:#66d9ef">new</span> MenuCommands.New).IsAttachedTo(mnuFileNew, tsbStandardNew).IsAvailableToRoles(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;editor&#34;</span>, <span style="color:#e6db74">&#34;su&#34;</span>)<span style="color:#960050;background-color:#1e0010">;</span>
+</span></span></code></pre></div><p>So I decided to have a go at re-working it to my liking.  To start with we have the mandatory <code>ICommand</code> interface:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Interface</span> ICommand
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Execute</span>()
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Interface</span>
+</span></span></code></pre></div><p>Then a class that manages the actual <code>ICommand</code> and its menuitem(s):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">NotInheritable</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">CommandItem</span>(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Implements</span> IDisposable      <span style="color:#75715e">&#39;used to remove handlers that we dont want to leave lying around
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">ReadOnly</span> _command <span style="color:#f92672">As</span> ICommand
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">ReadOnly</span> _id <span style="color:#f92672">As</span> T
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _roles <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> List(<span style="color:#66d9ef">Of</span> <span style="color:#66d9ef">String</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _menuItems <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> List(<span style="color:#66d9ef">Of</span> ToolStripItem)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _alwaysEnabled <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">False</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _disposed <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">False</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">AlwaysEnabled</span>() <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> _alwaysEnabled
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Set</span>(<span style="color:#66d9ef">ByVal</span> value <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>)
+</span></span><span style="display:flex;"><span>            _alwaysEnabled <span style="color:#f92672">=</span> value
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Set</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">Roles</span>() <span style="color:#f92672">As</span> List(<span style="color:#66d9ef">Of</span> <span style="color:#66d9ef">String</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> _roles
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Set</span>(<span style="color:#66d9ef">ByVal</span> value <span style="color:#f92672">As</span> List(<span style="color:#66d9ef">Of</span> <span style="color:#66d9ef">String</span>))
+</span></span><span style="display:flex;"><span>            _roles <span style="color:#f92672">=</span> value
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Set</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">ReadOnly</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">MenuItems</span>() <span style="color:#f92672">As</span> ToolStripItem()
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> _menuItems.ToArray
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">ReadOnly</span> <span style="color:#66d9ef">Property</span> <span style="color:#a6e22e">IsDisposed</span>() <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> _disposed
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Get</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">New</span>(<span style="color:#66d9ef">ByVal</span> cmd <span style="color:#f92672">As</span> ICommand, <span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T)
+</span></span><span style="display:flex;"><span>        _command <span style="color:#f92672">=</span> cmd
+</span></span><span style="display:flex;"><span>        _id <span style="color:#f92672">=</span> id
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">AddMenuItem</span>(<span style="color:#66d9ef">ByVal</span> menuItem <span style="color:#f92672">As</span> ToolStripItem)
+</span></span><span style="display:flex;"><span>        _menuItems.Add(menuItem)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">AddHandler</span> menuItem.Click, <span style="color:#f92672">AddressOf</span> _item_Click
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">RemoveMenuItem</span>(<span style="color:#66d9ef">ByVal</span> menuItem <span style="color:#f92672">As</span> ToolStripItem)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">RemoveHandler</span> menuItem.Click, <span style="color:#f92672">AddressOf</span> _item_Click
+</span></span><span style="display:flex;"><span>        _menuItems.Remove(menuItem)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsEnabled</span>(<span style="color:#66d9ef">ByVal</span> state <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T)) <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> _alwaysEnabled <span style="color:#66d9ef">Then</span> <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">True</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> <span style="color:#66d9ef">Not</span> state.IsEnabled(_id) <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">False</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">For</span> i <span style="color:#f92672">As</span> <span style="color:#66d9ef">Integer</span> <span style="color:#f92672">=</span> 0 <span style="color:#66d9ef">To</span> _roles.Count <span style="color:#f92672">-</span> 1
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">If</span> Thread.CurrentPrincipal.IsInRole(_roles(i)) <span style="color:#66d9ef">Then</span> <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">True</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Next</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">False</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">SetState</span>(<span style="color:#66d9ef">ByVal</span> state <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Dim</span> enabled <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span> <span style="color:#f92672">=</span> IsEnabled(state)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">For</span> <span style="color:#66d9ef">Each</span> ts <span style="color:#f92672">As</span> ToolStripItem <span style="color:#f92672">In</span> _menuItems
+</span></span><span style="display:flex;"><span>            ts.Enabled <span style="color:#f92672">=</span> enabled
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Next</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Dispose</span>(<span style="color:#66d9ef">ByVal</span> disposing <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> <span style="color:#66d9ef">Not</span> _disposed <span style="color:#f92672">AndAlso</span> disposing <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">For</span> <span style="color:#66d9ef">Each</span> menuItem <span style="color:#f92672">As</span> ToolStripItem <span style="color:#f92672">In</span> _menuItems
+</span></span><span style="display:flex;"><span>                RemoveMenuItem(menuItem)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Next</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        _disposed <span style="color:#f92672">=</span> <span style="color:#66d9ef">True</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Dispose</span>() <span style="color:#66d9ef">Implements</span> IDisposable.Dispose
+</span></span><span style="display:flex;"><span>        Dispose(<span style="color:#66d9ef">True</span>)
+</span></span><span style="display:flex;"><span>        GC.SuppressFinalize(<span style="color:#66d9ef">Me</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">_item_Click</span>(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> <span style="color:#66d9ef">Object</span>, <span style="color:#66d9ef">ByVal</span> e <span style="color:#f92672">As</span> EventArgs)
+</span></span><span style="display:flex;"><span>        _command.Execute()
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span></code></pre></div><p>As you can see, the <code>Dispose</code> Method is used to allow for handlers to be removed, otherwise the objects might be hanging around longer than they should be. We also have a list of menu items that this command controls, and a list of roles that the command is available to.</p>
+<p>Next we have the class that holds the state of each menu item, which is generic to allow the end user to use whatever they wish to identify each menu item:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">NotInheritable</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">CommandState</span>(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _enabledCommands <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> List(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">Enable</span>(<span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T) <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> <span style="color:#66d9ef">Not</span> _enabledCommands.Contains(id) <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>            _enabledCommands.Add(id)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">Disable</span>(<span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T) <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">If</span> _enabledCommands.Contains(id) <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>            _enabledCommands.Remove(id)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsEnabled</span>(<span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T) <span style="color:#f92672">As</span> <span style="color:#66d9ef">Boolean</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> _enabledCommands.Contains(id)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span></code></pre></div><p>Finally we have the Manager class which stitches the whole lot together with a health dollop of Fluent Interfaces.  We have a unique list of Commands (as I wrote this in VS2005, I just had to make a unique List class, rather than use a dictionary of <code>CommmandItem</code> and <code>Null</code>) and a sub class which provides the Fluent Interface to the manager. (<code>IDisposeable</code> parts have been trimmed out for brevity, it&rsquo;s just contains a loop that disposes all child objects).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">NotInheritable</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">Manager</span>(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> _commands <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> UniqueList(<span style="color:#66d9ef">Of</span> CommandItem(<span style="color:#66d9ef">Of</span> T))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">Command</span>(<span style="color:#66d9ef">ByVal</span> cmd <span style="color:#f92672">As</span> ICommand, <span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T) <span style="color:#f92672">As</span> CommandExpression
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">New</span> CommandExpression(<span style="color:#66d9ef">Me</span>, cmd, id)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">SetState</span>(<span style="color:#66d9ef">ByVal</span> state <span style="color:#f92672">As</span> CommandState(<span style="color:#66d9ef">Of</span> T))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">For</span> <span style="color:#66d9ef">Each</span> ci <span style="color:#f92672">As</span> CommandItem(<span style="color:#66d9ef">Of</span> T) <span style="color:#f92672">In</span> _commands
+</span></span><span style="display:flex;"><span>            ci.SetState(state)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Next</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">NotInheritable</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">CommandExpression</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">ReadOnly</span> _manager <span style="color:#f92672">As</span> Manager(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">ReadOnly</span> _commandItem <span style="color:#f92672">As</span> CommandItem(<span style="color:#66d9ef">Of</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Friend</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">New</span>(<span style="color:#66d9ef">ByVal</span> mgr <span style="color:#f92672">As</span> Manager(<span style="color:#66d9ef">Of</span> T), <span style="color:#66d9ef">ByVal</span> cmd <span style="color:#f92672">As</span> ICommand, <span style="color:#66d9ef">ByVal</span> id <span style="color:#f92672">As</span> T)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            _manager <span style="color:#f92672">=</span> mgr
+</span></span><span style="display:flex;"><span>            _commandItem <span style="color:#f92672">=</span> <span style="color:#66d9ef">New</span> CommandItem(<span style="color:#66d9ef">Of</span> T)(cmd, id)
+</span></span><span style="display:flex;"><span>            _manager._commands.Add(_commandItem)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsAttachedTo</span>(<span style="color:#66d9ef">ByVal</span> menuItem <span style="color:#f92672">As</span> ToolStripItem) <span style="color:#f92672">As</span> CommandExpression
+</span></span><span style="display:flex;"><span>            _commandItem.AddMenuItem(menuItem)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsInRole</span>(<span style="color:#66d9ef">ByVal</span> <span style="color:#66d9ef">ParamArray</span> roles() <span style="color:#f92672">As</span> <span style="color:#66d9ef">String</span>) <span style="color:#f92672">As</span> CommandExpression
+</span></span><span style="display:flex;"><span>            _commandItem.Roles.AddRange(roles)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Function</span> <span style="color:#a6e22e">IsAlwaysEnabled</span>() <span style="color:#f92672">As</span> CommandExpression
+</span></span><span style="display:flex;"><span>            _commandItem.AlwaysEnabled <span style="color:#f92672">=</span> <span style="color:#66d9ef">True</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">Return</span> <span style="color:#66d9ef">Me</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Function</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">UniqueList</span>(<span style="color:#66d9ef">Of</span> TKey)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Inherits</span> List(<span style="color:#66d9ef">Of</span> TKey)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Shadows</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Add</span>(<span style="color:#66d9ef">ByVal</span> item <span style="color:#f92672">As</span> TKey)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">If</span> <span style="color:#66d9ef">Not</span> <span style="color:#66d9ef">MyBase</span>.Contains(item) <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">MyBase</span>.Add(item)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span></code></pre></div><p>In my test application I have a file containing my menuCommands and an Enum used for identification:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Namespace</span> MenuCommands
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Enum</span> <span style="color:#a6e22e">Commands</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">[</span><span style="color:#66d9ef">New</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>        Open
+</span></span><span style="display:flex;"><span>        Save
+</span></span><span style="display:flex;"><span>        Close
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Enum</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Class</span> <span style="color:#a6e22e">Open</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Implements</span> ICommand
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Execute</span>() <span style="color:#66d9ef">Implements</span> ICommand.Execute
+</span></span><span style="display:flex;"><span>            MessageBox.Show(<span style="color:#e6db74">&#34;Open&#34;</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Class</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Namespace</span>
+</span></span></code></pre></div><p>And in the main form I have this code.  The Thread Principle is used for the roles, and the actual roles could (should) be loaded from a database or anywhere other than hard coded constants of course.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> _menuManager <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> Manager(<span style="color:#66d9ef">Of</span> MenuCommands.Commands)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> _state <span style="color:#f92672">As</span> <span style="color:#66d9ef">New</span> CommandState(<span style="color:#66d9ef">Of</span> MenuCommands.Commands)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">Form1_Load</span>(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> System.Object, <span style="color:#66d9ef">ByVal</span> e <span style="color:#f92672">As</span> System.EventArgs) <span style="color:#66d9ef">Handles</span> <span style="color:#66d9ef">MyBase</span>.Load
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Thread.CurrentPrincipal <span style="color:#f92672">=</span> <span style="color:#66d9ef">New</span> GenericPrincipal(Thread.CurrentPrincipal.Identity, <span style="color:#66d9ef">New</span> <span style="color:#66d9ef">String</span>() {<span style="color:#e6db74">&#34;normal&#34;</span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.Command(<span style="color:#66d9ef">New</span> MenuCommands.<span style="color:#f92672">[</span><span style="color:#66d9ef">New</span><span style="color:#f92672">]</span>, MenuCommands.Commands.<span style="color:#f92672">[</span><span style="color:#66d9ef">New</span><span style="color:#f92672">]</span>) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(mnuFileNew) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(tsbNew) _
+</span></span><span style="display:flex;"><span>                .IsInRole(<span style="color:#e6db74">&#34;normal&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.Command(<span style="color:#66d9ef">New</span> MenuCommands.Open, MenuCommands.Commands.Open) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(mnuFileOpen) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(tsbOpen) _
+</span></span><span style="display:flex;"><span>                .IsInRole(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;reviewer&#34;</span>, <span style="color:#e6db74">&#34;viewer&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.Command(<span style="color:#66d9ef">New</span> MenuCommands.Save, MenuCommands.Commands.Save) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(mnuFileSave) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(tsbSave) _
+</span></span><span style="display:flex;"><span>                .IsInRole(<span style="color:#e6db74">&#34;normal&#34;</span>, <span style="color:#e6db74">&#34;reviewer&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.Command(<span style="color:#66d9ef">New</span> MenuCommands.Close, MenuCommands.Commands.Close) _
+</span></span><span style="display:flex;"><span>                .IsAttachedTo(mnuFileExit) _
+</span></span><span style="display:flex;"><span>                .IsAlwaysEnabled()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _state.Enable(MenuCommands.Commands.Open) _
+</span></span><span style="display:flex;"><span>          .Enable(MenuCommands.Commands.Save) _
+</span></span><span style="display:flex;"><span>          .Enable(MenuCommands.Commands.Close)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    _menuManager.SetState(_state)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span></code></pre></div><p>The state object is used to enable and disable menu items and could be wrapped in another object if it needed to be exposed further than the form.</p>
+]]></content:encoded></item><item><title>Generics to the rescue! Again!</title><link>https://andydote.co.uk/2009/05/22/generics-to-the-rescue-again/</link><pubDate>Fri, 22 May 2009 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2009/05/22/generics-to-the-rescue-again/</guid><description>I was writing a component at work that has many events that all need to be thread safe, and was getting annoyed at the amount of duplicate code I was writing:
+Public Event FilterStart(ByVal sender As Object, ByVal e As EventArgs) &amp;#39;... Private Delegate Sub OnFilterCompleteDelegate(ByVal sender As Object, ByVal e As FilterCompleteEventArgs) &amp;#39;... Private Sub OnFilterComplete(ByVal sender As Object, ByVal e As DataAccess.LoadEventArgs) If _parent.InvokeRequired Then _parent.Invoke(new OnFilterCompleteDelegate(AddressOf OnFilterComplete), new Object() {sender, e}) Else RaiseEvent FullResultsStart(sender, e) End If End Sub &amp;#39;.</description><content:encoded><![CDATA[<p>I was writing a component at work that has many events that all need to be thread safe, and was getting annoyed at the amount of duplicate code I was writing:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Public</span> <span style="color:#66d9ef">Event</span> FilterStart(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> <span style="color:#66d9ef">Object</span>, <span style="color:#66d9ef">ByVal</span> e <span style="color:#f92672">As</span> EventArgs)
+</span></span><span style="display:flex;"><span><span style="color:#75715e">&#39;...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Delegate</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">OnFilterCompleteDelegate</span>(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> <span style="color:#66d9ef">Object</span>, <span style="color:#66d9ef">ByVal</span> e <span style="color:#f92672">As</span> FilterCompleteEventArgs)
+</span></span><span style="display:flex;"><span><span style="color:#75715e">&#39;...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">OnFilterComplete</span>(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> <span style="color:#66d9ef">Object</span>, <span style="color:#66d9ef">ByVal</span> e <span style="color:#f92672">As</span> DataAccess.LoadEventArgs)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">If</span> _parent.InvokeRequired <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>        _parent.Invoke(<span style="color:#66d9ef">new</span> OnFilterCompleteDelegate(<span style="color:#f92672">AddressOf</span> OnFilterComplete), <span style="color:#66d9ef">new</span> <span style="color:#66d9ef">Object</span>() {sender, e})
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Else</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">RaiseEvent</span> FullResultsStart(sender, e)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">&#39;... repeat for all
+</span></span></span></code></pre></div><p>Hmm. There has to be a better way of doing this. Enter some Generic magic in the form of a Generic Delegate Sub:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Delegate</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">EventAction</span>(<span style="color:#66d9ef">Of</span> TArgs)(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> <span style="color:#66d9ef">Object</span>, <span style="color:#66d9ef">ByVal</span> args <span style="color:#f92672">As</span> TArgs)
+</span></span></code></pre></div><p>This then allows me to write my Event Raisers like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Delegate</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">EventAction</span>(<span style="color:#66d9ef">Of</span> TArgs)(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> <span style="color:#66d9ef">Object</span>, <span style="color:#66d9ef">ByVal</span> args <span style="color:#f92672">As</span> TArgs)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">OnFilterStart</span>(<span style="color:#66d9ef">ByVal</span> sender <span style="color:#f92672">As</span> <span style="color:#66d9ef">Object</span>, <span style="color:#66d9ef">ByVal</span> e <span style="color:#f92672">As</span> EventArgs)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">If</span> _parent.InvokeRequired <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>        _parent.Invoke(<span style="color:#66d9ef">New</span> EventAction(<span style="color:#66d9ef">Of</span> EventArgs)(<span style="color:#f92672">AddressOf</span> OnFilterStart), <span style="color:#66d9ef">New</span> <span style="color:#66d9ef">Object</span>() {sender, e})
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Else</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">RaiseEvent</span> FilterStart(sender, e)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span></code></pre></div><p>Further optimisation let me do the fiollowing, as the sender is always <code>Me</code> :</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-vb" data-lang="vb"><span style="display:flex;"><span><span style="color:#66d9ef">Private</span> <span style="color:#66d9ef">Sub</span> <span style="color:#a6e22e">OnFilterStart</span>(<span style="color:#66d9ef">ByVal</span> e <span style="color:#f92672">As</span> EventArgs)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">If</span> _parent.InvokeRequired <span style="color:#66d9ef">Then</span>
+</span></span><span style="display:flex;"><span>        _parent.Invoke(<span style="color:#66d9ef">New</span> Action(<span style="color:#66d9ef">Of</span> EventArgs)(<span style="color:#f92672">AddressOf</span> OnFilterStart), <span style="color:#66d9ef">New</span> <span style="color:#66d9ef">Object</span>() {e})
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">Else</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">RaiseEvent</span> FilterStart(<span style="color:#66d9ef">Me</span>, e)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">End</span> <span style="color:#66d9ef">If</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">End</span> <span style="color:#66d9ef">Sub</span>
+</span></span></code></pre></div><p>Which meant I no longer needed my customer Action Delegate, as there is one for a single parameter in System for this already!</p>
+<p>Now if only I could find a way to wrap the thread safe checks and invokes into a single generic function&hellip;</p>
+]]></content:encoded></item></channel></rss>

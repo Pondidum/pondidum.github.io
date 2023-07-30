@@ -1,2 +1,72 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>graphviz on Andy Dote</title><link>https://andydote.co.uk/tags/graphviz/</link><description>Recent content in graphviz on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Mon, 12 Sep 2016 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/graphviz/rss.xml" rel="self" type="application/rss+xml"/><item><title>Visualising NuGet Dependencies</title><link>https://andydote.co.uk/2016/09/12/nuget-dependencies/</link><pubDate>Mon, 12 Sep 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/09/12/nuget-dependencies/</guid><description>My new place of work has a lot of nuget packages, and I wanted to understand the dependencies between them. To do this I wrote a simple shell script to find all the packages.config files on my machine, and output all the relationships in a way which I could view them.
-The format for viewing I use for this is Graphviz&amp;rsquo;s dot language, and the resulting output can be pasted into WebGraphviz to view.</description></item></channel></rss>
+The format for viewing I use for this is Graphviz&amp;rsquo;s dot language, and the resulting output can be pasted into WebGraphviz to view.</description><content:encoded><![CDATA[<p>My new place of work has a lot of nuget packages, and I wanted to understand the dependencies between them.  To do this I wrote a simple shell script to find all the <code>packages.config</code> files on my machine, and output all the relationships in a way which I could view them.</p>
+<p>The format for viewing I use for this is <a href="http://graphviz.org/doc/info/lang.html">Graphviz&rsquo;s dot language</a>, and the resulting output can be pasted into <a href="http://www.webgraphviz.com/">WebGraphviz</a> to view.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>RESULT_FILE<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;graph.dot&#34;</span> <span style="color:#75715e"># the output file</span>
+</span></span><span style="display:flex;"><span>NAME_MATCH<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;Microsoft\.&#39;</span> <span style="color:#75715e"># leave this as a blank string if you want no filtering</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#39;&#39;</span> &gt; $RESULT_FILE  <span style="color:#75715e"># clear out the file</span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#39;digraph Dependencies {&#39;</span> &gt;&gt; $RESULT_FILE
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#39;  rankdir=LR;&#39;</span> &gt;&gt; $RESULT_FILE <span style="color:#75715e"># we want a left to right graph, as it&#39;s a little easier to read</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># find all packages.config, recursively beaneath the path passed into the script</span>
+</span></span><span style="display:flex;"><span>find $1 -iname packages.config | <span style="color:#66d9ef">while</span> read line; <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># find any csproj file next to the packages.config</span>
+</span></span><span style="display:flex;"><span>  project_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>dirname $line<span style="color:#66d9ef">)</span><span style="color:#e6db74">/*.csproj&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># check it exists (e.g. to not error on a /.nuget/packages.config path)</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f $project_path <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># find the name of the assembly</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># (our projects are not named with the company prefix, but the assemblies/packages are)</span>
+</span></span><span style="display:flex;"><span>    asm_name<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>grep -oP <span style="color:#e6db74">&#39;&lt;RootNamespace&gt;\K(.*)(?=&lt;)&#39;</span> $project_path<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Ignore any tests projects (optional)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> <span style="color:#f92672">[[</span> <span style="color:#e6db74">${</span>line<span style="color:#e6db74">}</span> !<span style="color:#f92672">=</span> *<span style="color:#e6db74">&#34;Tests&#34;</span>* <span style="color:#f92672">]]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#75715e"># find all lines in the packages.config where the package name has a prefix</span>
+</span></span><span style="display:flex;"><span>      grep -Po <span style="color:#e6db74">&#34;package id=\&#34;\K(</span>$NAME_MATCH<span style="color:#e6db74">.*?)(?=\&#34;)&#34;</span> $line | <span style="color:#66d9ef">while</span> read package; <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># write it to the result</span>
+</span></span><span style="display:flex;"><span>        echo <span style="color:#e6db74">&#34;  \&#34;</span>$asm_name<span style="color:#e6db74">\&#34; -&gt; \&#34;</span>$package<span style="color:#e6db74">\&#34;&#34;</span> &gt;&gt; $RESULT_FILE
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">done</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">done</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#39;}&#39;</span> &gt;&gt; $RESULT_FILE
+</span></span></code></pre></div><p>To use this, you just need to call it with the path you want to visualise:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ ./graph.sh /d/dev/projects/ledger
+</span></span></code></pre></div><p>Note on the <code>grep</code> usage I am using a non-capturing look behind (everything before <code>\K</code>) and a non-capturing look ahead (the <code>(?=\&quot;)</code> part), as if you just use a &rsquo;normal&rsquo; expression, the parts which match which I don&rsquo;t care about also get outputed by grep.  In C# I would have written the expression like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> packageName = Regex.Match(line, <span style="color:#e6db74">&#34;package id=\&#34;(.*?)\&#34;&#34;</span>).Groups[<span style="color:#ae81ff">1</span>].Value;
+</span></span></code></pre></div><p>As an example, if I run this over my directory with all of the <a href="https://github.com/pondidum/ledger">Ledger</a> code in it, and filter out test dependencies (e.g. remove Shouldy, NSubstitute, Xunit), you get the following dot file:</p>
+<pre tabindex="0"><code>
+digraph Dependencies {
+  rankdir=LR;
+  &#34;Ledger.Acceptance&#34; -&gt; &#34;Newtonsoft.Json&#34;
+  &#34;Ledger.Tests&#34; -&gt; &#34;Newtonsoft.Json&#34;
+  &#34;Ledger.Tests&#34; -&gt; &#34;RabbitMQ.Client&#34;
+  &#34;Ledger.Stores.Postgres&#34; -&gt; &#34;Dapper&#34;
+  &#34;Ledger.Stores.Postgres&#34; -&gt; &#34;Ledger&#34;
+  &#34;Ledger.Stores.Postgres&#34; -&gt; &#34;Newtonsoft.Json&#34;
+  &#34;Ledger.Stores.Postgres&#34; -&gt; &#34;Npgsql&#34;
+  &#34;Ledger.Stores.Postgres.Tests&#34; -&gt; &#34;Dapper&#34;
+  &#34;Ledger.Stores.Postgres.Tests&#34; -&gt; &#34;Ledger&#34;
+  &#34;Ledger.Stores.Postgres.Tests&#34; -&gt; &#34;Ledger.Acceptance&#34;
+  &#34;Ledger.Stores.Postgres.Tests&#34; -&gt; &#34;Newtonsoft.Json&#34;
+  &#34;Ledger.Stores.Postgres.Tests&#34; -&gt; &#34;Npgsql&#34;
+  &#34;Ledger.Stores.Fs&#34; -&gt; &#34;Ledger&#34;
+  &#34;Ledger.Stores.Fs&#34; -&gt; &#34;Newtonsoft.Json&#34;
+  &#34;Ledger.Stores.Fs.Tests&#34; -&gt; &#34;Ledger&#34;
+  &#34;Ledger.Stores.Fs.Tests&#34; -&gt; &#34;Ledger.Acceptance&#34;
+  &#34;Ledger.Stores.Fs.Tests&#34; -&gt; &#34;Newtonsoft.Json&#34;
+  &#34;Ledger.Stores.Fs.Tests&#34; -&gt; &#34;structuremap&#34;
+}
+</code></pre><p>Which renders into the following graph:</p>
+<p><img loading="lazy" src="nuget-graph.png" alt="Nuget Graph"  />
+</p>
+<p>In the process of writing this though, I did have to go back into the projects and find out why the <code>Ledger.Tests</code> was referencing <code>RabbitMQ.Client</code> (example of appending events to a queue) and why <code>Ledger.Stores.Fs.Tests</code> referened <code>Structuremap</code> (it looks like I forgot to remove the reference after rewriting how Acceptance tests were setup).</p>
+<p>The gist with all the code in can be found here: <a href="https://gist.github.com/Pondidum/a79bddeeba612f9eb1074e9f5274b047">graph.sh</a>.</p>
+<p>Hope this is useful to others too!</p>
+]]></content:encoded></item></channel></rss>

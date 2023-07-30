@@ -1,8 +1,581 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>dns on Andy Dote</title><link>https://andydote.co.uk/tags/dns/</link><description>Recent content in dns on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 23 Apr 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/dns/rss.xml" rel="self" type="application/rss+xml"/><item><title>An NGINX and DNS based outage</title><link>https://andydote.co.uk/2022/04/23/nginx-dns/</link><pubDate>Sat, 23 Apr 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/04/23/nginx-dns/</guid><description>I recently encountered a behaviour in Nginx that I didn&amp;rsquo;t expect and caused a production outage in the process. While I would love to blame DNS for this, as it&amp;rsquo;s usually the cause of most network-related issues, in this case, the fault lies with Nginx.
-I was running a very simple Nginx proxy, relaying an internal service to the outside world. The internal service is behind an AWS ALB, and the Nginx configuration was proxying to the ALB&amp;rsquo;s FQDN:</description></item><item><title>Consul DNS Fowarding in Alpine, revisited</title><link>https://andydote.co.uk/2019/12/30/consul-alpine-dns-revisited/</link><pubDate>Mon, 30 Dec 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/12/30/consul-alpine-dns-revisited/</guid><description>I noticed when running an Alpine based virtual machine with Consul DNS forwarding set up, that sometimes the machine couldn&amp;rsquo;t resolve *.consul domains, but not in a consistent manner. Inspecting the logs looked like the request was being made and responded to successfully, but the result was being ignored.
-After a lot of googling and frustration, I was able to track down that it&amp;rsquo;s down to a difference (or optimisation) in musl libc, which glibc doesn&amp;rsquo;t do.</description></item><item><title>Libvirt Hostname Resolution</title><link>https://andydote.co.uk/2019/12/22/libvirt-hostname-resolution/</link><pubDate>Sun, 22 Dec 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/12/22/libvirt-hostname-resolution/</guid><description>I use Vagrant when testing new machines and experimenting locally with clusters, and since moving (mostly) to Linux, I have been using the LibVirt Plugin to create the virtual machines. Not only is it significantly faster than Hyper-V was on windows, but it also means I don&amp;rsquo;t need to use Oracle products, so it&amp;rsquo;s win-win really.
-The only configuration challenge I have had with it is setting up VM hostname resolution, and as I forget how to do it each time, I figured I should write about it.</description></item><item><title>Consul DNS Fowarding in Ubuntu, revisited</title><link>https://andydote.co.uk/2019/09/24/consul-ubuntu-dns-revisited/</link><pubDate>Tue, 24 Sep 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/09/24/consul-ubuntu-dns-revisited/</guid><description>I was recently using my Hashibox for a test, and I noticed the DNS resolution didn&amp;rsquo;t seem to work. This was a bit worrying, as I have written about how to do DNS resolution with Consul forwarding in Ubuntu, and apparently something is wrong with how I do it. Interestingly, the Alpine version works fine, so it appears there is something not quite working with how I am configuring Systemd-resolved.</description></item><item><title>Configuring Consul DNS Forwarding in Alpine Linux</title><link>https://andydote.co.uk/2019/05/31/consul-dns-forwarding-alpine/</link><pubDate>Fri, 31 May 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/05/31/consul-dns-forwarding-alpine/</guid><description>DEPRECATED - This has a race condition! Please see this post for an updated version which works!
+I was running a very simple Nginx proxy, relaying an internal service to the outside world. The internal service is behind an AWS ALB, and the Nginx configuration was proxying to the ALB&amp;rsquo;s FQDN:</description><content:encoded><![CDATA[<p>I recently encountered a behaviour in Nginx that I didn&rsquo;t expect and caused a production outage in the process.  While I would love to blame DNS for this, as it&rsquo;s usually the cause of most network-related issues, in this case, the fault lies with Nginx.</p>
+<p>I was running a very simple Nginx proxy, relaying an internal service to the outside world.  The internal service is behind an AWS ALB, and the Nginx configuration was proxying to the ALB&rsquo;s FQDN:</p>
+<pre tabindex="0"><code>http {
+  server {
+    listen              8000;
+    server_name         server.example.com;
+
+    location ~* ^/some/path {
+      proxy_pass              https://some.internal.alb.address.amazonaws.com;
+      proxy_set_header        Host $host;
+      proxy_read_timeout      120;
+      proxy_ignore_headers    Cache-Control;
+      proxy_ignore_headers    Expires;
+      proxy_ignore_headers    Set-Cookie;
+    }
+  }
+}
+</code></pre><p>The proxy was working fine for several weeks, until suddenly it wasn&rsquo;t.  To make matters more strange, when we checked the internal site directly, it showed as up and responding.  No deployments of any services had happened, and we had made no changes in any infrastructure either.  We restarted the Nginx service, and everything started working again.</p>
+<p>The first is that AWS&rsquo;s can, and does, change the IP addresses associated with load balancers.  This can happen for many unknown reasons as the underlying implementation of the AWS load balancers is a black box.  One known reason is the load balancer scaling to handle more or less traffic.  There is no API that we are aware of that allows you to see when these changes have happened; the only way we know is to run <code>dig</code> in a loop and send the results to our observability tool when they change.</p>
+<p>The second detail is how Nginx resolves DNS.  My initial expectation was that it worked like most DNS clients, and would query an address on the first request and then again after the TTL had elapsed.  It turns out my assumption was wrong, and that by default, Nginx queries addresses once on startup, <em>and never again</em>.</p>
+<p>So with these two facts, we can see why the proxy stopped working at some point; the target ALB had removed whichever IP address(es) Nginx had received from DNS at startup.  There are two different ways this can be fixed.</p>
+<p>The first way is to force Nginx to cache all IPs resolved for a fixed time window:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>http {
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  resolver_timeout 30s;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex;"><span>  server {
+</span></span><span style="display:flex;"><span>    listen              8000;
+</span></span><span style="display:flex;"><span>    server_name         server.example.com;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    location ~* ^/some/path {
+</span></span></code></pre></div><p>The second fix is to cause Nginx to re-resolve the upstream when it&rsquo;s DNS record expires (based on the DNS TTL):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>http {
+</span></span><span style="display:flex;"><span>  server {
+</span></span><span style="display:flex;"><span>    listen              8000;
+</span></span><span style="display:flex;"><span>    server_name         server.example.com;
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+    set $upstream some.internal.alb.address.amazonaws.com;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex;"><span>    location ~* ^/some/path {
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-     proxy_pass              https://some.internal.alb.address.amazonaws.com;
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+     proxy_pass              https://$upstream;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>      proxy_set_header        Host $host;
+</span></span><span style="display:flex;"><span>      proxy_read_timeout      120;
+</span></span><span style="display:flex;"><span>      proxy_ignore_headers    Cache-Control;
+</span></span><span style="display:flex;"><span>      proxy_ignore_headers    Expires;
+</span></span><span style="display:flex;"><span>      proxy_ignore_headers    Set-Cookie;
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>While I am glad there are two easy ways to solve this issue, I still find the default &ldquo;only resolve once at startup&rdquo; behaviour odd, as it goes against the <a href="https://en.wikipedia.org/wiki/Principle_of_least_astonishment">Principle of least surprise</a>;  I expect Nginx to re-query based on the TTL of the DNS Record.  I suspect this behaviour exists for performance reasons, but I don&rsquo;t know for sure.</p>
+]]></content:encoded></item><item><title>Consul DNS Fowarding in Alpine, revisited</title><link>https://andydote.co.uk/2019/12/30/consul-alpine-dns-revisited/</link><pubDate>Mon, 30 Dec 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/12/30/consul-alpine-dns-revisited/</guid><description>I noticed when running an Alpine based virtual machine with Consul DNS forwarding set up, that sometimes the machine couldn&amp;rsquo;t resolve *.consul domains, but not in a consistent manner. Inspecting the logs looked like the request was being made and responded to successfully, but the result was being ignored.
+After a lot of googling and frustration, I was able to track down that it&amp;rsquo;s down to a difference (or optimisation) in musl libc, which glibc doesn&amp;rsquo;t do.</description><content:encoded><![CDATA[<p>I noticed when running an Alpine based virtual machine with Consul DNS forwarding set up, that sometimes the machine couldn&rsquo;t resolve <code>*.consul</code> domains, but not in a consistent manner. Inspecting the logs looked like the request was being made and responded to successfully, but the result was being ignored.</p>
+<p>After a lot of googling and frustration, I was able to track down that it&rsquo;s down to a difference (or optimisation) in musl libc, which glibc doesn&rsquo;t do. From Musl libc&rsquo;s <a href="https://wiki.musl-libc.org/functional-differences-from-glibc.html">Functional differences from glibc</a> page, we can see under the Name Resolver/DNS section the relevant information:</p>
+<blockquote>
+<p>Traditional resolvers, including glibc&rsquo;s, make use of multiple nameserver lines in resolv.conf by trying each one in sequence and falling to the next after one times out. musl&rsquo;s resolver queries them all in parallel and accepts whichever response arrives first.</p>
+</blockquote>
+<p>The machine&rsquo;s <code>/etc/resolv.conf</code> file has two <code>nameserver</code> specified:</p>
+<pre tabindex="0"><code>nameserver 127.0.0.1
+nameserver 192.168.121.1
+</code></pre><p>The first is our <code>Unbound</code> instance which handles the forwarding to Consul, and the second is the DHCP set DNS server, in this case, libvirt/qemu&rsquo;s dnsmasq instance.</p>
+<p>When running in a glibc based system, queries go to the first <code>nameserver</code>, and then if that can&rsquo;t resolve the request, it is then sent to the next <code>nameserver</code>, and so forth. As Alpine Linux uses muslc, it makes the requests in parallel and uses the response from whichever response comes back first.</p>
+<p><img loading="lazy" src="muslc-dns.png" alt="sequence diagram, showing parallel DNS requests"  />
+</p>
+<p>When the DHCP DNS server is a network hop away, the latency involved means our resolution usually works, as the queries will hit the local DNS and get a response first. However, when the DHCP DNS is not that far away, for example when it is the DNS server that libvirt runs in the virtual network the machine is attached to, it becomes much more likely to get a response from that DNS server first, causing the failures I was seeing.</p>
+<p>The solution to this is to change the setup so that all requests go to Unbound, which can then decide where to send them on to.  This also has the additional benefits of making all DNS requests work the same on all systems; regardless of glibc or muslc being used.</p>
+<p><img loading="lazy" src="unbound-dns.png" alt="sequence diagram, showing all DNS requests going through unbound"  />
+</p>
+<h2 id="rebuilding-dns-resolution">Rebuilding DNS Resolution</h2>
+<p>You can follow the same instructions in my previous <a href="/2019/05/31/consul-dns-forwarding-alpine/#run-consul">Consul DNS forwarding</a> post to setup Consul, as that is already in the right state for us.</p>
+<p>Once Consul is up and running, it&rsquo;s time to fix the rest of our pipeline.</p>
+<h3 id="unbound">Unbound</h3>
+<p>First, install <code>unbound</code> and configure it to start on boot:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>apk add unbound
+</span></span><span style="display:flex;"><span>rc-update add unbound
+</span></span></code></pre></div><p>The unbound config file (<code>/etc/unbound/unbound.conf</code>) is almost the same as the previous version, except we also have an <code>include</code> statement, pointing to a second config file, which we will generate shortly:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">server</span>:
+</span></span><span style="display:flex;"><span> <span style="color:#f92672">verbosity</span>: <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span> <span style="color:#f92672">do-not-query-localhost</span>: <span style="color:#66d9ef">no</span>
+</span></span><span style="display:flex;"><span> <span style="color:#f92672">domain-insecure</span>: <span style="color:#e6db74">&#34;consul&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">stub-zone</span>:
+</span></span><span style="display:flex;"><span> <span style="color:#f92672">name</span>: <span style="color:#e6db74">&#34;consul&#34;</span>
+</span></span><span style="display:flex;"><span> <span style="color:#f92672">stub-addr</span>: <span style="color:#ae81ff">127.0.0.1</span>@<span style="color:#ae81ff">8600</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">include</span>: <span style="color:#e6db74">&#34;/etc/unbound/forward.conf&#34;</span>
+</span></span></code></pre></div><h3 id="dhclient">Dhclient</h3>
+<p>Next, we install <code>dhclient</code> so that we can make use of it&rsquo;s hooks feature to generate our additional unbound config file.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>apk add dhclient
+</span></span></code></pre></div><p>Create a config file for dhclient (<code>/etc/dhcp/dhclient.conf</code>), which again is almost the same as the previous post, but this time doesn&rsquo;t specify <code>prepend domain-name-servers</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span><span style="color:#66d9ef">option</span> rfc3442-classless-static-routes code 121 <span style="color:#f92672">=</span> array of unsigned integer 8;
+</span></span><span style="display:flex;"><span>send <span style="color:#66d9ef">host</span>-name <span style="color:#f92672">=</span> <span style="color:#a6e22e">gethostname</span>();
+</span></span><span style="display:flex;"><span>request <span style="color:#66d9ef">subnet</span>-mask, broadcast-address, time-offset, routers,
+</span></span><span style="display:flex;"><span> domain-name, domain-name-servers, domain-search, <span style="color:#66d9ef">host</span>-name,
+</span></span><span style="display:flex;"><span> dhcp6.name-servers, dhcp6.domain-search, dhcp6.fqdn, dhcp6.sntp-servers,
+</span></span><span style="display:flex;"><span> netbios-name-servers, netbios-scope, interface-mtu,
+</span></span><span style="display:flex;"><span> rfc3442-classless-static-routes, ntp-servers;
+</span></span></code></pre></div><p>Now we can write two hooks. The first is an enter hook, which we can use to write the <code>forward.conf</code> file out.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>touch /etc/dhclient-enter-hooks
+</span></span><span style="display:flex;"><span>chmod +x /etc/dhclient-enter-hooks
+</span></span></code></pre></div><p>The content is a single statement to write the <code>new_domain_name_servers</code> value into a <code>forward-zone</code> for unbound:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>cat <span style="color:#e6db74">&lt;&lt;-EOF
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">forward-zone:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74"> name: &#34;.&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74"> forward-addr: ${new_domain_name_servers}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">)</span> | sudo tee /etc/unbound/forward.conf
+</span></span></code></pre></div><p>The second hook is an exit ook, which runs after dhclient has finished writing out all the files it controls (such as <code>/etc/resolv.conf</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>touch /etc/dhclient-exit-hooks
+</span></span><span style="display:flex;"><span>chmod +x /etc/dhclient-exit-hooks
+</span></span></code></pre></div><p>The content is a single <code>sed</code> statement to replace the address of <code>nameserver</code> directives written to the <code>/etc/resolv.conf</code> with the unbound address:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>sudo sed -i <span style="color:#e6db74">&#39;s/nameserver.*/nameserver 127.0.0.1/g&#39;</span> /etc/resolv.conf
+</span></span></code></pre></div><p>It&rsquo;s worth noting; we could put the content of the <code>enter</code> hook into the <code>exit</code> hook if you would rather.</p>
+<p>Finally, we can delete our current <code>resolv.conf</code> and restart the networking service:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>rm /etc/resolv.conf <span style="color:#75715e"># hack due to it dhclient making an invalid `chown` call.</span>
+</span></span><span style="display:flex;"><span>rc-service networking restart
+</span></span></code></pre></div><h2 id="testing">Testing</h2>
+<p>We can now test that we can resolve the three kinds of address we care about:</p>
+<ul>
+<li><code>dig consul.service.consul</code> - should return the <code>eth0</code> ip of the machine</li>
+<li><code>dig alpinetest.karhu.xyz</code> - should be resolved by libvirt&rsquo;s dnsmasq instance</li>
+<li><code>dig example.com</code> - should be resolved by an upstream DNS server</li>
+</ul>
+<h2 id="conculsion">Conculsion</h2>
+<p>This was an interesting and somewhat annoying problem to solve, but it means I have a more robust setup in my virtual machines now. It&rsquo;s interesting to note that if the DNS server from DHCP were not a local instance, the network latency added would make all the system function properly most of the time, as the local instance would answer before the remote instance could.</p>
+]]></content:encoded></item><item><title>Libvirt Hostname Resolution</title><link>https://andydote.co.uk/2019/12/22/libvirt-hostname-resolution/</link><pubDate>Sun, 22 Dec 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/12/22/libvirt-hostname-resolution/</guid><description>I use Vagrant when testing new machines and experimenting locally with clusters, and since moving (mostly) to Linux, I have been using the LibVirt Plugin to create the virtual machines. Not only is it significantly faster than Hyper-V was on windows, but it also means I don&amp;rsquo;t need to use Oracle products, so it&amp;rsquo;s win-win really.
+The only configuration challenge I have had with it is setting up VM hostname resolution, and as I forget how to do it each time, I figured I should write about it.</description><content:encoded><![CDATA[<p>I use <a href="http://vagrantup.com/">Vagrant</a> when testing new machines and experimenting locally with clusters, and since moving (mostly) to Linux, I have been using the <a href="https://github.com/vagrant-libvirt/vagrant-libvirt">LibVirt Plugin</a> to create the virtual machines. Not only is it significantly faster than Hyper-V was on windows, but it also means I don&rsquo;t need to use Oracle products, so it&rsquo;s win-win really.</p>
+<p>The only configuration challenge I have had with it is setting up VM hostname resolution, and as I forget how to do it each time, I figured I should write about it.</p>
+<h2 id="setup">Setup</h2>
+<p>First I install the plugin so Vagrant can talk to Libvirt.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant plugin install vagrant-libvirt
+</span></span></code></pre></div><p>I also created a single <code>vagrantfile</code> with two virtual machines defined in it, so that I can check that the machines can resolve each other, as well as the host being able to resolve the guests.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span> config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;elastic/ubuntu-16.04-x86_64&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span> config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;one&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>n1<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span> n1<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;one&#34;</span>
+</span></span><span style="display:flex;"><span> <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span> config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;two&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>n1<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span> n1<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;two&#34;</span>
+</span></span><span style="display:flex;"><span> <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>Once running <code>vagrant up</code> has finished (either with <code>--provider libvirt</code> or setting <code> VAGRANT_DEFAULT_PROVIDER=libvirt</code>), connect to one of the machines, and try to ping the other:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>andy@karhu$ vagrant ssh one
+</span></span><span style="display:flex;"><span>vagrant@one$ ping two
+</span></span><span style="display:flex;"><span>ping: unknown host two
+</span></span><span style="display:flex;"><span>vagrant@one$ exit
+</span></span></code></pre></div><p>Now that we can see they can&rsquo;t resolve each other let&rsquo;s move on to fixing it.</p>
+<h2 id="custom-domain">Custom Domain</h2>
+<p>The solution is to configure the libvirt network to have a domain name, and then to set the host machine to send requests for that domain to the virtual network.</p>
+<p>First, I picked a domain. It doesn&rsquo;t matter what it is, but I gather using <code>.local</code> will cause problems with other services, so instead, I picked <code>$HOSTNAME.xyz</code>, which is <code>karhu.xyz</code> in this case.</p>
+<p>Vagrant-libvirt by default creates a network called <code>vagrant-libvirt</code>, so we can edit it to include the domain name configuration by running the following command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>virsh net-edit --network vagrant-libvirt
+</span></span></code></pre></div><p>And adding the `<domain name='karhu.xyz' localOnly='yes' /> line to the xml which is displayed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>&lt;network ipv6=&#39;yes&#39;&gt;
+</span></span><span style="display:flex;"><span> &lt;name&gt;vagrant-libvirt&lt;/name&gt;
+</span></span><span style="display:flex;"><span> &lt;uuid&gt;d265a837-96fd-41fc-b114-d9e076462051&lt;/uuid&gt;
+</span></span><span style="display:flex;"><span> &lt;forward mode=&#39;nat&#39;/&gt;
+</span></span><span style="display:flex;"><span> &lt;bridge name=&#39;virbr1&#39; stp=&#39;on&#39; delay=&#39;0&#39;/&gt;
+</span></span><span style="display:flex;"><span> &lt;mac address=&#39;52:54:00:a0:ae:fd&#39;/&gt;
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+ &lt;domain name=&#39;karhu.xyz&#39; localOnly=&#39;yes&#39;/&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span> &lt;ip address=&#39;192.168.121.1&#39; netmask=&#39;255.255.255.0&#39;&gt;
+</span></span><span style="display:flex;"><span> &lt;dhcp&gt;
+</span></span><span style="display:flex;"><span> &lt;range start=&#39;192.168.121.1&#39; end=&#39;192.168.121.254&#39;/&gt;
+</span></span><span style="display:flex;"><span> &lt;/dhcp&gt;
+</span></span><span style="display:flex;"><span> &lt;/ip&gt;
+</span></span><span style="display:flex;"><span>&lt;/network&gt;
+</span></span></code></pre></div><p>To make the changes take effect, we need to destroy and re-create the network, so first I destroy the vagrant machines, then destroy and restart the network:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant destroy -f
+</span></span><span style="display:flex;"><span>virsh net-destroy --network vagrant-libvirt
+</span></span><span style="display:flex;"><span>virsh net-start --network vagrant-libvirt
+</span></span></code></pre></div><p>Finally, we can re-create the machines, and log in to one to check that they can resolve each other:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>andy@karhu$ vagrant up
+</span></span><span style="display:flex;"><span>andy@karhu$ vagrant ssh one
+</span></span><span style="display:flex;"><span>vagrant@one$ ping two
+</span></span><span style="display:flex;"><span>PING two.karhu.xyz <span style="color:#f92672">(</span>192.168.121.243<span style="color:#f92672">)</span> 56<span style="color:#f92672">(</span>84<span style="color:#f92672">)</span> bytes of data.
+</span></span><span style="display:flex;"><span>vagrant@one$ exit
+</span></span></code></pre></div><p>You can also check that the host can resolve the machine names when querying the virtual network&rsquo;s DNS server:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>andy@karhu$ dig @192.168.121.1 +short one
+</span></span><span style="display:flex;"><span>&gt; 192.168.121.50
+</span></span></code></pre></div><h2 id="host-dns-forwarding">Host DNS Forwarding</h2>
+<p>The host cant talk to the machines by name still, so we need to tweak the host&rsquo;s DNS, which means fighting with SystemD. Luckily, we only need to forward requests to a DNS server running on port <code>53</code> - if it was on another port then replacing systemd-resolved like <a href="/2019/09/24/consul-ubuntu-dns-revisited/">my post on Consul DNS forwarding</a> would be necessary.</p>
+<p>Edit <code>/etc/systemd/resolved.conf</code> on the host, to add two lines which instruct it to send DNS requests for the domain picked earlier to the DNS server run by libvirt (dnsmasq):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>[Resolve]
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-#DNS=
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+DNS=192.168.121.1
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>#FallbackDNS=
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-#Domains=
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+Domains=~karhu.xyz
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>#LLMNR=no
+</span></span><span style="display:flex;"><span>#MulticastDNS=no
+</span></span><span style="display:flex;"><span>#DNSSEC=no
+</span></span><span style="display:flex;"><span>#DNSOverTLS=no
+</span></span><span style="display:flex;"><span>#Cache=yes
+</span></span><span style="display:flex;"><span>#DNSStubListener=yes
+</span></span><span style="display:flex;"><span>#ReadEtcHosts=yes
+</span></span></code></pre></div><p>Lastly, restart systemd-resolved for the changes to take effect:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemctl restart systemd-resolved
+</span></span></code></pre></div><p>Now we can resolve the guest machines by hostname at the domain we picked earlier:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>andy@karhu$ ping one.karhu.xyz
+</span></span><span style="display:flex;"><span>PING one.karhu.xyz <span style="color:#f92672">(</span>192.168.121.50<span style="color:#f92672">)</span> 56<span style="color:#f92672">(</span>84<span style="color:#f92672">)</span> bytes of data.
+</span></span></code></pre></div><p>Done!</p>
+]]></content:encoded></item><item><title>Consul DNS Fowarding in Ubuntu, revisited</title><link>https://andydote.co.uk/2019/09/24/consul-ubuntu-dns-revisited/</link><pubDate>Tue, 24 Sep 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/09/24/consul-ubuntu-dns-revisited/</guid><description>I was recently using my Hashibox for a test, and I noticed the DNS resolution didn&amp;rsquo;t seem to work. This was a bit worrying, as I have written about how to do DNS resolution with Consul forwarding in Ubuntu, and apparently something is wrong with how I do it. Interestingly, the Alpine version works fine, so it appears there is something not quite working with how I am configuring Systemd-resolved.</description><content:encoded><![CDATA[<p>I was recently using my <a href="https://github.com/pondidum/hashibox">Hashibox</a> for a test, and I noticed the DNS resolution didn&rsquo;t seem to work.  This was a bit worrying, as I have written about how to do <a href="/2019/05/29/consul-dns-forwarding/">DNS resolution with Consul forwarding in Ubuntu</a>, and apparently something is wrong with how I do it.  Interestingly, the <a href="/2019/05/31/consul-dns-forwarding-alpine/">Alpine version</a> works fine, so it appears there is something not quite working with how I am configuring Systemd-resolved.</p>
+<p>So this post is how I figured out what was wrong, and how to do DNS resolution with Consul forwarding on Ubuntu properly!</p>
+<h2 id="the-problem">The Problem</h2>
+<p>If Consul is running on the host, I can only resolve <code>.consul</code> domains, and if Consul is not running, I can resolve anything else.  Clearly I have configured something wrong!</p>
+<p>To summarise, I want to be able to resolve 3 kinds of address:</p>
+<ul>
+<li><code>*.consul</code> addresses should be handled by the local Consul instance</li>
+<li><code>$HOSTNAME.mshome.net</code> should be handled by the Hyper-V DNS server (running on the Host machine)</li>
+<li><code>reddit.com</code> public DNS should be resolved properly</li>
+</ul>
+<h2 id="discovery">Discovery</h2>
+<p>To make sure that hostname resolution even works by default, I create a blank Ubuntu box in Hyper-V, using <a href="https://www.vagrantup.com/">Vagrant</a>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#ae81ff">2</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;bento/ubuntu-16.04&#34;</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;test&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>I set the hostname so that I can test that dns resolution works from the host machine to the guest machines too.  I next bring up the machine, SSH into it, and try to <code>dig</code> my hostmachine&rsquo;s DNS name (<code>spectre.mshome.net</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>&gt; vagrant up
+</span></span><span style="display:flex;"><span>&gt; vagrant ssh
+</span></span><span style="display:flex;"><span>&gt; dig spectre.mshome.net
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>; &lt;&lt;&gt;&gt; DiG 9.10.3-P4-Ubuntu &lt;&lt;&gt;&gt; spectre.mshome.net
+</span></span><span style="display:flex;"><span>;; global options: +cmd
+</span></span><span style="display:flex;"><span>;; Got answer:
+</span></span><span style="display:flex;"><span>;; -&gt;&gt;HEADER<span style="color:#e6db74">&lt;&lt;- opco</span>de: QUERY, status: NOERROR, id: <span style="color:#ae81ff">12333</span>
+</span></span><span style="display:flex;"><span>;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>;; QUESTION SECTION:
+</span></span><span style="display:flex;"><span>;spectre.mshome.net.            IN      A
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>;; ANSWER SECTION:
+</span></span><span style="display:flex;"><span>Spectre.mshome.net.     <span style="color:#ae81ff">0</span>       IN      A       192.168.181.161
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>;; Query time: <span style="color:#ae81ff">0</span> msec
+</span></span><span style="display:flex;"><span>;; SERVER: 192.168.181.161#53<span style="color:#f92672">(</span>192.168.181.161<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>;; WHEN: Mon Sep <span style="color:#ae81ff">23</span> 21:57:26 UTC <span style="color:#ae81ff">2019</span>
+</span></span><span style="display:flex;"><span>;; MSG SIZE  rcvd: <span style="color:#ae81ff">70</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>&gt; exit
+</span></span><span style="display:flex;"><span>&gt; vagrant destroy -f
+</span></span></code></pre></div><p>As you can see, the host machine&rsquo;s DNS server responds with the right address.  Now that I know that this should work, we can tweak the <code>Vagrantfile</code> to start an instance of my Hashibox:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#ae81ff">2</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;pondidum/hashibox&#34;</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;test&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>When I run the same command sin this box, I get a slighty different response:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>; &lt;&lt;&gt;&gt; DiG 9.10.3-P4-Ubuntu &lt;&lt;&gt;&gt; spectre.mshome.net
+</span></span><span style="display:flex;"><span>;; global options: +cmd
+</span></span><span style="display:flex;"><span>;; Got answer:
+</span></span><span style="display:flex;"><span>;; -&gt;&gt;HEADER<span style="color:#e6db74">&lt;&lt;- opco</span>de: QUERY, status: NXDOMAIN, id: <span style="color:#ae81ff">57216</span>
+</span></span><span style="display:flex;"><span>;; flags: qr aa rd; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>;; WARNING: recursion requested but not available
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>;; OPT PSEUDOSECTION:
+</span></span><span style="display:flex;"><span>; EDNS: version: 0, flags:; udp: <span style="color:#ae81ff">4096</span>
+</span></span><span style="display:flex;"><span>;; QUESTION SECTION:
+</span></span><span style="display:flex;"><span>;spectre.mshome.net.            IN      A
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>;; AUTHORITY SECTION:
+</span></span><span style="display:flex;"><span>consul.                 <span style="color:#ae81ff">0</span>       IN      SOA     ns.consul. hostmaster.consul. <span style="color:#ae81ff">1569276784</span> <span style="color:#ae81ff">3600</span> <span style="color:#ae81ff">600</span> <span style="color:#ae81ff">86400</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>;; Query time: <span style="color:#ae81ff">1</span> msec
+</span></span><span style="display:flex;"><span>;; SERVER: 127.0.0.1#53<span style="color:#f92672">(</span>127.0.0.1<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>;; WHEN: Mon Sep <span style="color:#ae81ff">23</span> 22:13:04 UTC <span style="color:#ae81ff">2019</span>
+</span></span><span style="display:flex;"><span>;; MSG SIZE  rcvd: <span style="color:#ae81ff">103</span>
+</span></span></code></pre></div><p>As intended, the DNS server on localhost responded&hellip;but it looks like Consul answered, not the inbuilt dns server (<code>systemd-resolved</code>), as I intended.</p>
+<p>The reason for this is that I am running Consul&rsquo;s DNS endpoint on <code>8600</code>, and Systemd-Resolved cannot send requests to anything other than port <code>53</code>, so I use <code>iptables</code> to redirect the traffic from port <code>53</code> to <code>8600</code>, which means any local use of DNS will always be sent to Consul.</p>
+<p>The reason it works when Consul is not running is that we have both <code>127.0.0.1</code> specified as a nameserver, and a fallback set to be the <code>eth0</code>&rsquo;s Gateway, so when Consul doesn&rsquo;t respond, the request hits the default DNS instead.</p>
+<h2 id="the-solution-dnsmasq">The Solution: Dnsmasq.</h2>
+<p>Basically, stop using <code>systemd-resolved</code> and use something that has a more flexible configuration.  Enter Dnsmasq.</p>
+<p>Starting from the blank Ubuntu box, I install dnsmasq, and disable systemd-resolved.  Doing this might prevent any DNS resolutio working for a while&hellip;</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo apt-get install -yq dnsmasq
+</span></span><span style="display:flex;"><span>sudo systemctl disable systemd-resolved.service
+</span></span></code></pre></div><p>If you would rather not disable <code>systemd-resolved</code> entirely, you can use these two lines instead to just switch off the local DNS stub:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;DNSStubListener=no&#34;</span> | sudo tee --append /etc/systemd/resolved.conf
+</span></span><span style="display:flex;"><span>sudo systemctl restart systemd-resolved
+</span></span></code></pre></div><p>Next I update <code>/etc/resolv.conf</code> to not be managed by Systemd, and point to where dnsmasq will be running:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo rm /etc/resolv.conf
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;nameserver 127.0.0.1&#34;</span> | sudo tee /etc/resolv.conf
+</span></span></code></pre></div><p>The reason for deleting the file is that it was symlinked to the Systemd-Resolved managed file, so that link needed to be broken first to prevent Systemd interfering.</p>
+<p>Lastly a minimal configuration for dnsmasq:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo <span style="color:#e6db74">&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">port=53
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">resolv-file=/var/run/dnsmasq/resolv.conf
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">bind-interfaces
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">listen-address=127.0.0.1
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">server=/consul/127.0.0.1#8600
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">&#39;</span> | sudo tee /etc/dnsmasq.d/default
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl restart dnsmasq
+</span></span></code></pre></div><p>This config does a few things, the two most important lines are:</p>
+<ul>
+<li>
+<p><code>resolv-file=/var/run/dnsmasq/resolv.conf</code> which is pointing to the default <code>resolv.conf</code> written by dnsmasq.  This file contains the default nameserver supplied by the default network connection, and I want to use this as a fallback for anything dnsmasq cannot resolve directly (which will be everything, except <code>.consul</code>).  In my case, the content of this file is just <code>nameserver 192.168.181.161</code>.</p>
+</li>
+<li>
+<p><code>server=/consul/127.0.0.1#8600</code> specifies that any address ending in <code>.consul</code> should be forwarded to Consul, running at <code>127.0.0.1</code> on port <code>8600</code>.  No more <code>iptables</code> rules!</p>
+</li>
+</ul>
+<h2 id="testing">Testing</h2>
+<p>Now that I have a (probably) working DNS system, let&rsquo;s look at testing it properly this time.  There are 3 kinds of address I want to test:</p>
+<ul>
+<li>Consul resolution, e.g. <code>consul.service.consul</code> should return the current Consul instance address.</li>
+<li>Hostname resolution, e.g. <code>spectre.mshome.net</code> should resolve to the machine hosting the VM.</li>
+<li>Public resolution, e.g. <code>reddit.com</code> should resolve to&hellip;reddit.</li>
+</ul>
+<p>I also want to test that the latter two cases work when Consul is <strong>not</strong> running too.</p>
+<p>So let&rsquo;s write a simple script to make sure these all work.  This way I can reuse the same script on other machines, and also with other VM providers to check DNS works as it should.  The entire script is here:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>local_domain<span style="color:#f92672">=</span><span style="color:#e6db74">${</span>1<span style="color:#66d9ef">:-</span>mshome.net<span style="color:#e6db74">}</span>
+</span></span><span style="display:flex;"><span>host_machine<span style="color:#f92672">=</span><span style="color:#e6db74">${</span>2<span style="color:#66d9ef">:-</span>spectre<span style="color:#e6db74">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>consul agent -dev -client 0.0.0.0 -bind <span style="color:#e6db74">&#39;{{ GetInterfaceIP &#34;eth0&#34; }}&#39;</span> &gt; /dev/null &amp;
+</span></span><span style="display:flex;"><span>sleep <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>consul_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>dig consul.service.consul +short<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>self_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>dig $HOSTNAME.$local_domain +short | tail -n 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>host_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>dig $host_machine.$local_domain +short | tail -n 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>reddit_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>dig reddit.com +short | tail -n 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>kill %1
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$consul_ip<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> echo <span style="color:#e6db74">&#34;Didn&#39;t get consul ip&#34;</span> &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">&amp;&amp;</span> exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$self_ip<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> echo <span style="color:#e6db74">&#34;Didn&#39;t get self ip&#34;</span> &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">&amp;&amp;</span> exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$host_ip<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> echo <span style="color:#e6db74">&#34;Didn&#39;t get host ip&#34;</span> &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">&amp;&amp;</span> exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$reddit_ip<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> echo <span style="color:#e6db74">&#34;Didn&#39;t get reddit ip&#34;</span> &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">&amp;&amp;</span> exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;==&gt; Consul Running: Success!&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>consul_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>dig consul.service.consul +short | tail -n 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>self_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>dig $HOSTNAME.$local_domain +short | tail -n 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>host_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>dig $host_machine.$local_domain +short | tail -n 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>reddit_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>dig reddit.com +short | tail -n 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[[</span> <span style="color:#e6db74">&#34;</span>$consul_ip<span style="color:#e6db74">&#34;</span> !<span style="color:#f92672">=</span> *<span style="color:#e6db74">&#34;;; connection timed out;&#34;</span>* <span style="color:#f92672">]]</span> <span style="color:#f92672">&amp;&amp;</span> echo <span style="color:#e6db74">&#34;Got a consul ip (</span>$consul_ip<span style="color:#e6db74">)&#34;</span> &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">&amp;&amp;</span> exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$self_ip<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> echo <span style="color:#e6db74">&#34;Didn&#39;t get self ip&#34;</span> &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">&amp;&amp;</span> exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$host_ip<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> echo <span style="color:#e6db74">&#34;Didn&#39;t get host ip&#34;</span> &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">&amp;&amp;</span> exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$reddit_ip<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> echo <span style="color:#e6db74">&#34;Didn&#39;t get reddit ip&#34;</span> &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">&amp;&amp;</span> exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;==&gt; Consul Stopped: Success!&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>exit <span style="color:#ae81ff">0</span>
+</span></span></code></pre></div><p>What this does is:</p>
+<ol>
+<li>Read two command line arguments, or use defaults if not specified</li>
+<li>Start Consul as a background job</li>
+<li>Query 4 domains, storing the results</li>
+<li>Stop Consul (<code>kill %1</code>)</li>
+<li>Check an IP address came back for each domain</li>
+<li>Query the same 4 domains, storing the results</li>
+<li>Check that a timeout was received for <code>consul.service.consul</code></li>
+<li>Check an IP address came back for the other domains</li>
+</ol>
+<p>To further prove that dnsmasq is forwarding requests correctly, I can include two more lines to <code>/etc/dnsmasq.d/default</code> to enable logging, and restart dnsmasq</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;log-queries&#34;</span> | sudo tee /etc/dnsmasq.d/default
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;log-facility=/var/log/dnsmasq.log&#34;</span> | sudo tee /etc/dnsmasq.d/default
+</span></span><span style="display:flex;"><span>sudo systemctl restart dnsmasq
+</span></span><span style="display:flex;"><span>dig consul.service.consul
+</span></span></code></pre></div><p>Now I can view the log file and check that it received the DNS query and did the right thing.  In this case, it recieved the <code>consul.service.consul</code> query, and forwarded it to the local Consul instance:</p>
+<pre tabindex="0"><code>Sep 24 06:30:50 dnsmasq[13635]: query[A] consul.service.consul from 127.0.0.1
+Sep 24 06:30:50 dnsmasq[13635]: forwarded consul.service.consul to 127.0.0.1
+Sep 24 06:30:50 dnsmasq[13635]: reply consul.service.consul is 192.168.181.172
+</code></pre><p>I don&rsquo;t tend to keep DNS logging on in my Hashibox as the log files can grow very quickly.</p>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>Now that I have proven my DNS resolution works (I think), I have rolled it back into my Hashibox, and can now use machine names for setting up clusters, rather than having to specify IP addresses initially.</p>
+]]></content:encoded></item><item><title>Configuring Consul DNS Forwarding in Alpine Linux</title><link>https://andydote.co.uk/2019/05/31/consul-dns-forwarding-alpine/</link><pubDate>Fri, 31 May 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/05/31/consul-dns-forwarding-alpine/</guid><description>DEPRECATED - This has a race condition! Please see this post for an updated version which works!
 Following on from the post the other day on setting up DNS forwarding to Consul with SystemD, I wanted also to show how to get Consul up and running under Alpine Linux, as it&amp;rsquo;s a little more awkward in some respects.
-To start with, I am going to setup Consul as a service - I didn&amp;rsquo;t do this in the Ubuntu version, as there are plenty of useful articles about that already, but that is not the case with Alpine.</description></item><item><title>Configuring Consul DNS Forwarding in Ubuntu 16.04</title><link>https://andydote.co.uk/2019/05/29/consul-dns-forwarding/</link><pubDate>Wed, 29 May 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/05/29/consul-dns-forwarding/</guid><description>DEPRECATED - This doesn&amp;rsquo;t work properly Please see this post for an updated version which works!
+To start with, I am going to setup Consul as a service - I didn&amp;rsquo;t do this in the Ubuntu version, as there are plenty of useful articles about that already, but that is not the case with Alpine.</description><content:encoded><![CDATA[<h1 id="deprecated---this-has-a-race-condition">DEPRECATED - This has a race condition!</h1>
+<p><a href="/2019/12/30/consul-alpine-dns-revisited/">Please see this post for an updated version which works!</a></p>
+<p>Following on from the post the other day on setting up <a href="/2019/05/29/consul-dns-forwarding/">DNS forwarding to Consul with SystemD</a>, I wanted also to show how to get Consul up and running under <a href="https://www.alpinelinux.org/">Alpine Linux</a>, as it&rsquo;s a little more awkward in some respects.</p>
+<p>To start with, I am going to setup Consul as a service - I didn&rsquo;t do this in the Ubuntu version, as there are plenty of useful articles about that already, but that is not the case with Alpine.</p>
+<h2 id="run-consul">Run Consul</h2>
+<p>First, we need to get a version of Consul and install it into our system.  This script downloads <code>1.5.1</code> from Hashicorp&rsquo;s releases site, installs it to <code>/usr/bin/consul</code>, and creates a <code>consul</code> user and group to run the daemon with:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>CONSUL_VERSION<span style="color:#f92672">=</span>1.5.1
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>curl -sSL https://releases.hashicorp.com/consul/<span style="color:#e6db74">${</span>CONSUL_VERSION<span style="color:#e6db74">}</span>/consul_<span style="color:#e6db74">${</span>CONSUL_VERSION<span style="color:#e6db74">}</span>_linux_amd64.zip -o /tmp/consul.zip
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>unzip /tmp/consul.zip
+</span></span><span style="display:flex;"><span>sudo install consul /usr/bin/consul
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo addgroup -S consul
+</span></span><span style="display:flex;"><span>sudo adduser -S -D -h /var/consul -s /sbin/nologin -G consul -g consul consul
+</span></span></code></pre></div><p>Next, we need to create the directories for the configuration and data to live in, and copy the init script and configuration file to those directories:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>consul_dir<span style="color:#f92672">=</span>/etc/consul
+</span></span><span style="display:flex;"><span>data_dir<span style="color:#f92672">=</span>/srv/consul
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo mkdir $consul_dir
+</span></span><span style="display:flex;"><span>sudo mkdir $data_dir
+</span></span><span style="display:flex;"><span>sudo chown consul:consul $data_dir
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo mv /tmp/consul.sh /etc/init.d/consul
+</span></span><span style="display:flex;"><span>sudo chmod +x /etc/init.d/consul
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo mv /tmp/consul.json $consul_dir/consul.json
+</span></span></code></pre></div><p>The init script is pretty straight forward, but note that I am running the agent in this example in <code>dev</code> mode; <strong>don&rsquo;t do this in production</strong>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e">#!/sbin/openrc-run
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>CONSUL_LOG_FILE<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/var/log/</span><span style="color:#e6db74">${</span>SVCNAME<span style="color:#e6db74">}</span><span style="color:#e6db74">.log&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>name<span style="color:#f92672">=</span>consul
+</span></span><span style="display:flex;"><span>description<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;A tool for service discovery, monitoring and configuration&#34;</span>
+</span></span><span style="display:flex;"><span>description_checkconfig<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;Verify configuration file&#34;</span>
+</span></span><span style="display:flex;"><span>daemon<span style="color:#f92672">=</span>/usr/bin/$name
+</span></span><span style="display:flex;"><span>daemon_user<span style="color:#f92672">=</span>$name
+</span></span><span style="display:flex;"><span>daemon_group<span style="color:#f92672">=</span>$name
+</span></span><span style="display:flex;"><span>consul_dir<span style="color:#f92672">=</span>/etc/consul
+</span></span><span style="display:flex;"><span>extra_commands<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;checkconfig&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>start_pre<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    checkpath -f -m <span style="color:#ae81ff">0644</span> -o <span style="color:#e6db74">${</span>SVCNAME<span style="color:#e6db74">}</span>:<span style="color:#e6db74">${</span>SVCNAME<span style="color:#e6db74">}</span> <span style="color:#e6db74">&#34;</span>$CONSUL_LOG_FILE<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>depend<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    need net
+</span></span><span style="display:flex;"><span>    after firewall
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>checkconfig<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    consul validate $consul_dir
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>start<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    checkconfig <span style="color:#f92672">||</span> <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    ebegin <span style="color:#e6db74">&#34;Starting </span><span style="color:#e6db74">${</span>name<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>        start-stop-daemon --start --quiet <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>            -m --pidfile /var/run/<span style="color:#e6db74">${</span>name<span style="color:#e6db74">}</span>.pid <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>            --user <span style="color:#e6db74">${</span>daemon_user<span style="color:#e6db74">}</span> --group <span style="color:#e6db74">${</span>daemon_group<span style="color:#e6db74">}</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>            -b --stdout $CONSUL_LOG_FILE --stderr $CONSUL_LOG_FILE <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>            -k <span style="color:#ae81ff">027</span> --exec <span style="color:#e6db74">${</span>daemon<span style="color:#e6db74">}</span> -- agent -dev -config-dir<span style="color:#f92672">=</span>$consul_dir
+</span></span><span style="display:flex;"><span>    eend $?
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>stop<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    ebegin <span style="color:#e6db74">&#34;Stopping </span><span style="color:#e6db74">${</span>name<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>        start-stop-daemon --stop --quiet <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>            --pidfile /var/run/<span style="color:#e6db74">${</span>name<span style="color:#e6db74">}</span>.pid <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>            --exec <span style="color:#e6db74">${</span>daemon<span style="color:#e6db74">}</span>
+</span></span><span style="display:flex;"><span>    eend $?
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>Finally, a basic config file to launch consul is as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;data_dir&#34;</span>: <span style="color:#e6db74">&#34;/srv/consul/data&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;client_addr&#34;</span>: <span style="color:#e6db74">&#34;0.0.0.0&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now that all our scripts are in place, we can register Consul into the service manager, and start it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>sudo rc-update add consul
+</span></span><span style="display:flex;"><span>sudo rc-service consul start
+</span></span></code></pre></div><p>You can check consul is up and running by using <code>dig</code> to get the address of the consul service itself:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>dig @localhost -p <span style="color:#ae81ff">8600</span> consul.service.consul
+</span></span></code></pre></div><h2 id="setup-local-dns-with-unbound">Setup Local DNS with Unbound</h2>
+<p>Now that Consul is running, we need to configure a local DNS resolver to forward requests for the <code>.consul</code> domain to Consul.  We will use <a href="https://nlnetlabs.nl/projects/unbound/about/">Unbound</a> as it works nicely on Alpine.  It also has the wonderful feature of being able to send queries to a specific port, so no <code>iptables</code> rules needed this time!</p>
+<p>The config file (<code>/etc/unbound/unbound.conf</code>) is all default values, with the exception of the last 5 lines, which let us forward DNS requests to a custom, and insecure, location:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>sudo apk add unbound
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>cat <span style="color:#e6db74">&lt;&lt;-EOF
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">server:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    verbosity: 1
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    root-hints: /etc/unbound/root.hints
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    trust-anchor-file: &#34;/usr/share/dnssec-root/trusted-key.key&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    do-not-query-localhost: no
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    domain-insecure: &#34;consul&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">stub-zone:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    name: &#34;consul&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    stub-addr: 127.0.0.1@8600
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">)</span> | sudo tee /etc/unbound/unbound.conf
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo rc-update add unbound
+</span></span><span style="display:flex;"><span>sudo rc-service unbound start
+</span></span></code></pre></div><p>We can validate this works again by using <code>dig</code>, but this time removing the port specification to hit <code>53</code> instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>dig @localhost consul.service.consul
+</span></span></code></pre></div><h2 id="configure-dns-resolution">Configure DNS Resolution</h2>
+<p>Finally, we need to update <code>/etc/resolv.conf</code> so that other system tools such as <code>ping</code> and <code>curl</code> can resolve <code>.consul</code> addresses.  This is a little more hassle on Alpine, as there are no <code>head</code> files we can push our nameserver entry into.  Instead, we use <code>dhclient</code> which will let us prepend a custom nameserver (or multiple) when the interface is brought up, even when using DHCP:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>sudo apk add dhclient
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>cat <span style="color:#e6db74">&lt;&lt;-EOF
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">option rfc3442-classless-static-routes code 121 = array of unsigned integer 8;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">send host-name = gethostname();
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">request subnet-mask, broadcast-address, time-offset, routers,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        domain-name, domain-name-servers, domain-search, host-name,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        dhcp6.name-servers, dhcp6.domain-search, dhcp6.fqdn, dhcp6.sntp-servers,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        netbios-name-servers, netbios-scope, interface-mtu,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        rfc3442-classless-static-routes, ntp-servers;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">prepend domain-name-servers 127.0.0.1;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">)</span> | sudo tee /etc/dhcp/dhclient.conf
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo rm /etc/resolv.conf <span style="color:#75715e"># hack due to it dhclient making an invalid `chown` call.</span>
+</span></span><span style="display:flex;"><span>sudo rc-service networking restart
+</span></span></code></pre></div><p>The only thing of interest here is the little hack: we delete the <code>/etc/resolv.conf</code> before restarting the networking service, as if you don&rsquo;t do this, you get errors about &ldquo;chmod invalid option resource=&hellip;&rdquo;.</p>
+<p>We can varify everything works in the same way we did on Ubuntu; <code>curl</code> to both a <code>.consul</code> and a public address:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ curl -s -o /dev/null -w <span style="color:#e6db74">&#34;%{http_code}\n&#34;</span> http://consul.service.consul:8500/ui/
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">200</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>$ curl -s -o /dev/null -w <span style="color:#e6db74">&#34;%{http_code}\n&#34;</span> http://google.com
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">301</span>
+</span></span></code></pre></div><h2 id="end">End</h2>
+<p>This was a bit easier to get started with than the Ubuntu version as I knew what I was trying to accomplish this time - however making a good <code>init.d</code> script was a bit more hassle, and the error from <code>chmod</code> took some time to track down.</p>
+]]></content:encoded></item><item><title>Configuring Consul DNS Forwarding in Ubuntu 16.04</title><link>https://andydote.co.uk/2019/05/29/consul-dns-forwarding/</link><pubDate>Wed, 29 May 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/05/29/consul-dns-forwarding/</guid><description>DEPRECATED - This doesn&amp;rsquo;t work properly Please see this post for an updated version which works!
 One of the advantages of using Consul for service discovery is that besides an HTTP API, you can also query it by DNS.
-The DNS server is listening on port 8600 by default, and you can query both A records or SRV records from it. SRV records are useful as they contain additional properties (priority, weight and port), and you can get multiple records back from a single query, letting you do load balancing client side:</description></item></channel></rss>
+The DNS server is listening on port 8600 by default, and you can query both A records or SRV records from it. SRV records are useful as they contain additional properties (priority, weight and port), and you can get multiple records back from a single query, letting you do load balancing client side:</description><content:encoded><![CDATA[<h1 id="deprecated---this-doesnt-work-properly">DEPRECATED - This doesn&rsquo;t work properly</h1>
+<p><a href="/2019/09/24/consul-ubuntu-dns-revisited/">Please see this post for an updated version which works!</a></p>
+<hr>
+<p>One of the advantages of using <a href="https://www.consul.io/">Consul</a> for service discovery is that besides an HTTP API, you can also query it by DNS.</p>
+<p>The DNS server is listening on port <code>8600</code> by default, and you can query both A records or SRV records from it.  <a href="https://en.wikipedia.org/wiki/SRV_record">SRV</a> records are useful as they contain additional properties (<code>priority</code>, <code>weight</code> and <code>port</code>), and you can get multiple records back from a single query, letting you do load balancing client side:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ dig @localhost -p <span style="color:#ae81ff">8600</span> consul.service.consul SRV +short
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">1</span> <span style="color:#ae81ff">10</span> <span style="color:#ae81ff">8300</span> vagrant1.node.dc1.consul.
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">1</span> <span style="color:#ae81ff">14</span> <span style="color:#ae81ff">8300</span> vagrant2.node.dc1.consul.
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">2</span> <span style="color:#ae81ff">100</span> <span style="color:#ae81ff">8300</span> vagrant3.node.dc1.consul.
+</span></span></code></pre></div><p>A Records are also useful, as it means we should be able to treat services registered to Consul like any other domain - but it doesn&rsquo;t work:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ curl http://consul.service.consul:8500
+</span></span><span style="display:flex;"><span>curl: <span style="color:#f92672">(</span>6<span style="color:#f92672">)</span> Could not resolve host: consul.service.consul
+</span></span></code></pre></div><p>The reason for this is that the system&rsquo;s built-in DNS resolver doesn&rsquo;t know how to query Consul.  We can, however, configure it to forward any <code>*.consul</code> requests to Consul.</p>
+<h2 id="solution---forward-dns-queries-to-consul">Solution - Forward DNS queries to Consul</h2>
+<p>As I usually target Ubuntu based machines, this means configuring <code>systemd-resolved</code> to forward to Consul.  However, we want to keep Consul listening on it&rsquo;s default port (<code>8600</code>), and <code>systemd-resolved</code> can only forward requests to port <code>53</code>, so we need also to configure <code>iptables</code> to redirect the requests.</p>
+<p>The steps are as follows:</p>
+<ol>
+<li>Configure <code>systemd-resolved</code> to forward <code>.consul</code> TLD queries to the local consul agent</li>
+<li>Configure <code>iptables</code> to redirect <code>53</code> to <code>8600</code></li>
+</ol>
+<p>So let&rsquo;s get to it!</p>
+<h3 id="1-make-iptables-persistent">1. Make iptables persistent</h3>
+<p>IPTables configuration changes don&rsquo;t persist through reboots, so the easiest way to solve this is with the <code>iptables-persistent</code> package.</p>
+<p>Typically I am scripting machines (using [Packer] or [Vagrant]), so I configure the install to be non-interactive:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo iptables-persistent iptables-persistent/autosave_v4 boolean false | sudo debconf-set-selections
+</span></span><span style="display:flex;"><span>echo iptables-persistent iptables-persistent/autosave_v6 boolean false | sudo debconf-set-selections
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo DEBIAN_FRONTEND<span style="color:#f92672">=</span>noninteractive apt install -yq iptables-persistent
+</span></span></code></pre></div><h3 id="2-update-systemd-resolved">2. Update Systemd-Resolved</h3>
+<p>The file to change is <code>/etc/systemd/resolved.conf</code>.  By default it looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">[</span>Resolve<span style="color:#960050;background-color:#1e0010">]</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#DNS=
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#FallbackDNS=8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#Domains=
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#LLMNR=yes
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#DNSSEC=no
+</span></span></span></code></pre></div><p>We need to change the <code>DNS</code> and <code>Domains</code> lines - either editing the file by hand, or scripting a replacement with <code>sed</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo sed -i <span style="color:#e6db74">&#39;s/#DNS=/DNS=127.0.0.1/g; s/#Domains=/Domains=~consul/g&#39;</span> /etc/systemd/resolved.conf
+</span></span></code></pre></div><p>The result of which is the file now reading like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">[</span>Resolve<span style="color:#960050;background-color:#1e0010">]</span>
+</span></span><span style="display:flex;"><span>DNS<span style="color:#f92672">=</span><span style="color:#ae81ff">127.0.0.1</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#FallbackDNS=8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>Domains<span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">~</span>consul
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#LLMNR=yes
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#DNSSEC=no
+</span></span></span></code></pre></div><p>By specifying the <code>Domains</code> as <code>~consul</code>, we are telling resolvd to forward requests for the <code>consul</code> TLD to the server specified in the <code>DNS</code> line.</p>
+<h3 id="3-configure-resolvconf-too">3. Configure Resolvconf too</h3>
+<p>For compatibility with some applications (e.g. <code>curl</code> and <code>ping</code>), we also need to update <code>/etc/resolv.conf</code> to specify our local nameserver.  You do this <strong>not</strong> by editing the file directly!</p>
+<p>Instead, we need to add <code>nameserver 127.0.0.1</code> to <code>/etc/resolvconf/resolv.conf.d/head</code>.  Again, I will script this, and as we need <code>sudo</code> to write to the file, the easiest way is to use <code>tee</code> to append the line and then run <code>resolvconf -u</code> to apply the change:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;nameserver 127.0.0.1&#34;</span> | sudo tee --append /etc/resolvconf/resolv.conf.d/head
+</span></span><span style="display:flex;"><span>sudo resolvconf -u
+</span></span></code></pre></div><h3 id="configure-iptables">Configure iptables</h3>
+<p>Finally, we need to configure iptables so that when <code>systemd-resolved</code> sends a DNS query to localhost on port <code>53</code>, it gets redirected to port <code>8600</code>.  We&rsquo;ll do this for both TCP and UDP requests, and then use <code>netfilter-persistent</code> to make the rules persistent:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo iptables -t nat -A OUTPUT -d localhost -p udp -m udp --dport <span style="color:#ae81ff">53</span> -j REDIRECT --to-ports <span style="color:#ae81ff">8600</span>
+</span></span><span style="display:flex;"><span>sudo iptables -t nat -A OUTPUT -d localhost -p tcp -m tcp --dport <span style="color:#ae81ff">53</span> -j REDIRECT --to-ports <span style="color:#ae81ff">8600</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo netfilter-persistent save
+</span></span></code></pre></div><h2 id="verification">Verification</h2>
+<p>First, we can test that both Consul and Systemd-Resolved return an address for a consul service:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ dig @localhost -p <span style="color:#ae81ff">8600</span> consul.service.consul +short
+</span></span><span style="display:flex;"><span>10.0.2.15
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>$ dig @localhost consul.service.consul +short
+</span></span><span style="display:flex;"><span>10.0.2.15
+</span></span></code></pre></div><p>And now we can try using <code>curl</code> to verify that we can resolve consul domains and normal domains still:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ curl -s -o /dev/null -w <span style="color:#e6db74">&#34;%{http_code}\n&#34;</span> http://consul.service.consul:8500/ui/
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">200</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>$ curl -s -o /dev/null -w <span style="color:#e6db74">&#34;%{http_code}\n&#34;</span> http://google.com
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">301</span>
+</span></span></code></pre></div><h2 id="end">End</h2>
+<p>There are also guides available on how to do this on <a href="https://learn.hashicorp.com/consul/security-networking/forwarding">Hashicorp&rsquo;s website</a>, covering other DNS resolvers too (such as BIND, Dnsmasq, Unbound).</p>
+]]></content:encoded></item></channel></rss>

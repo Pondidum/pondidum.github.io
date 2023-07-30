@@ -1,2 +1,119 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>boilerplate on Andy Dote</title><link>https://andydote.co.uk/tags/boilerplate/</link><description>Recent content in boilerplate on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 17 Jul 2016 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/boilerplate/rss.xml" rel="self" type="application/rss+xml"/><item><title>Preventing MicroService Boilerplate</title><link>https://andydote.co.uk/2016/07/17/preventing-microservice-boilerplate/</link><pubDate>Sun, 17 Jul 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/07/17/preventing-microservice-boilerplate/</guid><description>One of the downsides to microservices I have found is that I end up repeating the same blocks of code over and over for each service. Not only that, but the project setup is repetitive, as all the services use the Single Project Service and Console method.
-What do we do in every service? Initialise Serilog. Add a Serilog sink to ElasticSearch for Kibana (but only in non-local config.) Hook/Unhook the AppDomain.</description></item></channel></rss>
+What do we do in every service? Initialise Serilog. Add a Serilog sink to ElasticSearch for Kibana (but only in non-local config.) Hook/Unhook the AppDomain.</description><content:encoded><![CDATA[<p>One of the downsides to microservices I have found is that I end up repeating the same blocks of code over and over for each service.  Not only that, but the project setup is repetitive, as all the services use the <a href="/2015/08/30/single-project-service-and-console/">Single Project Service and Console</a> method.</p>
+<h1 id="what-do-we-do-in-every-service">What do we do in every service?</h1>
+<ul>
+<li>Initialise Serilog.</li>
+<li>Add a Serilog sink to ElasticSearch for Kibana (but only in non-local config.)</li>
+<li>Hook/Unhook the <code>AppDomain.Current.UnhandledException</code> handler.</li>
+<li>Register/UnRegister with Consul.</li>
+<li>Setup StructureMap, if using an IOC Container.</li>
+<li>Run as a Console if the <code>Environment.UserInteractive</code> flag is true.</li>
+<li>Run as a Service otherwise</li>
+</ul>
+<p>The only task with potential to have variance each time is the setting up of StructureMap, the rest are almost identical every time.</p>
+<h1 id="how-to-solve-all-this-repetition">How to solve all this repetition?</h1>
+<p>To rectify this, I created a nuget project which encapsulates all of this logic, and allows us to create a Console project with the following startup:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> Main(<span style="color:#66d9ef">string</span>[] args)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	ServiceHost.Run&lt;Startup&gt;(<span style="color:#e6db74">&#34;TestService&#34;</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This requires one class implementing the <code>IStartup</code> interface, and there are some optional interfaces which can be implemented too:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Startup</span> : IStartup, IDisposable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Startup()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Console.WriteLine(<span style="color:#e6db74">&#34;starting up&#34;</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Execute(ServiceArgs service)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		File.AppendAllLines(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, <span style="color:#e6db74">&#34;log.txt&#34;</span>), <span style="color:#66d9ef">new</span>[] { <span style="color:#e6db74">&#34;boot!&#34;</span> });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">while</span> (service.CancelRequested == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>			Thread.Sleep(<span style="color:#ae81ff">500</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Dispose()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Console.WriteLine(<span style="color:#e6db74">&#34;shutting down&#34;</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Optionally, the project can implement two interfaces to control Consul and ElasticSearch configuration:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Config</span> : ILogConfig, IConsulRegistration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">bool</span> EnableKibana { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Uri LoggingEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> CatalogRegistration CreateRegistration()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> CatalogRegistration() { Service = <span style="color:#66d9ef">new</span> AgentService
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			Address = <span style="color:#e6db74">&#34;http://localhost&#34;</span>,
+</span></span><span style="display:flex;"><span>			Port = <span style="color:#ae81ff">8005</span>,
+</span></span><span style="display:flex;"><span>			Service = <span style="color:#e6db74">&#34;TestService&#34;</span>
+</span></span><span style="display:flex;"><span>		}};
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> CatalogDeregistration CreateDeregistration()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> CatalogDeregistration { ServiceID = <span style="color:#e6db74">&#34;TestService&#34;</span> };
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>By implementing these interfaces, the <code>ServiceHost</code> class can use StructureMap to find the implementations (if any) at run time.</p>
+<p>Talking of StructureMap, if we wish to configure the container in the host application, all we need to do is create a class which inherits <code>Registry</code>, and the ServiceHost&rsquo;s StructureMap configuration will find it.</p>
+<h1 id="how-do-we-support-other-tools">How do we support other tools?</h1>
+<p>Well we could implment some kind of stage configuration steps, so your startup might change to look like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> Main(<span style="color:#66d9ef">string</span>[] args)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	ServiceHost.Stages(<span style="color:#66d9ef">new</span> LoggingStage(), <span style="color:#66d9ef">new</span> ConsulStage(), <span style="color:#66d9ef">new</span> SuperAwesomeThingStage());
+</span></span><span style="display:flex;"><span>	ServiceHost.Run&lt;Startup&gt;(<span style="color:#e6db74">&#34;TestService&#34;</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The reason I haven&rsquo;t done this is that on the whole, we tend to use the same tools for each job in every service; StructureMap for IOC, Serilog for logging, Consul for discovery.  So rather than having to write some boilerplate for every service (e.g. specifying all the stages), I just bake the options in to <code>ServiceHost</code> directly.</p>
+<p>This means that if you want your own version of this library with different tooling support, you need to write it yourself.  As a starting point, I have the code for the <a href="https://github.com/pondidum/ServiceContainer"><code>ServiceContainer</code> project up on Github</a>.</p>
+<p>It is not difficult to create new stages for the pipeline - all the different tasks the <code>ServiceHost</code> can perform are implemented in a pseudo Russian-Doll model - they inherit <code>Stage</code>, which looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Stage</span> : IDisposable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IContainer Container { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">void</span> Execute();
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">void</span> Dispose();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Anything you want to your stage to do before the <code>IStartup.Execute()</code> call is made is done in <code>Execute()</code>, similarly anything to be done afterwards is in <code>Dispose()</code>.  For example, the <code>ConsulStage</code> is implemented like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ConsulStage</span> : Stage
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Execute()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> registration = Container.TryGetInstance&lt;IConsulRegistration&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (registration != <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">var</span> client = <span style="color:#66d9ef">new</span> ConsulClient();
+</span></span><span style="display:flex;"><span>			client.Catalog.Register(registration.CreateRegistration());
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Dispose()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> registration = Container.TryGetInstance&lt;IConsulRegistration&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (registration != <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">var</span> client = <span style="color:#66d9ef">new</span> ConsulClient();
+</span></span><span style="display:flex;"><span>			client.Catalog.Deregister(registration.CreateDeregistration());
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Finally you just need to add the stage to the <code>ServiceWrapper</code> constructor:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> ServiceWrapper(<span style="color:#66d9ef">string</span> name, Type entryPoint)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// snip...</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	_stages = <span style="color:#66d9ef">new</span> Stage[]
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">new</span> LoggingStage(name),
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">new</span> ConsulStage()
+</span></span><span style="display:flex;"><span>	};
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h1 id="get-started">Get started!</h1>
+<p>That&rsquo;s all there is to it!  Hopefully this gives you a good starting point for de-boilerplating your microservices :)</p>
+]]></content:encoded></item></channel></rss>

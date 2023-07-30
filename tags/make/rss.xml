@@ -1,2 +1,300 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>make on Andy Dote</title><link>https://andydote.co.uk/tags/make/</link><description>Recent content in make on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Mon, 19 Sep 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/make/rss.xml" rel="self" type="application/rss+xml"/><item><title>Content based change detection with Make</title><link>https://andydote.co.uk/2022/09/19/make-content-hash/</link><pubDate>Mon, 19 Sep 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/09/19/make-content-hash/</guid><description>On several occasions when building complex projects, I have been tempted to set up Bazel to help speed up the build process; after all, it has a lot to offer: only building what has changed, caching built artifacts, and sharing that cache between machines for even more speed.
-TLDR We can use Make and a couple of short shell scripts to implement file content-based caching and read/write that cache to remote storage, such as S3.</description></item></channel></rss>
+TLDR We can use Make and a couple of short shell scripts to implement file content-based caching and read/write that cache to remote storage, such as S3.</description><content:encoded><![CDATA[<p>On several occasions when building complex projects, I have been tempted to set up <a href="https://bazel.build/">Bazel</a> to help speed up the build process; after all, it has a lot to offer: only building what has changed, caching built artifacts, and sharing that cache between machines for even more speed.</p>
+<h2 id="tldr">TLDR</h2>
+<p>We can use <a href="https://www.gnu.org/software/make/">Make</a> and a couple of short shell scripts to implement file content-based caching and read/write that cache to remote storage, such as S3.  The <a href="https://github.com/Pondidum/make-cas">demo repository</a> contains a version using <a href="https://min.io/">minio</a> for ease of demonstration.</p>
+<h2 id="bazel">Bazel</h2>
+<p>However, Bazel has quite a high barrier to entry; there are two drawbacks: a specialised build language and the need to host extra components.  While the specialised language is not much of a drawback, the hosting side is more of an issue.  If you wish to have a shared cache (which is required to get fast builds), you need to either run <code>bazel-remote</code>, which is not actually part of the Bazel project, and requires some shared storage such as S3, or Nginx, which again requires some shared storage somewhere.</p>
+<p>It boils down to not wanting to have to maintain a lot of infrastructure on top of all the usual CI bits just to have fast builds.</p>
+<h2 id="so-what-about-make">So what about Make?</h2>
+<p>Whereas Bazel&rsquo;s caching method is based on a hash of the input artifacts, <a href="https://www.gnu.org/software/make/">Make</a>&rsquo;s is based on the input sources and output artifacts&rsquo; <code>lastModified</code> times.</p>
+<p>I tried adding distributed caching to Make by copying the output artifacts to S3, and on the next build (on a different agent), restoring them to the working directory, and seeing what would happen.</p>
+<p>As both Git and S3 set the file <code>lastModified</code> dates to the time they ran, the build process either never ran (artifacts are newer than source), or always ran (sources are newer than artifacts).</p>
+<p>This sent me on a relatively short journey to see if I could add hash-based change detection to Make, without recompiling Make.</p>
+<p>Spoiler: it is!</p>
+<h2 id="hashing">Hashing</h2>
+<p>The first question is how to hash all our source files reliably.  It turns out you can do all of this with <code>sha256sum</code> in a one-liner:</p>
+<div class="highlight"><div style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">
+<table style="border-spacing:0;padding:0;margin:0;border:0;"><tr><td style="vertical-align:top;padding:0;margin:0;border:0;">
+<pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">5
+</span></code></pre></td>
+<td style="vertical-align:top;padding:0;margin:0;border:0;;width:100%">
+<pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>find src -iname <span style="color:#e6db74">&#34;*.ts&#34;</span> -print0 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | xargs -0 sha256sum <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | LC_ALL<span style="color:#f92672">=</span>C sort <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | sha256sum <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | cut -d<span style="color:#e6db74">&#34; &#34;</span> -f <span style="color:#ae81ff">1</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>This does the following:</p>
+<ol>
+<li>Find all typescript files (for example)</li>
+<li>Sort all the files <a href="https://unix.stackexchange.com/a/87763">using the &ldquo;simple&rdquo; locale</a></li>
+<li>generate a hash of the content of each file</li>
+<li>generate a hash of all the path+hash pairs</li>
+<li>trim the output to only the hash</li>
+</ol>
+<p>Now that I have a hash for the files, its time to figure out how to use that with Make.</p>
+<p>We&rsquo;ll be trying to make this totally legitimate build target in a <code>Makefile</code> run only when content changes, regardless of file edit dates:</p>
+<pre tabindex="0"><code>dist/index.js: $(shell find src -iname &#34;*.ts&#34; -not -iname &#34;*.test.ts&#34;)
+	@echo &#34;==&gt; Building&#34;
+	@sleep 3s
+	@mkdir -p &#34;dist&#34;
+	@echo &#34;compiled at $(shell date)&#34; &gt; &#34;$@&#34;
+	@echo &#34;==&gt; Done&#34;</code></pre><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/40e26dde9973479a861e4521e2a55d8222451b28/makefile">Source</a></small>
+</footer>
+
+<p>All this build step does is write the current date to a file called <code>dist/index.js</code>.  To make this more realistic, you could change the <code>sleep 3s</code> to <code>sleep 10m</code> ;)</p>
+<p>The idea I have to make this hashing work is to use a file that I control and mess with its edit date:</p>
+<ol>
+<li>Check if a file called <code>${current_hash}</code> exists</li>
+<li>If it doesn&rsquo;t exist, write the current timestamp to a new file called <code>${current_hash}</code></li>
+<li>If it does exist, set the file <code>${current_hash}</code>&rsquo;s modified date to the timestamp stored inside the file</li>
+<li><code>echo</code> the filename so that it can be consumed by Make</li>
+</ol>
+<p>This way, the file&rsquo;s edit date will change whenever the hash changes,  and if the hash doesn&rsquo;t change, we leave the edit date as is (which fixes the S3 file edit date being wrong.)</p>
+<p>Code wise, it&rsquo;s a few lines of shell script:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>STORE_PATH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_STORE_PATH<span style="color:#66d9ef">:-</span>.state<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>mkdir -p <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>STORE_PATH<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>now<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>date <span style="color:#e6db74">&#34;+%s&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>current_hash<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$@<span style="color:#e6db74">&#34;</span> | xargs -n <span style="color:#ae81ff">1</span> | LC_ALL<span style="color:#f92672">=</span>C sort | xargs sha256sum | sha256sum | cut -d<span style="color:#e6db74">&#34; &#34;</span> -f 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>current_hash<span style="color:#e6db74">}</span><span style="color:#e6db74">.sha256&#34;</span>
+</span></span><span style="display:flex;"><span>state_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>STORE_PATH<span style="color:#e6db74">}</span><span style="color:#e6db74">/</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># this hash is in the state store, re-apply it&#39;s date to the state file (as something like s3</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># sync might have changed the file&#39;s modified date.</span>
+</span></span><span style="display:flex;"><span>  last_date<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>sed -n <span style="color:#e6db74">&#39;s/date:\s*\(.*\)/\1/p&#39;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  touch -d <span style="color:#e6db74">&#34;@</span><span style="color:#e6db74">${</span>last_date<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># this is a new hash</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;date: </span>$now<span style="color:#e6db74">&#34;</span> &gt; <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/1f88779e38c44f4b3af4155de5d864354863e05a/build/cas.sh">Source</a></small>
+</footer>
+
+<p>And the usage inside the <code>makefile</code> is only adding an extra <code>$(shell ./build/cas.sh .... )</code> around our dependency list:</p>
+<pre tabindex="0"><code>dist/index.js: $(shell ./build/cas.sh $(shell find src -iname &#34;*.ts&#34; -not -iname &#34;*.test.ts&#34;))
+	@echo &#34;==&gt; Building&#34;
+	@sleep 3s
+	@mkdir -p &#34;dist&#34;
+	@echo &#34;compiled at $(shell date)&#34; &gt; &#34;$@&#34;
+	@echo &#34;==&gt; Done&#34;</code></pre><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/1f88779e38c44f4b3af4155de5d864354863e05a/makefile">Source</a></small>
+</footer>
+
+<h2 id="testing">Testing</h2>
+<p>We have a few test cases to cover:</p>
+<ol>
+<li>Entirely blank repository; after all, it should work when you first run <code>git clone</code>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span></code></pre></div></li>
+<li>Files have not changed at all; it should have the same behaviour as normal make, i.e. nothing happens
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  make: Nothing to be <span style="color:#66d9ef">done</span> <span style="color:#66d9ef">for</span> <span style="color:#e6db74">&#39;build&#39;</span>.
+</span></span></code></pre></div></li>
+<li>File <code>lastModified</code> date has changed; this should cause nothing to happen also, as the content of the files hasn&rsquo;t changed:
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span><span style="display:flex;"><span>$ touch src/index.ts
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  make: Nothing to be <span style="color:#66d9ef">done</span> <span style="color:#66d9ef">for</span> <span style="color:#e6db74">&#39;build&#39;</span>.
+</span></span></code></pre></div></li>
+<li>File content has changed (but <code>lastModified</code> hasn&rsquo;t); forcing a file to have different content with the same <code>lastModified</code> to show that its only content that matters:
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span><span style="display:flex;"><span>$ set old_date <span style="color:#f92672">(</span>date -r src/index.ts <span style="color:#e6db74">&#34;+%s&#34;</span><span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>$ echo <span style="color:#e6db74">&#34;// change&#34;</span> &gt;&gt; src/index.ts
+</span></span><span style="display:flex;"><span>$ touch -d @$old_date src/index.ts
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span></code></pre></div></li>
+</ol>
+<h2 id="collecting-assets">Collecting Assets</h2>
+<p>Before we can implement remote caching, we need to be able to mark what assets should be included for the given source hash.</p>
+<p>I initially tried to achieve this by passing the name of the make target into the <code>cas.sh</code> script, but this involves a lot of repetition as the special &ldquo;target name&rdquo; make variable (<code>$@</code>) doesn&rsquo;t work if it&rsquo;s included in the source list:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-make" data-lang="make"><span style="display:flex;"><span><span style="color:#a6e22e">dist/index.js</span><span style="color:#f92672">:</span> <span style="color:#66d9ef">$(</span>shell ./build/cas.sh <span style="color:#66d9ef">$</span>@ <span style="color:#66d9ef">$(</span>shell find src -iname &#34;*.ts&#34; -not -iname &#34;*.test.ts&#34;<span style="color:#66d9ef">))</span>
+</span></span><span style="display:flex;"><span>  @echo <span style="color:#e6db74">&#34;==&gt; Building&#34;</span>
+</span></span></code></pre></div><p>Besides not working, this is also not very flexible; what happens if you have other artifacts to store, other than the one acting as your make target?  What happens if you are using a sentinel file instead of actual output as a make target?  or a <code>.PHONY</code> target?</p>
+<p>The answer to these questions is an extra script to store artifacts, called <code>artifact.sh</code>, which writes the path of an artifact to the hash file with a prefix of <code>artifact: </code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>artifact<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span>$CAS_VERBOSE<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Storing </span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;artifact: </span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> &gt;&gt; <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e0889484bd55e1098a85f4b15f2c81a8798321e9/build/artifact.sh">Source</a></small>
+</footer>
+
+<p>Which is used in the <code>makefile</code>, utilising some of Make&rsquo;s magic variables: the <code>$&lt;</code> is the filepath to the first dependency (which is the hash file produced by <code>cas.sh</code>), and usually, we use <code>$@</code>, which is the name of the target being built.  In this example, a second invocation marks another file as an artifact of the make rule:</p>
+<pre tabindex="0"><code>	@./build/artifact.sh &#34;$&lt;&#34; &#34;$@&#34;
+	@./build/artifact.sh &#34;$&lt;&#34; &#34;artifacts/coverage.json&#34;
+</code></pre><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e0889484bd55e1098a85f4b15f2c81a8798321e9/makefile">Source</a></small>
+</footer>
+
+<h2 id="remote-caching">Remote Caching</h2>
+<p>As mentioned earlier, I want to manage as little infrastructure for this as possible, so cloud object storage such as S3 is ideal.  For local testing, we&rsquo;ll use a <a href="https://min.io/">minio</a> docker container.</p>
+<p>First up, as I want this to be reasonably extensible, rather than hardcode s3 logic into the scripts, I check for an environment variable <code>CAS_REMOTE</code>, and execute that with specific arguments if it exists, both in <code>cas.sh</code> and <code>artifact.sh</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;display:grid;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>STORE_PATH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_STORE_PATH<span style="color:#66d9ef">:-</span>.state<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>mkdir -p <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>STORE_PATH<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>now<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>date <span style="color:#e6db74">&#34;+%s&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>current_hash<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$@<span style="color:#e6db74">&#34;</span> | xargs -n <span style="color:#ae81ff">1</span> | LC_ALL<span style="color:#f92672">=</span>C sort | xargs sha256sum | sha256sum | cut -d<span style="color:#e6db74">&#34; &#34;</span> -f 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>current_hash<span style="color:#e6db74">}</span><span style="color:#e6db74">.sha256&#34;</span>
+</span></span><span style="display:flex;"><span>state_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>STORE_PATH<span style="color:#e6db74">}</span><span style="color:#e6db74">/</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span> fetch-state <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># this hash is in the state store, re-apply it&#39;s date to the state file (as something like s3</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># sync might have changed the file&#39;s modified date.</span>
+</span></span><span style="display:flex;"><span>  last_date<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>sed -n <span style="color:#e6db74">&#39;s/date:\s*\(.*\)/\1/p&#39;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  touch -d <span style="color:#e6db74">&#34;@</span><span style="color:#e6db74">${</span>last_date<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    artifacts<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>sed -n <span style="color:#e6db74">&#39;s/artifact:\s*\(.*\)/\1/p&#39;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>      echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> | xargs <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> fetch-artifacts <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>      echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> | xargs touch -d <span style="color:#e6db74">&#34;@</span><span style="color:#e6db74">${</span>last_date<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># this is a new hash</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;date: </span>$now<span style="color:#e6db74">&#34;</span> &gt; <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    <span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span> store-state <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/cas.sh">Source</a></small>
+</footer>
+
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;display:grid;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>artifact<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span>$CAS_VERBOSE<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Storing </span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;artifact: </span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> &gt;&gt; <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  hash<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>basename <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span> store-artifact <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>hash<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span> store-state <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>hash<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/artifact.sh">Source</a></small>
+</footer>
+
+<p>The main point is keeping how state and artifacts are copied around separate from the logic of how their <code>lasModified</code> dates are manipulated.  In the case of the <code>fetch-artifacts</code> call, we first pull all the artifacts using the remote script, and then update their <code>lastModified</code> dates to match the state&rsquo;s <code>lastModified</code> date:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    artifacts<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>sed -n <span style="color:#e6db74">&#39;s/artifact:\s*\(.*\)/\1/p&#39;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>      echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> | xargs <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> fetch-artifacts <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>      echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> | xargs touch -d <span style="color:#e6db74">&#34;@</span><span style="color:#e6db74">${</span>last_date<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/cas.sh">Source</a></small>
+</footer>
+
+<h2 id="s3-remote-cache">S3 Remote Cache</h2>
+<p>The S3 remote script implements four functions: <code>fetch-state</code>, <code>fetch-artifacts</code>, <code>store-state</code>, and <code>store-artifact</code>, with the convention that the first parameter is always the key - e.g. the state file name.</p>
+<p>In this demo, the actual S3 command is defaulted to use the local minio endpoint, unless <code>CAS_S3_CMD</code> is specified, as I cannot find a way to set the <code>--endpoint-url</code> via an environment variable directly:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>s3<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_S3_CMD<span style="color:#66d9ef">:-</span><span style="color:#e6db74">&#34;aws --endpoint-url http://localhost:9000 s3&#34;</span><span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/remote_s3.sh">Source</a></small>
+</footer>
+
+<p>This is used in each of the four functions to interact with S3.  For example, to fetch the state; note how we use both <code>--quiet</code> and <code>&gt;&amp;2</code> to redirect all output to <code>stderr</code>, as anything on <code>stdout</code> make will pick up as a filename, causing issues.  We also use <code>|| true</code> for fetching state, as it might not exist:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>fetch_state<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  state_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  log <span style="color:#e6db74">&#34;</span>$key<span style="color:#e6db74">: Fetching remote state to </span>$state_path<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  $s3 cp <span style="color:#e6db74">&#34;s3://</span><span style="color:#e6db74">${</span>bucket<span style="color:#e6db74">}</span><span style="color:#e6db74">/state/</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> --quiet &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/remote_s3.sh">Source</a></small>
+</footer>
+
+<h2 id="testing-remote-caching">Testing Remote Caching</h2>
+<p>First, we need to start our minio container and configure the environment:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>docker-compose up -d
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;AWS_ACCESS_KEY_ID=minio&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;AWS_SECRET_ACCESS_KEY=password&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;CAS_REMOTE=./build/remote_s3.sh&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;CAS_S3_BUCKET_PATH=makestate/cas-demo/&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;CAS_READ_ONLY=0&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;CAS_VERBOSE=1&#34;</span>
+</span></span></code></pre></div><p>Also, we need to create the S3 bucket using the AWS cli:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>aws --endpoint-url http://localhost:9000 s3 mb s3://makestate
+</span></span></code></pre></div><p>We&rsquo;re now ready to try a build:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Fetching remote state to .state/c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Storing state from .state/c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256
+</span></span><span style="display:flex;"><span>  977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256: Fetching remote state to .state/977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256
+</span></span><span style="display:flex;"><span>  977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256: Storing state from .state/977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span><span style="display:flex;"><span>  Storing dist/index.js
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Storing artifact dist/index.js
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Storing state from .state/c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256
+</span></span><span style="display:flex;"><span>$ cat dist/index.js
+</span></span><span style="display:flex;"><span>  compiled at la 17.9.2022 13.16.48 +0300
+</span></span></code></pre></div><p>If we now clean the repository and build again, we should end up with all the artifacts from the original build but no build process actually running:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Fetching remote state to .state/c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Fetching dist/index.js
+</span></span><span style="display:flex;"><span>  977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256: Fetching remote state to .state/977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256
+</span></span><span style="display:flex;"><span>  make: Nothing to be <span style="color:#66d9ef">done</span> <span style="color:#66d9ef">for</span> <span style="color:#e6db74">&#39;build&#39;</span>.
+</span></span><span style="display:flex;"><span>$ cat dist/index.js
+</span></span><span style="display:flex;"><span>  compiled at la 17.9.2022 13.16.48 +0300
+</span></span></code></pre></div><h2 id="extra-features">Extra Features</h2>
+<p>I added a <code>CAS_READ_ONLY</code> environment variable, which by default prevents the scripts from pushing state and artifacts to remote storage but does allow fetching from storage.  The idea of this is that local development can make use of the caches, but only CI machines can write to the cache:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$CAS_READ_ONLY<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;0&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/b40aabf2affa88a4d8f143ac5895354d4e932bad/build/artifact.sh">Source</a></small>
+</footer>
+
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>Overall, I am very happy with how this has gone; it all works, and hopefully I&rsquo;ll be testing it in parallel to normal build processes over the coming weeks.</p>
+]]></content:encoded></item></channel></rss>

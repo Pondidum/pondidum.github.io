@@ -1,5 +1,85 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>mono on Andy Dote</title><link>https://andydote.co.uk/tags/mono/</link><description>Recent content in mono on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Tue, 15 Sep 2015 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/mono/rss.xml" rel="self" type="application/rss+xml"/><item><title>Running pre-compiled microservices in Docker with Mono</title><link>https://andydote.co.uk/2015/09/15/pre-compiled-microservices/</link><pubDate>Tue, 15 Sep 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/09/15/pre-compiled-microservices/</guid><description>Last time we went through creating a Dockerfile for a microservice, with the service being compiled on creation of the container image, using xbuild.
 However we might not want to compile the application to create the container image, and use an existing version (e.g. one created by a build server.)
 Our original Dockerfile was this:
-FROM mono:3.10-onbuild RUN apt-get update &amp;amp;&amp;amp; apt-get install mono-4.0-service -y CMD [ &amp;#34;mono-service&amp;#34;, &amp;#34;./MicroServiceDemo.exe&amp;#34;, &amp;#34;--no-daemon&amp;#34; ] EXPOSE 12345 We only need to make a few modifications to use a pre-compiled application:</description></item><item><title>Running microservices in Docker with Mono</title><link>https://andydote.co.uk/2015/09/05/running-microservices-in-docker-with-mono/</link><pubDate>Sat, 05 Sep 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/09/05/running-microservices-in-docker-with-mono/</guid><description>Getting a service running under Docker is fairly straight forward once you have all the working parts together. I have an app written (following my guide on service and console in one), which uses Owin to serve a web page as a demo:
-install-package Microsoft.Owin.SelfHost public partial class Service : ServiceBase { //see the service console post for the rest of this protected override void OnStart(string[] args) { _app = WebApp.</description></item></channel></rss>
+FROM mono:3.10-onbuild RUN apt-get update &amp;amp;&amp;amp; apt-get install mono-4.0-service -y CMD [ &amp;#34;mono-service&amp;#34;, &amp;#34;./MicroServiceDemo.exe&amp;#34;, &amp;#34;--no-daemon&amp;#34; ] EXPOSE 12345 We only need to make a few modifications to use a pre-compiled application:</description><content:encoded><![CDATA[<p>Last time we went through <a href="/2015/09/05/running-microservices-in-docker-with-mono.html">creating a Dockerfile for a microservice</a>, with the service being compiled on creation of the container image, using xbuild.</p>
+<p>However we might not want to compile the application to create the container image, and use an existing version (e.g. one created by a build server.)</p>
+<p>Our original Dockerfile was this:</p>
+<pre tabindex="0"><code>FROM mono:3.10-onbuild
+RUN apt-get update &amp;&amp; apt-get install mono-4.0-service -y
+
+CMD [ &#34;mono-service&#34;,  &#34;./MicroServiceDemo.exe&#34;, &#34;--no-daemon&#34; ]
+EXPOSE 12345
+</code></pre><p>We only need to make a few modifications to use a pre-compiled application:</p>
+<pre tabindex="0"><code>FROM mono:3.10.0
+RUN apt-get update &amp;&amp; apt-get install mono-4.0-service -y
+
+RUN mkdir -p /usr/src/app
+COPY . /usr/src/app
+WORKDIR /usr/src/app
+
+CMD [ &#34;mono-service&#34;,  &#34;./MicroServiceDemo.exe&#34;, &#34;--no-daemon&#34; ]
+EXPOSE 12345
+</code></pre><p>Asides from changing the base image to <code>mono:3.10.0</code>, the only changes made are to add the following lines:</p>
+<pre tabindex="0"><code>RUN mkdir -p /usr/src/app
+COPY . /usr/src/app
+WORKDIR /usr/src/app
+</code></pre><p>These lines create a new directory for our application, copy the contents of the current directory (e.g. the paths specified when you type <code>docker build -t servicedemo .</code>) and make the directory our working directory.</p>
+<p>You can now create a container with the same commands as last time:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build -t servicedemo .
+</span></span><span style="display:flex;"><span>docker run -d -p 12345:12345 --name demo servicedemo
+</span></span></code></pre></div><p>There is a demo project for all of this on my github: <a href="https://github.com/Pondidum/DockerMonoDemo">DockerMonoDemo</a>.</p>
+]]></content:encoded></item><item><title>Running microservices in Docker with Mono</title><link>https://andydote.co.uk/2015/09/05/running-microservices-in-docker-with-mono/</link><pubDate>Sat, 05 Sep 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/09/05/running-microservices-in-docker-with-mono/</guid><description>Getting a service running under Docker is fairly straight forward once you have all the working parts together. I have an app written (following my guide on service and console in one), which uses Owin to serve a web page as a demo:
+install-package Microsoft.Owin.SelfHost public partial class Service : ServiceBase { //see the service console post for the rest of this protected override void OnStart(string[] args) { _app = WebApp.</description><content:encoded><![CDATA[<p>Getting a service running under <a href="https://www.docker.com">Docker</a> is fairly straight forward once you have all the working parts together.  I have an app written (following <a href="/2015/08/30/single-project-service-and-console.html">my guide</a> on service and console in one), which uses Owin to serve a web page as a demo:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-powershell" data-lang="powershell"><span style="display:flex;"><span>install-package Microsoft.Owin.SelfHost
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">partial</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Service</span> : ServiceBase
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">//see the service console post for the rest of this</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> OnStart(<span style="color:#66d9ef">string</span>[] args)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_app = WebApp.Start(<span style="color:#e6db74">&#34;http://*:12345&#34;</span>, app =&gt;
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			app.UseWelcomePage(<span style="color:#e6db74">&#34;/&#34;</span>);
+</span></span><span style="display:flex;"><span>		});
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> OnStop()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_app.Dispose();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To run this under docker/mono we just need to add a <code>Dockerfile</code> to the root directory of the solution, which is based off the <a href="https://hub.docker.com/_/mono">documentation here</a>.</p>
+<p>Using <code>mono-service</code> instead of <code>mono</code> to run the application caused me a number of headaches to start with, as the container was exiting instantly.  This is because Docker detects the process has exited, and stops the container.  As we will be running the container detached from the console, we just need to supply the <code>--no-daemon</code> argument to <code>mono-service</code>.</p>
+<pre tabindex="0"><code>FROM mono:3.10-onbuild
+RUN apt-get update &amp;&amp; apt-get install mono-4.0-service -y
+CMD [ &#34;mono-service&#34;,  &#34;./MicroServiceDemo.exe&#34;, &#34;--no-daemon&#34; ]
+EXPOSE 12345
+</code></pre><p>You can then go to your solution directory, and run the following two commands to create your image, and start a container of it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build -t servicedemo .
+</span></span><span style="display:flex;"><span>docker run -d -p 12345:12345 --name demo servicedemo
+</span></span></code></pre></div><p>You can now open your browser and go to your Docker host&rsquo;s IP:12345 and see the Owin welcome page.</p>
+<h2 id="improvements-speed-and-lack-of-internet">Improvements: Speed and lack of internet</h2>
+<p>Quite often I have no internet access, so having to <code>apt-get install mono-4.0-service</code> each time I build the image can be a pain.  This however is also very easily resolved: by making another image with the package already installed.</p>
+<p>Create a new directory (outside of your project directory), and create a <code>Dockerfile</code>.  This Dockerfile is identical to the <a href="https://github.com/mono/docker/blob/adc7a3ec47f7d590f75a4dec0203a2103daf8db0/3.10.0/onbuild/Dockerfile">mono:3.10-onbuild</a> image, but with the added apt-get line.</p>
+<pre tabindex="0"><code>FROM mono:3.10.0
+
+MAINTAINER Jo Shields &lt;jo.shields@xamarin.com&gt;
+
+RUN apt-get update &amp;&amp; apt-get install mono-4.0-service -y
+
+RUN mkdir -p /usr/src/app/source /usr/src/app/build
+WORKDIR /usr/src/app/source
+
+ONBUILD COPY . /usr/src/app/source
+ONBUILD RUN nuget restore -NonInteractive
+ONBUILD RUN xbuild /property:Configuration=Release /property:OutDir=/usr/src/app/build/
+ONBUILD WORKDIR /usr/src/app/build
+</code></pre><p>Now run the build command to make your new base image:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build -t mono-service-onbuild .
+</span></span></code></pre></div><p>Now you can go back to your project and update the <code>Dockerfile</code> to use this image base instead:</p>
+<pre tabindex="0"><code>FROM mono-service-onbuild
+CMD [ &#34;mono-service&#34;,  &#34;./MicroServiceDemo.exe&#34;, &#34;--no-daemon&#34; ]
+EXPOSE 12345
+</code></pre><p>Now when you run <code>docker build -t &lt;project name&gt; .</code> it will only need to do the compile steps.</p>
+<p>Much faster :)</p>
+]]></content:encoded></item></channel></rss>

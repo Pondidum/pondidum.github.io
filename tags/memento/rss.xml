@@ -1,2 +1,169 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>memento on Andy Dote</title><link>https://andydote.co.uk/tags/memento/</link><description>Recent content in memento on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 29 Mar 2014 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/memento/rss.xml" rel="self" type="application/rss+xml"/><item><title>Using a Micro ORM to decouple your DB Access</title><link>https://andydote.co.uk/2014/03/29/using-a-micro-orm-to-decouple-your-db-access/</link><pubDate>Sat, 29 Mar 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/03/29/using-a-micro-orm-to-decouple-your-db-access/</guid><description>One of the databases I use on a regular bases has a rather interesting column naming scheme; all columns have a prefix, based on the table name. For example, the table containing people would have the prefix PEO_, so you would have this:
-Select * from People PEO_PersonID, PEO_FirstName, PEO_LastName, PEO_DoB ----------------------------------------------------- 1 John Jones 1984-07-15 I believe the idea was so that when querying, you would not have any column name clashes.</description></item></channel></rss>
+Select * from People PEO_PersonID, PEO_FirstName, PEO_LastName, PEO_DoB ----------------------------------------------------- 1 John Jones 1984-07-15 I believe the idea was so that when querying, you would not have any column name clashes.</description><content:encoded><![CDATA[<p>One of the databases I use on a regular bases has a rather interesting column naming scheme;  all columns have a prefix, based on the table name.  For example, the table containing people would have the prefix <code>PEO_</code>, so you would have this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">Select</span> <span style="color:#f92672">*</span> <span style="color:#66d9ef">from</span> People
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>PEO_PersonID, PEO_FirstName, PEO_LastName, PEO_DoB
+</span></span><span style="display:flex;"><span><span style="color:#75715e">-----------------------------------------------------
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#ae81ff">1</span>             John           Jones         <span style="color:#ae81ff">1984</span><span style="color:#f92672">-</span><span style="color:#ae81ff">07</span><span style="color:#f92672">-</span><span style="color:#ae81ff">15</span>
+</span></span></code></pre></div><p>I believe the idea was so that when querying, you would not have any column name clashes.  This of course breaks down if you have to join on the same table twice.</p>
+<p>This structure presents a problem when it comes to reading the tables into objects in code, as it removes the ability to use an orm - I have yet to see one which allows you to specify a prefix to be used on all columns in a table.</p>
+<p>The existing entities are all manually read, and follow the same pattern:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Entity</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> reader = SqlHelper.ExecuteReader(<span style="color:#e6db74">&#34;connectionstring&#34;</span>, ReadProcedureName))
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (reader.Read())
+</span></span><span style="display:flex;"><span>			{
+</span></span><span style="display:flex;"><span>				Read(reader);
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Person</span> : Entity
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime DoB { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> String ReadProcedureName { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;p_getPerson&#34;</span>; } }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Read(IDataReader reader)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		ID = reader.GetInt32(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>		FirstName = reader.GetString(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>		LastName = reader.GetString(<span style="color:#ae81ff">2</span>);
+</span></span><span style="display:flex;"><span>		DoB = reader.GetDateTime(<span style="color:#ae81ff">3</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note how columns are read in order, which means two things: you cannot use <code>select *</code> as your query, and you cannot change column order etc.</p>
+<p>To help split this so we can start using an ORM to do the mapping for us, we can utilise the <a href="http://www.dofactory.com/Patterns/PatternMemento.aspx">Memento Pattern</a>.  First we create a new object, which will be used to read and write from the database:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PersonDto</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> PEO_ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> PEO_FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> PEO_LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime PEO_DoB { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note the property names match the column names of the table in the db, our read method could then get changed to this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Entity</span>&lt;TDto&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">string</span> ReadProcedureName { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;&#34;</span>; } }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> results = _connection.Query&lt;TDto&gt;(ReadProcedureName).ToList();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (results.Any())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			Read(results.First());
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">void</span> Read(TDto dto)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Person</span> : Entity&lt;PersonDto&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime DoB { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Read(PersonDto dto)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		ID = dto.PEO_ID;
+</span></span><span style="display:flex;"><span>		FirstName = dto.PEO_FirstName;
+</span></span><span style="display:flex;"><span>		LastName = dto.PEO_LastName;
+</span></span><span style="display:flex;"><span>		DoB = dto.PEO_DoB;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This gives us several benefits, in that we can change column naming and ordering freely without effecting the actual <code>Person</code> object, and we have made the class slightly more testable - we can pass it a faked <code>PersonDto</code> if we needed to load it with some data for a test.</p>
+<p>We can however make another improvement to this - namely in the <code>Read</code> method, as this is a prime candidate for <a href="http://automapper.org/">AutoMapper</a>.  To get this to work though, have two choices: the first is to manually specify the mappings of one object to the other, and the second is to write a profile which will do the work for us.  Unsurprisingly, I went with the second option:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PrefixProfile</span> : Profile
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDictionary&lt;Type, Type&gt; _typeMap;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> PrefixProfile(IDictionary&lt;Type, Type&gt; typeMap )
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_typeMap = typeMap;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">string</span> ProfileName
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;PrefixProfile&#34;</span>; }
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Configure()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">foreach</span> (<span style="color:#66d9ef">var</span> pair <span style="color:#66d9ef">in</span> _typeMap)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">var</span> prefix = GetPrefix(pair.Value.GetProperties());
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			RecognizeDestinationPrefixes(prefix);
+</span></span><span style="display:flex;"><span>			RecognizePrefixes(prefix);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			CreateMap(pair.Key, pair.Value);
+</span></span><span style="display:flex;"><span>			CreateMap(pair.Value, pair.Key);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">string</span> GetPrefix(IEnumerable&lt;PropertyInfo&gt; properties)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> properties
+</span></span><span style="display:flex;"><span>			.Select(GetPrefixFromProperty)
+</span></span><span style="display:flex;"><span>			.FirstOrDefault(p =&gt; String.IsNullOrWhiteSpace(p) == <span style="color:#66d9ef">false</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">string</span> GetPrefixFromProperty(PropertyInfo property)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> name = property.Name;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> name.IndexOf(<span style="color:#e6db74">&#34;_&#34;</span>, StringComparison.OrdinalIgnoreCase) &gt;= <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>			? name.Substring(<span style="color:#ae81ff">0</span>, name.IndexOf(<span style="color:#e6db74">&#34;_&#34;</span>, StringComparison.OrdinalIgnoreCase) + <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>			: String.Empty;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This class takes in a dictionary of types (in this case will be things like <code>Person</code> =&gt; <code>PersonDto</code>).  It goes through each pair in the list and determines the prefix for the destination class (the dto).  The <code>GetPrefixFromProperty</code> is virtual so that I can customise it for other uses later.</p>
+<p>To use this we just need to initialise AutoMapper with the class once on start up:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> map = <span style="color:#66d9ef">new</span> Dictionary&lt;Type, Type&gt;();
+</span></span><span style="display:flex;"><span>map.Add(<span style="color:#66d9ef">typeof</span> (Person), <span style="color:#66d9ef">typeof</span> (PersonDto));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Mapper.Initialize(config =&gt; config.AddProfile(<span style="color:#66d9ef">new</span> PrefixProfile(map)));
+</span></span></code></pre></div><p>This means our <code>Person</code> class becomes very small:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Person</span> : Entity&lt;PersonDto&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime DoB { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And the <code>Entity</code> class can take care of the mapping for us, but utilising AutoMapper&rsquo;s Type based Map method:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Entity</span>&lt;TDto&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">virtual</span> <span style="color:#66d9ef">string</span> ReadProcedureName { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;&#34;</span>; } }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Load()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> _connection = <span style="color:#66d9ef">new</span> SqlConnection(<span style="color:#e6db74">&#34;&#34;</span>);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> results = _connection.Query&lt;TDto&gt;(ReadProcedureName).ToList();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (results.Any())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			Read(results.First());
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">void</span> Read(TDto dto)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Mapper.Map(dto, <span style="color:#66d9ef">this</span>, <span style="color:#66d9ef">typeof</span>(TDto), GetType());
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>While the design of having each entity responsible for saving and loading of itself is not the best design, it is what the existing system has in place (around 400 entities exist at last count).  By taking these steps we can remove a lot of boilerplate code from our codebase, which means when we wish to change to a different architecture (such as session or transaction objects in a similar style to RavenDB&rsquo;s ISession), it will be an easier transition.</p>
+]]></content:encoded></item></channel></rss>

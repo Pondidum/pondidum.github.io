@@ -1,2 +1,420 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>packer on Andy Dote</title><link>https://andydote.co.uk/tags/packer/</link><description>Recent content in packer on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Tue, 01 Jan 2019 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/packer/rss.xml" rel="self" type="application/rss+xml"/><item><title>Testing Immutable Infrastructure</title><link>https://andydote.co.uk/2019/01/01/immutable-infra/</link><pubDate>Tue, 01 Jan 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/01/01/immutable-infra/</guid><description>In my previous post, I glossed over one of the most important and useful parts of Immutable Infrastructure: Testability. There are many kinds of tests we can write for our infrastructure, but they should all be focused on the machine/service and maybe it&amp;rsquo;s nearest dependencies, not the entire system.
-While this post focuses on testing a full machine (both locally in a VM, and remotely as an Amazon EC2 instance), it is also possible to do most of the same kind of tests against a Docker container.</description></item></channel></rss>
+While this post focuses on testing a full machine (both locally in a VM, and remotely as an Amazon EC2 instance), it is also possible to do most of the same kind of tests against a Docker container.</description><content:encoded><![CDATA[<p>In my <a href="/2018/12/22/serilog-elk-jaeger/">previous post</a>, I glossed over one of the most important and useful parts of Immutable Infrastructure: Testability.  There are many kinds of tests we can write for our infrastructure, but they should all be focused on the machine/service and <em>maybe</em> it&rsquo;s nearest dependencies, <a href="https://medium.com/@copyconstruct/testing-microservices-the-sane-way-9bb31d158c16">not the entire system</a>.</p>
+<p>While this post focuses on testing a full machine (both locally in a VM, and remotely as an Amazon EC2 instance), it is also possible to do most of the same kind of tests against a Docker container.  In fact, one of the tools used in this post supports building Docker containers as an output in parallel to the AMIs, so this can also assist in providing a migration path to/from Docker.</p>
+<p>As an example, I will show how I built and tested a LogStash machine, including how to verify that the script to create the production machine is valid, that the machine itself has been provisioned correctly, and that the services inside work as expected.</p>
+<p>I have <a href="https://github.com/Pondidum/immutable-infra-testing-demo">published all the source code</a> to GitHub.  The examples in this post are all taken from the repository but might have a few bits removed just for readability.  Check the full source out if you are interested!</p>
+<h2 id="repository-structure-and-tools">Repository Structure and Tools</h2>
+<p>When it comes to building anything that you will have lots of, consistency is key to making it manageable.  To that end, I have a small selection of tools that I use, and a repository structure I try and stick to.  They are the following:</p>
+<p><strong><a href="https://www.vagrantup.com/">Vagrant</a></strong> - This is a tool for building and managing virtual machines.  It can be backed by many different <a href="https://www.vagrantup.com/docs/providers/">providers</a> such as Docker, HyperV and VirtualBox.  We&rsquo;ll use this to build a local Linux machine to develop and test LogStash in.  I use the HyperV provisioner, as that is what Docker For Windows also uses, and HyperV disables other virtualisation tools.</p>
+<p><strong><a href="https://packer.io/">Packer</a></strong> - This tool provides a way to build machine images.  Where Vagrant builds running machines, Packer builds the base images for you to boot, and can build multiple different ones (in parallel) from one configuration.  We&rsquo;ll use this to create our AMIs (Amazon Machine Images.)</p>
+<p><strong><a href="http://jestjs.io/">Jest</a></strong> - This is a testing framework written in (and for) NodeJS applications.  Whatever testing tool works best for your environment is what you should be using, but I use Jest as it introduces minimal dependencies, is cross-platform, and has some useful libraries for doing things like diffing json.</p>
+<p>The repository structure is pretty simple:</p>
+<ul>
+<li>scripts/</li>
+<li>src/</li>
+<li>test/</li>
+<li>build.sh</li>
+<li>logstash.json</li>
+<li>package.json</li>
+<li>vagrantfile</li>
+</ul>
+<p>The <code>src</code> directory is where our application code will live.  If the application is compiled, the output goes to the <code>build</code> directory (which is not tracked in source-control.)  The <code>test</code> directory will contain all of our tests, and the <code>scripts</code> directory will contain everything needed for provisioning our machines.</p>
+<p>We&rsquo;ll describe what the use of each of these files is as we go through the next section.</p>
+<h2 id="local-development">Local Development</h2>
+<p>To create our virtual machine locally, we will use <a href="https://www.vagrantup.com">Vagrant</a>.  To tell Vagrant how to build our machine, we need to create a <code>vagrantfile</code> in our repository, which will contain the machine details and provisioning steps.</p>
+<p>The machine itself has a name, CPU count, and memory specified.  There is also a setting for Hyper-V which allows us to use a differencing disk, which reduces the startup time for the VM, and how much disk space it uses on the host machine.</p>
+<p>For provisioning, we specify to run the relevant two files from the <code>scripts</code> directory.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;bento/ubuntu-16.04&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provider <span style="color:#e6db74">&#34;hyperv&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>hv<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>vmname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;LogStash&#34;</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>cpus <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">2048</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>linked_clone <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./scripts/provision.sh&#34;</span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./scripts/vagrant.sh&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>To keep things as similar as possible between our development machine and our output AMI, I keep as much of the setup script in one file: <code>scripts/provision.sh</code>.  In the case of our LogStash setup, this means installing Java, LogStash, some LogStash plugins, and enabling the service on reboots:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># add elastic&#39;s package repository</span>
+</span></span><span style="display:flex;"><span>wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;deb https://artifacts.elastic.co/packages/6.x/apt stable main&#34;</span> | sudo tee -a /etc/apt/sources.list.d/elastic-6.x.list
+</span></span><span style="display:flex;"><span>sudo apt-get update
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># install openjdk and set environment variable</span>
+</span></span><span style="display:flex;"><span>sudo apt-get install openjdk-8-jre -y
+</span></span><span style="display:flex;"><span>JAVA<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>readlink -f <span style="color:#66d9ef">$(</span>which java<span style="color:#66d9ef">)</span> | sed <span style="color:#e6db74">&#34;s:bin/java::&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;JAVA_HOME=</span>$JAVA<span style="color:#e6db74">&#34;</span> | sudo tee --append /etc/environment
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#install logstash and plugins</span>
+</span></span><span style="display:flex;"><span>sudo apt-get install logstash -y
+</span></span><span style="display:flex;"><span>/usr/share/logstash/bin/logstash-plugin install logstash-filter-uuid
+</span></span><span style="display:flex;"><span>/usr/share/logstash/bin/logstash-plugin install logstash-filter-prune
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl enable logstash.service
+</span></span></code></pre></div><p>Vagrant will automatically mount it&rsquo;s working directory into the VM under the path <code>/vagrant</code>.  This means we can add a second provisioning script (<code>scripts/vagrant.sh</code>) to link the <code>/vagrant/src</code> directory to the LogStash configuration directory (<code>/etc/logstash/conf.d</code>), meaning we can edit the files on the host machine, and then restart LogStash to pick up the changes.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>sudo rm -rf /etc/logstash/conf.d
+</span></span><span style="display:flex;"><span>sudo ln -s /vagrant/src /etc/logstash/conf.d
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl start logstash.service
+</span></span></code></pre></div><p>Now that we have a <code>vagrantfile</code>, we can start the virtual machine with a single command.  Note, Hyper-V requires administrator privileges, so you need to run this command in an admin terminal:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant up
+</span></span></code></pre></div><p>After a while, your new LogStash machine will be up and running.  If you want to log into the machine and check files an processes etc., you can run the following command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant ssh
+</span></span></code></pre></div><p>An argument can also be provided to the <code>ssh</code> command to be executed inside the VM, which is how I usually trigger LogStash restarts (as it doesn&rsquo;t seem to detect when I save the config files in the <code>src</code> directory):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant ssh -c <span style="color:#e6db74">&#39;sudo systemctl restart logstash&#39;</span>
+</span></span></code></pre></div><h2 id="deployment">Deployment</h2>
+<p>To create the deployable machine image, I use Packer.  The process is very similar to how Vagrant is used: select a base AMI, create a new EC2 machine, provision it, and save the result as a new AMI.</p>
+<p>Packer is configured with a single json file, in this case, named <code>logstash.json</code>.  The file is split into four parts: <code>variables</code>, <code>builders</code>, <code>provisioners</code>, and <code>outputs</code>.  I won&rsquo;t include the <code>outputs</code> section as it&rsquo;s not needed when building AMIs.</p>
+<h3 id="variables">Variables</h3>
+<p>The <code>variables</code> property is for all configuration that you can pass to Packer.  Their values can come from Environment Variables, CLI parameters, Consul, Vault, <a href="https://www.packer.io/docs/templates/user-variables.html">and others</a>.  In the LogStash example, there are three variables:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;variables&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;aws_access_key&#34;</span>: <span style="color:#e6db74">&#34;&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;aws_secret_key&#34;</span>: <span style="color:#e6db74">&#34;&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;ami_users&#34;</span>: <span style="color:#e6db74">&#34;{{env `AMI_ACCOUNTS`}}&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>aws_access_key</code> and <code>aws_secret_key</code> are known names - unless we specify some value, they will automatically be read from your AWS config (in <code>~/.aws/</code>), or if running on EC2, from the EC2 machine profile.</p>
+<p>The <code>ami_users</code> is a custom variable which will read the <code>AMI_ACCOUNTS</code> environment variable by default.  This particular one is used so that I can grant access to the resulting AMI to multiple AWS accounts, which is useful if you&rsquo;re running in an Organisation with multiple Accounts.  For example, if the AMI is built in a <code>common</code> account, and will be deployed into <code>dev</code>, <code>qa</code> and <code>prod</code> accounts, then you would populate the <code>AMI_ACCOUNTS</code> as a CSV of account IDs.</p>
+<h3 id="builders">Builders</h3>
+<p>Packer can build <a href="https://www.packer.io/docs/builders/index.html">many different kinds</a> of machine image, but for this, we only need one: <code>amazon-ebs</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;builders&#34;</span>: [
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;amazon-ebs&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;access_key&#34;</span>: <span style="color:#e6db74">&#34;{{user `aws_access_key`}}&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;secret_key&#34;</span>: <span style="color:#e6db74">&#34;{{user `aws_secret_key`}}&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;region&#34;</span>: <span style="color:#e6db74">&#34;eu-west-1&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;instance_type&#34;</span>: <span style="color:#e6db74">&#34;t2.micro&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;source_ami_filter&#34;</span>: {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;filters&#34;</span>: {
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;virtualization-type&#34;</span>: <span style="color:#e6db74">&#34;hvm&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;ubuntu/images/*ubuntu-xenial-16.04-amd64-server-*&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;root-device-type&#34;</span>: <span style="color:#e6db74">&#34;ebs&#34;</span>
+</span></span><span style="display:flex;"><span>        },
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;owners&#34;</span>: [<span style="color:#e6db74">&#34;099720109477&#34;</span>],
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;most_recent&#34;</span>: <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>      },
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;ssh_username&#34;</span>: <span style="color:#e6db74">&#34;ubuntu&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;ami_name&#34;</span>: <span style="color:#e6db74">&#34;logstash {{timestamp}}&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;ami_users&#34;</span>: <span style="color:#e6db74">&#34;{{user `ami_users`}}&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The two most interesting properties of this are <code>source_ami_filter</code> and <code>ami_users</code>.  The <code>source_ami_filter</code> works in a very similar manner to the AWS CLI&rsquo;s <code>describe-images</code> <code>--filters</code> parameter, albeit in a more readable format.  In this case, I am specifying that I want an <code>ubuntu-xenial</code> base, and I want it to be an official Canonical image, so specify their Account ID as the <code>owner</code>.  I also specify the <code>most_recent</code> property, as this filter will return all versions of this AMI which Canonical publish.</p>
+<p>The <code>ami_users</code> is what lets me grant access to the AMI from other accounts (rather than just making it public).  The property&rsquo;s value should be an array, but Packer is smart enough to expand the CSV in the user variable into an array for us.</p>
+<h3 id="provisioners">Provisioners</h3>
+<p>The <code>provisioners</code> array items are executed in the order they are specified.  To set up the machine, I use the <code>shell</code> provisioner to create a temporary directory, then the <code>file</code> provisioner to upload the files in the <code>src</code> directory to that temporary directory.  Finally a second <code>shell</code> provisioner uploads and runs the <code>scripts/provision.sh</code> and <code>scripts/aws.sh</code> files.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;provisioners&#34;</span>: [
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;shell&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;inline&#34;</span>: <span style="color:#e6db74">&#34;mkdir -p /tmp/src&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;file&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;source&#34;</span>: <span style="color:#e6db74">&#34;./src/&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;destination&#34;</span>: <span style="color:#e6db74">&#34;/tmp/src&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;shell&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;scripts&#34;</span>: [<span style="color:#e6db74">&#34;./scripts/provision.sh&#34;</span>, <span style="color:#e6db74">&#34;./scripts/aws.sh&#34;</span>]
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>aws.sh</code> file is very small and does roughly the same thing as the <code>vagrant.sh</code> script, but rather than symlinking the <code>/vagrant</code> directory, it moves the uploaded <code>src</code> directory into the right location for LogStash:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>sudo rm /etc/logstash/conf.d/*
+</span></span><span style="display:flex;"><span>sudo cp -r /tmp/src/* /etc/logstash/conf.d
+</span></span></code></pre></div><p>Note that this doesn&rsquo;t start the LogStash service - this gets done by the UserData when we launch a new instance, as often we need to pass in additional configuration parameters, and don&rsquo;t want the service running until that has been done.</p>
+<h3 id="running">Running</h3>
+<p>To create the AMI, we need to invoke packer.  If I am running packer on a remote machine via SSH, I run it inside <code>tmux</code>, so that disconnects don&rsquo;t fail the process:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>packer build -var <span style="color:#e6db74">&#34;ami_users=111,222,333&#34;</span> logstash.json
+</span></span></code></pre></div><p>After a while, Packer will finish, leaving you with an output which will include the new AMI ID:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#f92672">==</span>&gt; Builds finished. The artifacts of successful builds are:
+</span></span><span style="display:flex;"><span>--&gt; amazon-ebs: AMIs were created:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>eu-west-1: ami-123123123
+</span></span></code></pre></div><p>We&rsquo;ll get back to this output later when we create a build script that will also run our tests.  Before we get to that, however, let&rsquo;s look at how we can write tests which target both the local Vagrant machine and the AMI too.</p>
+<h2 id="testing">Testing</h2>
+<p>To test the machines, I am using <a href="https://jestjs.io">Jest</a>.  There isn&rsquo;t anything particularly interesting going on in the <code>package.json</code>, other than a few babel packages being installed so that I can use ES6 syntax:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;scripts&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;watch&#34;</span>: <span style="color:#e6db74">&#34;jest --watch&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;test&#34;</span>: <span style="color:#e6db74">&#34;jest &#34;</span>
+</span></span><span style="display:flex;"><span>  },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;devDependencies&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;babel-core&#34;</span>: <span style="color:#e6db74">&#34;^6.26.3&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;babel-jest&#34;</span>: <span style="color:#e6db74">&#34;^23.6.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;babel-preset-env&#34;</span>: <span style="color:#e6db74">&#34;^1.7.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;jest&#34;</span>: <span style="color:#e6db74">&#34;^23.6.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;regenerator-runtime&#34;</span>: <span style="color:#e6db74">&#34;^0.13.1&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="packer-configuration-testing">Packer Configuration Testing</h3>
+<p>There are a number of tests we can do to make sure our Packer configuration is valid before running it.  This includes things like checking the base AMI is from a whitelisted source (such as our accounts, Amazon and Canonical).  The test has to handle the possibility of multiple builders, and that some builders might not have a <code>source_ami_filter</code>.  It also handles if no owner has been specified at all, which we also consider a &ldquo;bad thing&rdquo;:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">ourAccounts</span> <span style="color:#f92672">=</span> [ <span style="color:#e6db74">&#34;111111&#34;</span>, <span style="color:#e6db74">&#34;222222&#34;</span>, <span style="color:#e6db74">&#34;333333&#34;</span>, <span style="color:#e6db74">&#34;444444&#34;</span> ];
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">otherOwners</span> <span style="color:#f92672">=</span> [ <span style="color:#e6db74">&#34;amazon&#34;</span>, <span style="color:#e6db74">&#34;099720109477&#34;</span> <span style="color:#75715e">/*canonical*/</span> ];
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;ami builder&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should be based on a whitelisted owner&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">allOwners</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">ourAccounts</span>.<span style="color:#a6e22e">concat</span>(<span style="color:#a6e22e">otherOwners</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">invalidOwners</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">owners</span> =&gt; <span style="color:#a6e22e">owners</span>.<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">owner</span> =&gt; <span style="color:#f92672">!</span><span style="color:#a6e22e">allOwners</span>.<span style="color:#a6e22e">includes</span>(<span style="color:#a6e22e">owner</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">amisWithInvalidOwners</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">builders</span>
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">builder</span> =&gt; <span style="color:#a6e22e">builder</span>.<span style="color:#a6e22e">source_ami_filter</span>)
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">map</span>(<span style="color:#a6e22e">builder</span> =&gt; ({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">name</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">builderName</span>(<span style="color:#a6e22e">builder</span>),
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">invalidOwners</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">invalidOwners</span>(<span style="color:#a6e22e">builder</span>.<span style="color:#a6e22e">source_ami_filter</span>.<span style="color:#a6e22e">owners</span> <span style="color:#f92672">||</span> [ <span style="color:#e6db74">&#34;NO OWNER SPECIFIED&#34;</span> ])
+</span></span><span style="display:flex;"><span>      }))
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">builders</span> =&gt; <span style="color:#a6e22e">builders</span>.<span style="color:#a6e22e">invalidOwners</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">amisWithInvalidOwners</span>).<span style="color:#a6e22e">toEqual</span>([]);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>I also test that certain variables (<code>ami_users</code>) have been defined, and have been used in the right place:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;variables&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should have a variable for who can use the ami&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">variables</span>).<span style="color:#a6e22e">toHaveProperty</span>(<span style="color:#e6db74">&#34;ami_users&#34;</span>);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should read ami_users from AMI_ACCOUNTS&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">variables</span>.<span style="color:#a6e22e">ami_users</span>).<span style="color:#a6e22e">toMatch</span>(
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">/{{\s*env\s*`AMI_ACCOUNTS`\s*}}/</span>
+</span></span><span style="display:flex;"><span>    );
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;ami builder&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should set the ami_user&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">invalidUsers</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">builders</span>
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">map</span>(<span style="color:#a6e22e">builder</span> =&gt; ({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">name</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">builderName</span>(<span style="color:#a6e22e">builder</span>),
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">users</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">builder</span>.<span style="color:#a6e22e">ami_users</span> <span style="color:#f92672">||</span> <span style="color:#e6db74">&#34;NO USERS SPECIFIED&#34;</span>
+</span></span><span style="display:flex;"><span>      }))
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">ami</span> =&gt; <span style="color:#f92672">!</span><span style="color:#a6e22e">ami</span>.<span style="color:#a6e22e">users</span>.<span style="color:#a6e22e">match</span>(<span style="color:#e6db74">/{{\s*user\s*`ami_users`\s*}}/</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">invalidUsers</span>).<span style="color:#a6e22e">toEqual</span>([]);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre></div><p>Other tests you might want to add are that the base AMI is under a certain age, or that your AMI has certain tags included, or that it is named in a specific manner.</p>
+<h3 id="machine-testing">Machine Testing</h3>
+<p>Machine testing is for checking that our provisioning worked successfully.  This is very useful, as subtle bugs can creep in when you don&rsquo;t verify what happens.</p>
+<p>For example, a machine I built copied configuration directory to a target location but was missing the <code>-r</code> flag, so when I later added a subdirectory, the machine failed as the referenced files didn&rsquo;t exist.</p>
+<p>So that the tests work with both the Vagrant and Packer built versions, we take in their address and key paths from the environment:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">import</span> { <span style="color:#a6e22e">spawnSync</span> } <span style="color:#a6e22e">from</span> <span style="color:#e6db74">&#34;child_process&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> { <span style="color:#a6e22e">createConnection</span> } <span style="color:#a6e22e">from</span> <span style="color:#e6db74">&#34;net&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// figure out where to look these up
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">host</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">process</span>.<span style="color:#a6e22e">env</span>.<span style="color:#a6e22e">LOGSTASH_ADDRESS</span>; <span style="color:#75715e">// e.g. &#34;172.27.48.28&#34;;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">keyPath</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">process</span>.<span style="color:#a6e22e">env</span>.<span style="color:#a6e22e">LOGSTASH_KEYPATH</span>; <span style="color:#75715e">// &#34;.vagrant/machines/default/hyperv/private_key&#34;;
+</span></span></span></code></pre></div><p>We also define two helper methods: one to check if a TCP port is open, and one which uses SSH to execute a command and read the response in the machine:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">execute</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">command</span> =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">args</span> <span style="color:#f92672">=</span> [<span style="color:#e6db74">`vagrant@</span><span style="color:#e6db74">${</span><span style="color:#a6e22e">host</span><span style="color:#e6db74">}</span><span style="color:#e6db74">`</span>, <span style="color:#e6db74">`-i`</span>, <span style="color:#a6e22e">keyPath</span>, <span style="color:#a6e22e">command</span>];
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">ssh</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">spawnSync</span>(<span style="color:#e6db74">&#34;ssh&#34;</span>, <span style="color:#a6e22e">args</span>, { <span style="color:#a6e22e">encoding</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#34;utf8&#34;</span> });
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">lines</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">ssh</span>.<span style="color:#a6e22e">stdout</span>.<span style="color:#a6e22e">split</span>(<span style="color:#e6db74">&#34;\n&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">lines</span>[<span style="color:#a6e22e">lines</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>] <span style="color:#f92672">===</span> <span style="color:#e6db74">&#34;&#34;</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">lines</span>.<span style="color:#a6e22e">slice</span>(<span style="color:#ae81ff">0</span>, <span style="color:#a6e22e">lines</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">lines</span>;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">testPort</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">port</span> =&gt; <span style="color:#66d9ef">new</span> Promise((<span style="color:#a6e22e">resolve</span>, <span style="color:#a6e22e">reject</span>) =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">client</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">createConnection</span>({ <span style="color:#a6e22e">host</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">host</span>, <span style="color:#a6e22e">port</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">port</span> });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">on</span>(<span style="color:#e6db74">&#34;error&#34;</span>, <span style="color:#a6e22e">err</span> =&gt; <span style="color:#a6e22e">reject</span>(<span style="color:#a6e22e">err</span>));
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">on</span>(<span style="color:#e6db74">&#34;connect&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">end</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">resolve</span>();
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>We can then add some tests which check the files were written to the right place, that port <code>5044</code> is open, and port <code>9600</code> is closed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;the machine&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should have the correct configuration&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">files</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">execute</span>(<span style="color:#e6db74">&#34;find /etc/logstash/conf.d/* -type f&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">files</span>).<span style="color:#a6e22e">toEqual</span>([
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">&#34;/etc/logstash/conf.d/beats.conf&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">&#34;/etc/logstash/conf.d/patterns/custom.txt&#34;</span>
+</span></span><span style="display:flex;"><span>    ]);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should be listening on 5044 for beats&#34;</span>, () =&gt; <span style="color:#a6e22e">testPort</span>(<span style="color:#ae81ff">5044</span>));
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should not be listening on 9600&#34;</span>, () =&gt; <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">testPort</span>(<span style="color:#ae81ff">9600</span>)).<span style="color:#a6e22e">rejects</span>.<span style="color:#a6e22e">toThrow</span>(<span style="color:#e6db74">&#34;ECONNREFUSED&#34;</span>));
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Of course, as we can execute any command inside the machine, we can check pretty much anything:</p>
+<ul>
+<li><code>tail</code> the LogStash log and see if it&rsquo;s got the right contents</li>
+<li>check if the service is started</li>
+<li>check the service is enabled on boot</li>
+<li>check the environment variables been written to the right files</li>
+</ul>
+<h3 id="application-testing">Application Testing</h3>
+<p>There are two styles of Application Testing: white-box and black-box.  White-box will be tests run on the application inside the machine, using minimal external dependencies (preferably none at all), and Black-box will be run on the application from outside the machine, either using direct dependencies, or fakes.</p>
+<p>It&rsquo;s worth noting that both white-box and black-box tests are <strong>slow</strong>, mostly down to how slow LogStash is at starting up, although only giving it 1 CPU and 2Gb of RAM probably doesn&rsquo;t help.</p>
+<h4 id="whitebox-testing-logstash">Whitebox Testing LogStash</h4>
+<p>To white-box test LogStash, I use a technique partially based on the <a href="https://github.com/agolo/logstash-test-runner">Agolo LogStash Test Runner</a>.  The process for the tests is to run LogStash interactively (rather than as a service), send it a single event, record the output events, and compare them to an expected output.</p>
+<p>The test cases are kept in separate folders, with two files.  First is the input file, imaginatively called <code>input.log</code>, which will contain one json encoded event per line.  The format needs to match what the result of FileBeat sending an event to LogStash would be.  In this case, it means a few extra fields, and a <code>message</code> property containing a string of json.  Formatted for readability, the object looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;@timestamp&#34;</span>: <span style="color:#e6db74">&#34;2018-12-27T14:08:24.753Z&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;beat&#34;</span>: { <span style="color:#f92672">&#34;hostname&#34;</span>: <span style="color:#e6db74">&#34;Spectre&#34;</span>, <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;Spectre&#34;</span>, <span style="color:#f92672">&#34;version&#34;</span>: <span style="color:#e6db74">&#34;5.3.0&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;fields&#34;</span>: { <span style="color:#f92672">&#34;environment&#34;</span>: <span style="color:#e6db74">&#34;local&#34;</span>, <span style="color:#f92672">&#34;log_type&#34;</span>: <span style="color:#e6db74">&#34;application&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;input_type&#34;</span>: <span style="color:#e6db74">&#34;log&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;message&#34;</span>: <span style="color:#e6db74">&#34;{\&#34;Timestamp\&#34;: \&#34;2018-12-18T17:06:27.7112297+02:00\&#34;,\&#34;Level\&#34;: \&#34;Information\&#34;,\&#34;MessageTemplate\&#34;: \&#34;This is the {count} message\&#34;,\&#34;Properties\&#34;: {\&#34;count\&#34;: 4,\&#34;SourceContext\&#34;: \&#34;LogLines.GetOpenPurchasesHandler\&#34;,\&#34;ApplicationName\&#34;: \&#34;FileBeatTest\&#34;,\&#34;CorrelationId\&#34;: \&#34;8f341e8e-6b9c-4ebf-816d-d89c014bad90\&#34;,\&#34;TimedOperationElapsedInMs\&#34;: 1000}}&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;offset&#34;</span>: <span style="color:#ae81ff">318</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;source&#34;</span>: <span style="color:#e6db74">&#34;D:\\tmp\\logs\\single.log&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;applicationlog&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>I also define an <code>output.log</code>, which contains the expected result(s), again one json encoded event per line.  The example pipeline in the repository will emit two events for a given input, so this file contains two lines of json (again, newlines added for readability here):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;source&#34;</span>: <span style="color:#e6db74">&#34;D:\\tmp\\logs\\single.log&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;@version&#34;</span>: <span style="color:#e6db74">&#34;1&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;fields&#34;</span>: { <span style="color:#f92672">&#34;log_type&#34;</span>: <span style="color:#e6db74">&#34;application&#34;</span>, <span style="color:#f92672">&#34;environment&#34;</span>: <span style="color:#e6db74">&#34;local&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;@timestamp&#34;</span>: <span style="color:#e6db74">&#34;2018-12-18T15:06:27.711Z&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;offset&#34;</span>: <span style="color:#ae81ff">318</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;ApplicationName&#34;</span>: <span style="color:#e6db74">&#34;FileBeatTest&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;host&#34;</span>: <span style="color:#e6db74">&#34;ubuntu-16&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;applicationlog&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;CorrelationId&#34;</span>: <span style="color:#e6db74">&#34;8f341e8e-6b9c-4ebf-816d-d89c014bad90&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;MessageTemplate&#34;</span>: <span style="color:#e6db74">&#34;This is the {count} message&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Level&#34;</span>: <span style="color:#e6db74">&#34;Information&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Context&#34;</span>: <span style="color:#e6db74">&#34;LogLines.GetOpenPurchasesHandler&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;TimeElapsed&#34;</span>: <span style="color:#ae81ff">1000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Properties&#34;</span>: { <span style="color:#f92672">&#34;count&#34;</span>: <span style="color:#ae81ff">4</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;duration&#34;</span>: <span style="color:#ae81ff">1000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;timestamp&#34;</span>: <span style="color:#ae81ff">1545145586711000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;id&#34;</span>: <span style="color:#e6db74">&#34;&lt;generated&gt;&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;traceid&#34;</span>: <span style="color:#e6db74">&#34;8f341e8e6b9c4ebf816dd89c014bad90&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;LogLines.GetOpenPurchasesHandler&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;localEndpoint&#34;</span>: { <span style="color:#f92672">&#34;serviceName&#34;</span>: <span style="color:#e6db74">&#34;FileBeatTest&#34;</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To enable sending the lines directly to LogStash (rather than needing to use FileBeat), we define an <code>input.conf</code> file, which configures LogStash to read json from stdin:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>input {
+</span></span><span style="display:flex;"><span>  stdin { codec <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;json_lines&#34;</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And an <code>ouput.conf</code> file which configures LogStash to write the output as json lines a known file path:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>output {
+</span></span><span style="display:flex;"><span>  file {
+</span></span><span style="display:flex;"><span>    path <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;/tmp/test/output.log&#34;</span>
+</span></span><span style="display:flex;"><span>    codec <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;json_lines&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The tests need to be run inside the machine itself, so I created a script in the <code>./scripts</code> directory which will do all the work, and can be run by the <code>execute</code> method in a Jest test.  The script stops the LogStash service, copies the current configuration from the <code>./src</code> directory and the replacement <code>input.conf</code> and <code>output.conf</code> files to a temporary location, and then runs LogStash once per test case, copying the result file to the test case&rsquo;s directory.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>sudo systemctl stop logstash
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>temp_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/tmp/test&#34;</span>
+</span></span><span style="display:flex;"><span>test_source<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/vagrant/test/acceptance&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo rm -rf <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">/*&#34;</span>
+</span></span><span style="display:flex;"><span>sudo mkdir -p $temp_path
+</span></span><span style="display:flex;"><span>sudo cp -r /vagrant/src/* $temp_path
+</span></span><span style="display:flex;"><span>sudo cp $test_source/*.conf $temp_path
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>find $test_source/* -type d | <span style="color:#66d9ef">while</span> read test_path; <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;Running </span><span style="color:#66d9ef">$(</span>basename $test_path<span style="color:#66d9ef">)</span><span style="color:#e6db74"> tests...&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    sudo /usr/share/logstash/bin/logstash <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>        <span style="color:#e6db74">&#34;--path.settings&#34;</span> <span style="color:#e6db74">&#34;/etc/logstash&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>        <span style="color:#e6db74">&#34;--path.config&#34;</span> <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>        &lt; <span style="color:#e6db74">&#34;</span>$test_path<span style="color:#e6db74">/input.log&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    sudo touch <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">/output.log&#34;</span>   <span style="color:#75715e"># create it if it doesn&#39;t exist (dropped logs etc.)</span>
+</span></span><span style="display:flex;"><span>    sudo rm -f <span style="color:#e6db74">&#34;</span>$test_path<span style="color:#e6db74">/result.log&#34;</span>
+</span></span><span style="display:flex;"><span>    sudo mv <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">/output.log&#34;</span> <span style="color:#e6db74">&#34;</span>$test_path<span style="color:#e6db74">/result.log&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>basename $test_path<span style="color:#66d9ef">)</span><span style="color:#e6db74"> tests done&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">done</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl start logstash
+</span></span></code></pre></div><p>To execute this, we use the <code>beforeAll</code> function to run it once - we also pass in <code>Number.MAX_SAFE_INTEGER</code> as by default <code>beforeAll</code> will time out after 5 seconds, and the <code>test.sh</code> is <strong>slow as hell</strong> (as LogStash takes ages to start up).</p>
+<p>Once the <code>test.sh</code> script has finished running, we load each test&rsquo;s <code>output.log</code> and <code>result.log</code> files, parse each line as json, compare the objects, and print out the delta if the objects are not considered equal:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">source</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;./test/acceptance&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">isDirectory</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">p</span> =&gt; <span style="color:#a6e22e">fs</span>.<span style="color:#a6e22e">lstatSync</span>(<span style="color:#a6e22e">p</span>).<span style="color:#a6e22e">isDirectory</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">cases</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">fs</span>
+</span></span><span style="display:flex;"><span>  .<span style="color:#a6e22e">readdirSync</span>(<span style="color:#a6e22e">source</span>)
+</span></span><span style="display:flex;"><span>  .<span style="color:#a6e22e">map</span>(<span style="color:#a6e22e">name</span> =&gt; <span style="color:#a6e22e">path</span>.<span style="color:#a6e22e">join</span>(<span style="color:#a6e22e">source</span>, <span style="color:#a6e22e">name</span>))
+</span></span><span style="display:flex;"><span>  .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">isDirectory</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;logstash&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">beforeAll</span>(
+</span></span><span style="display:flex;"><span>    () =&gt; <span style="color:#a6e22e">execute</span>(<span style="color:#e6db74">&#34;/vagrant/scripts/test.sh&#34;</span>),
+</span></span><span style="display:flex;"><span>    Number.<span style="color:#a6e22e">MAX_SAFE_INTEGER</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">each</span>(<span style="color:#a6e22e">cases</span>)(<span style="color:#e6db74">&#34;%s&#34;</span>, <span style="color:#a6e22e">directoryPath</span> =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">expected</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">readFile</span>(<span style="color:#a6e22e">path</span>.<span style="color:#a6e22e">join</span>(<span style="color:#a6e22e">directoryPath</span>, <span style="color:#e6db74">&#34;output.log&#34;</span>));
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">actual</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">readFile</span>(<span style="color:#a6e22e">path</span>.<span style="color:#a6e22e">join</span>(<span style="color:#a6e22e">directoryPath</span>, <span style="color:#e6db74">&#34;result.log&#34;</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">diffpatch</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">DiffPatcher</span>({
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">propertyFilter</span><span style="color:#f92672">:</span> (<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">context</span>) =&gt; {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">name</span> <span style="color:#f92672">!==</span> <span style="color:#e6db74">&#34;id&#34;</span>) {
+</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">true</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">left</span>.<span style="color:#a6e22e">id</span> <span style="color:#f92672">!==</span> <span style="color:#e6db74">&#34;&lt;generated&gt;&#34;</span>;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">delta</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">diffpatch</span>.<span style="color:#a6e22e">diff</span>(<span style="color:#a6e22e">expected</span>, <span style="color:#a6e22e">actual</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">output</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">formatters</span>.<span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">format</span>(<span style="color:#a6e22e">delta</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">length</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">log</span>(<span style="color:#a6e22e">output</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">length</span>).<span style="color:#a6e22e">toBe</span>(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><h4 id="blackbox-testing-logstash">Blackbox Testing LogStash</h4>
+<p>As the machine has ports open for FileBeat and will send it&rsquo;s output to ElasticSearch, we can set up a fake HTTP server, send some log events via FileBeat to the VM and check we receive the right HTTP calls to our fake server.</p>
+<p>While looking on how to do this, I came across the <a href="https://www.npmjs.com/package/lumberjack-protocol">lumberjack-protocol</a> package on NPM, but unfortunately, it only supports lumberjack v1, and FileBeat and LogStash are now using v2, so you would have to use a local copy of filebeat to do the sending.</p>
+<p>Due to the complexity of implementing this, and the diminished return on investment (the other tests should be sufficient), I have skipped creating the Blackbox tests for the time being.</p>
+<h2 id="ami-testing">AMI Testing</h2>
+<p>The final phase!  Now that we are reasonably sure everything works locally, we need to build our AMI and test that everything works there too, as it would be a shame to update an Auto Scale Group with the new image which doesn&rsquo;t work!</p>
+<p>All that needs to happen to run the tests against an EC2 instance is to set the three environment variables we used with Vagrant, to values for communicating with the EC2 instance. To do this, we&rsquo;ll need the EC2 IP Address, the username for SSH, and the private key for SSH authentication.</p>
+<p>The first thing our build script needs to do is create the AMI.  This is done in the same way as <a href="#running">mentioned earlier</a>, but with the slight difference of also piping the output to <code>tee</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>packer_log<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>packer build logstash.json | tee /dev/tty<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>ami_id<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$packer_log<span style="color:#e6db74">&#34;</span> | tail -n <span style="color:#ae81ff">1</span> | sed <span style="color:#e6db74">&#39;s/.*\(ami.*\)/\1/&#39;</span><span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>By using <code>tee</code>, we can pipe the build log from Packer to both the real terminal (<code>/dev/tty</code>), and to a variable called <code>packer_log</code>.  The script then takes the last line and uses some regex to grab the AMI ID.</p>
+<p>Next up, the script uses the AWS CLI to launch an EC2 instance based on the AMI, and store it&rsquo;s IP Address and Instance ID:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>json<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>aws ec2 run-instances <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --image-id <span style="color:#e6db74">&#34;</span>$ami_id<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --instance-type t2.small <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --key-name <span style="color:#e6db74">&#34;</span>$keypair_name<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --region eu-west-1 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --subnet-id <span style="color:#e6db74">&#34;</span>$subnet_id<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --security-group-ids <span style="color:#e6db74">&#34;</span>$security_group_id<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --tag-specifications <span style="color:#e6db74">&#39;ResourceType=instance,Tags=[{Key=Name,Value=logstash-verification}]&#39;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --user-data <span style="color:#e6db74">&#34;</span>$userdata<span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>instance_id<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$json<span style="color:#e6db74">&#34;</span> | jq -r .Instances<span style="color:#f92672">[</span>0<span style="color:#f92672">]</span>.InstanceId<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>private_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$json<span style="color:#e6db74">&#34;</span> | jq -r .Instances<span style="color:#f92672">[</span>0<span style="color:#f92672">]</span>.PrivateIpAddress<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>The IP Address is then used to set up the environment variables which the node test scripts use to locate the machine:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>LOGSTASH_ADDRESS<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$private_ip<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>LOGSTASH_SSH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;ubuntu&#34;</span>
+</span></span><span style="display:flex;"><span>LOGSTASH_KEYPATH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;~/.ssh/id_rsa&#34;</span> build ou
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>npm run test
+</span></span></code></pre></div><p>Finally, the script uses the Instance ID to terminate the instance:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>aws ec2 terminate-instances <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --instance-ids <span style="color:#e6db74">&#34;</span>$instance_id<span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><h2 id="wrapping-up">Wrapping Up</h2>
+<p>Hopefully, this (rather long) post is a useful introduction (!) to how I tackle testing Immutable Infrastructure.  All of these techniques for testing the machine and application can be used for testing things like Docker containers too (and handily, Packer can be used to create Docker containers also).</p>
+<p>As mentioned earlier <a href="https://github.com/Pondidum/immutable-infra-testing-demo">The Repository is available here</a>.</p>
+]]></content:encoded></item></channel></rss>

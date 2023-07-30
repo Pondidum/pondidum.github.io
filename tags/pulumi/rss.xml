@@ -1,4 +1,191 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>pulumi on Andy Dote</title><link>https://andydote.co.uk/tags/pulumi/</link><description>Recent content in pulumi on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 17 Jul 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/pulumi/rss.xml" rel="self" type="application/rss+xml"/><item><title>Pulumi Conditional Infrastructure for Speed</title><link>https://andydote.co.uk/2022/07/17/pulumi-faster-processes/</link><pubDate>Sun, 17 Jul 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/07/17/pulumi-faster-processes/</guid><description>One of the reasons I prefer Pulumi over Terraform is the additional control I have over my processes due to the fact that it&amp;rsquo;s a programming language.
-For example, I have a CLI, that creates a cluster of machines for a user; the machines use IAM Authentication with Vault so that they can request certificates on boot. The trouble with this application is that it is slow; it takes 175 seconds on average to provision the machines, write the IAM information to Vault, and then re-run the cloud-init script on all the machines in the cluster (as when they first booted, the configuration hadn&amp;rsquo;t been written to Vault yet.</description></item><item><title>Observability with Infrastructure as Code</title><link>https://andydote.co.uk/2021/03/01/observability-with-infrastructure-as-code/</link><pubDate>Mon, 01 Mar 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/03/01/observability-with-infrastructure-as-code/</guid><description>This article was originally published on the Pulumi blog.
+For example, I have a CLI, that creates a cluster of machines for a user; the machines use IAM Authentication with Vault so that they can request certificates on boot. The trouble with this application is that it is slow; it takes 175 seconds on average to provision the machines, write the IAM information to Vault, and then re-run the cloud-init script on all the machines in the cluster (as when they first booted, the configuration hadn&amp;rsquo;t been written to Vault yet.</description><content:encoded><![CDATA[<p>One of the reasons I prefer <a href="https://pulumi.com">Pulumi</a> over <a href="https://terraform.io">Terraform</a> is the additional control I have over my processes due to the fact that it&rsquo;s a programming language.</p>
+<p>For example, I have a CLI, that creates a cluster of machines for a user; the machines use IAM Authentication with <a href="https://www.vaultproject.io">Vault</a> so that they can request certificates on boot.  The trouble with this application is that it is slow; it takes 175 seconds on average to provision the machines, write the IAM information to Vault, and then re-run the cloud-init script on all the machines in the cluster (as when they first booted, the configuration hadn&rsquo;t been written to Vault yet.) so that they can request a certificate.  The process is roughly this:</p>
+<ul>
+<li>Create infrastructure</li>
+<li>Write configuration to Vault</li>
+<li>Wait for the machines to be ready</li>
+<li>Wait for SSH</li>
+<li>Re-run cloud-init</li>
+</ul>
+<p>The CLI can&rsquo;t write the configuration to Vault before the machines boot, as the configuration values are from the same infrastructure stack as the machines themselves.  You can see the process in the <a href="https://honeycomb.io">Honeycomb</a> trace UI (with more details about what infra is created thanks to my <a href="/2021/03/01/observability-with-infrastructure-as-code/">pulumi-honeycomb stream adaptor</a>):</p>
+<p><img loading="lazy" src="pulumi-infra-slow.png" alt="pulumi trace showing execution time of 175 seconds"  />
+</p>
+<p>I don&rsquo;t want to make two separate stacks for this, one containing IAM Roles and other configuration data, the other containing all the other infrastructure (load balancers, auto-scale groups, etc.)  But what if I could dynamically change what the stack does?</p>
+<p>By adding an <code>IsInit</code> property to the configuration of the stack, we can change the pulumi program to return early when the value of <code>IsInit</code> is <code>true</code>, meaning we only create the minimal amount of infrastructure for the configuration call to succeed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;display:grid;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">DefineInfrastructure</span>(<span style="color:#a6e22e">ctx</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">pulumi</span>.<span style="color:#a6e22e">Context</span>, <span style="color:#a6e22e">cfg</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">ClusterConfiguration</span>) <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">role</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">iam</span>.<span style="color:#a6e22e">NewRole</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">Name</span><span style="color:#f92672">+</span><span style="color:#e6db74">&#34;-iam-role&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">iam</span>.<span style="color:#a6e22e">RoleArgs</span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">NamePrefix</span>:       <span style="color:#a6e22e">pulumi</span>.<span style="color:#a6e22e">String</span>(<span style="color:#a6e22e">Name</span>),
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">AssumeRolePolicy</span>: <span style="color:#a6e22e">allowEc2Json</span>,
+</span></span><span style="display:flex;"><span>  })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> = <span style="color:#a6e22e">iam</span>.<span style="color:#a6e22e">NewRolePolicy</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">Name</span><span style="color:#f92672">+</span><span style="color:#e6db74">&#34;-iam-policy-cluster&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">iam</span>.<span style="color:#a6e22e">RolePolicyArgs</span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">NamePrefix</span>: <span style="color:#a6e22e">pulumi</span>.<span style="color:#a6e22e">String</span>(<span style="color:#a6e22e">Name</span>),
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">Role</span>:       <span style="color:#a6e22e">role</span>.<span style="color:#a6e22e">ID</span>(),
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">Policy</span>:     <span style="color:#a6e22e">findMachinesJson</span>,
+</span></span><span style="display:flex;"><span>  })
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Export</span>(<span style="color:#e6db74">&#34;role-arn&#34;</span>, <span style="color:#a6e22e">role</span>.<span style="color:#a6e22e">Arn</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">IsInit</span> {
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">asg</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">autoscaling</span>.<span style="color:#a6e22e">NewGroup</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">Name</span><span style="color:#f92672">+</span><span style="color:#e6db74">&#34;-asg&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">autoscaling</span>.<span style="color:#a6e22e">GroupArgs</span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">LaunchConfiguration</span>: <span style="color:#a6e22e">createLaunchConfiguration</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">cfg</span>, <span style="color:#a6e22e">role</span>),
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">VpcZoneIdentifiers</span>:  <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">ZoneIdentifiers</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">DesiredCapacity</span>:     <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">ClusterSize</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">MinSize</span>:             <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">ClusterSize</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">MaxSize</span>:             <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">ClusterSize</span>,
+</span></span><span style="display:flex;"><span>  })
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Export</span>(<span style="color:#e6db74">&#34;asg-name&#34;</span>, <span style="color:#a6e22e">asg</span>.<span style="color:#a6e22e">Name</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now that the stack can be run to create only partial infrastructure, the process changes to this:</p>
+<ul>
+<li>Create minimal infrastructure</li>
+<li>Write configuration to Vault</li>
+<li>Create remaining infrastructure</li>
+</ul>
+<p>But is the new process faster?  I had hoped it would be a little faster, as waiting for cloud-init and SSH can take a while, and thankfully, it is significantly faster.  It takes on average 98 seconds, so around 77 seconds faster.</p>
+<p><img loading="lazy" src="pulumi-infra-fast.png" alt="pulumi trace showing execution time of 98 seconds"  />
+</p>
+<p>Comparing the before and after traces, I can see that the additional pulumi call adds 20 seconds to the processes, but the <code>consul_configure</code> span drops from 100 seconds to 3.5, which is quite the speed increase.</p>
+<h2 id="what-about-terraform">What about Terraform?</h2>
+<p>This is still possible to do with a terraform stack, but not in a pleasant way; in pulumi I can return early from the infra function, but with terraform, I would have to add a <code>count = var.is_init ?  0 : 1</code> to every resource I didn&rsquo;t want to create up front, which quickly becomes unwieldy.</p>
+<p>There is also the downside of not being able to embed the Terraform inside a CLI tool like I can with Pulumi.</p>
+<p>Overall, I am happy with how this has turned out.  The diff for enabling this optimisation is 3 files changed, 15 insertions, 7 deletions, which included some explanatory comments!</p>
+]]></content:encoded></item><item><title>Observability with Infrastructure as Code</title><link>https://andydote.co.uk/2021/03/01/observability-with-infrastructure-as-code/</link><pubDate>Mon, 01 Mar 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/03/01/observability-with-infrastructure-as-code/</guid><description>This article was originally published on the Pulumi blog.
 When using the Pulumi Automation API to create applications which can provision infrastructure, it is very handy to be able to use observability techniques to ensure the application functions correctly and to help see where performance bottlenecks are.
-One of the applications I work on creates a VPC and Bastion host and then stores the credentials into a Vault instance. The problem is that the “create infrastructure” part is an opaque blob, in that I can see it takes 129 seconds to create, but I can’t see what it’s doing, or why it takes this amount of time.</description></item></channel></rss>
+One of the applications I work on creates a VPC and Bastion host and then stores the credentials into a Vault instance. The problem is that the “create infrastructure” part is an opaque blob, in that I can see it takes 129 seconds to create, but I can’t see what it’s doing, or why it takes this amount of time.</description><content:encoded><![CDATA[<blockquote>
+<p>This article was originally published on the <a href="https://www.pulumi.com/blog/observability-with-infrastructure-as-code/">Pulumi blog</a>.</p>
+</blockquote>
+<p>When using the <a href="https://www.pulumi.com/blog/tag/automation-api/">Pulumi Automation API</a> to create applications which can provision infrastructure, it is very handy to be able to use observability techniques to ensure the application functions correctly and to help see where performance bottlenecks are.</p>
+<p>One of the applications I work on creates a VPC and Bastion host and then stores the credentials into a Vault instance.  The problem is that the “create infrastructure” part is an opaque blob, in that I can see it takes 129 seconds to create, but I can’t see what it’s doing, or why it takes this amount of time.</p>
+<p><img loading="lazy" src="pulumi-observability-before.png" alt="honeycomb traces of one pulumi stack resource"  />
+</p>
+<p>So can I do better?</p>
+<h2 id="the-initial-application">The Initial Application</h2>
+<p>In this example I use <a href="https://honeycomb.io/">Honeycomb&rsquo;s</a> <a href="https://github.com/honeycombio/beeline-go/">Go Beeline</a> to capture all the data I care about; durations, errors, any context which is “interesting”:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">Init</span>(<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">Config</span>{
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">WriteKey</span>: <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Getenv</span>(<span style="color:#e6db74">&#34;HONEYCOMB_API_KEY&#34;</span>),
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">Dataset</span>:  <span style="color:#e6db74">&#34;pulumi-demo&#34;</span>,
+</span></span><span style="display:flex;"><span>	})
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">Close</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">span</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">StartSpan</span>(<span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Background</span>(), <span style="color:#e6db74">&#34;basic-vpc&#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">span</span>.<span style="color:#a6e22e">Send</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">name</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">auto</span>.<span style="color:#a6e22e">FullyQualifiedStackName</span>(<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Getenv</span>(<span style="color:#e6db74">&#34;PULUMI_USERNAME&#34;</span>), <span style="color:#e6db74">&#34;basic-vpc&#34;</span>, <span style="color:#e6db74">&#34;dev&#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">stack</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">auto</span>.<span style="color:#a6e22e">UpsertStackInlineSource</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">name</span>, <span style="color:#e6db74">&#34;basic-vpc&#34;</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">pc</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">pulumi</span>.<span style="color:#a6e22e">Context</span>) <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">azs</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">getAvailabilityZones</span>(<span style="color:#a6e22e">ctx</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">v</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">vpc</span>.<span style="color:#a6e22e">NewVpc</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">pc</span>, <span style="color:#e6db74">&#34;dev&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">vpc</span>.<span style="color:#a6e22e">VpcArgs</span>{
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">Description</span>:           <span style="color:#e6db74">&#34;dev&#34;</span>,
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">BaseCidr</span>:              <span style="color:#e6db74">&#34;192.168.0.0/16&#34;</span>,
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">AvailabilityZoneNames</span>: <span style="color:#a6e22e">azs</span>,
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">S3Endpoint</span>:            <span style="color:#66d9ef">true</span>,
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">DynamoEndpoint</span>:        <span style="color:#66d9ef">true</span>,
+</span></span><span style="display:flex;"><span>		})
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">SetConfig</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;aws:region&#34;</span>, <span style="color:#a6e22e">auto</span>.<span style="color:#a6e22e">ConfigValue</span>{<span style="color:#a6e22e">Value</span>: <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Getenv</span>(<span style="color:#e6db74">&#34;PULUMI_REGION&#34;</span>)}); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">ws</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">Workspace</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">ws</span>.<span style="color:#a6e22e">InstallPlugin</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;aws&#34;</span>, <span style="color:#e6db74">&#34;v3.23.0&#34;</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">Refresh</span>(<span style="color:#a6e22e">ctx</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">stream</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">optup</span>.<span style="color:#a6e22e">ProgressStreams</span>(<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Stdout</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">Up</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">stream</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//vault code
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="adding-infrastructure-observability">Adding Infrastructure Observability</h2>
+<p>To get a handle on what is happening when <code>stack.Up()</code> runs, I have mplemented a custom <code>io.Writer</code>, which will be passed into the <code>ProgressStream</code> constructor.</p>
+<p>The custom progress stream&rsquo;s <code>Write</code> method is called once for each line emitted,  which allows us to start new spans when a resource starts being constructed, and send them when construction completes.  Currently, this is achieved by parsing the console output text, but I gather in the future, it will be possible to get streamed json blobs which can be unmarshaled into go structs.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">pulumiBeeline</span> <span style="color:#66d9ef">struct</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">ctx</span>      <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Context</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">contexts</span> <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">func</span>()
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">NewPulumiBeeline</span>(<span style="color:#a6e22e">ctx</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Context</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">pulumiBeeline</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">pulumiBeeline</span>{
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">ctx</span>:  	<span style="color:#a6e22e">ctx</span>,
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">contexts</span>: <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">func</span>(){},
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">cw</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">pulumiBeeline</span>) <span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">p</span> []<span style="color:#66d9ef">byte</span>) (<span style="color:#a6e22e">n</span> <span style="color:#66d9ef">int</span>, <span style="color:#a6e22e">err</span> <span style="color:#66d9ef">error</span>) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// todo: make more robust, support modifications, deletions etc.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#a6e22e">line</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">TrimSpace</span>(string(<span style="color:#a6e22e">p</span>))
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">parts</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">Split</span>(<span style="color:#a6e22e">line</span>, <span style="color:#e6db74">&#34; &#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> len(<span style="color:#a6e22e">parts</span>) &lt; <span style="color:#ae81ff">5</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> len(<span style="color:#a6e22e">p</span>), <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//+  aws-vpc dev creating
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#75715e">//+  &lt;type&gt; &lt;name&gt; &lt;action&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#a6e22e">resourceType</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">parts</span>[<span style="color:#ae81ff">2</span>]
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">resourceName</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">parts</span>[<span style="color:#ae81ff">3</span>]
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">resourceAction</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">parts</span>[<span style="color:#ae81ff">4</span>]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">resourceAction</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;creating&#34;</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">c</span>, <span style="color:#a6e22e">s</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">StartSpan</span>(<span style="color:#a6e22e">cw</span>.<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">resourceName</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">c</span>, <span style="color:#e6db74">&#34;type&#34;</span>, <span style="color:#a6e22e">resourceType</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">// add other things here
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">cw</span>.<span style="color:#a6e22e">contexts</span>[<span style="color:#a6e22e">resourceName</span>] = <span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">Send</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">resourceAction</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;created&#34;</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">cw</span>.<span style="color:#a6e22e">contexts</span>[<span style="color:#a6e22e">resourceName</span>]()
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> len(<span style="color:#a6e22e">p</span>), <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Modifying the <code>optup.ProgressStreams</code> is the only change needed to the original application:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#a6e22e">stream</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">optup</span>.<span style="color:#a6e22e">ProgressStreams</span>(<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Stdout</span>, <span style="color:#a6e22e">NewPulumiBeeline</span>(<span style="color:#a6e22e">ctx</span>))
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">Up</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">stream</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now when I run this program again, I can see a lot more information in my Honeycomb traces, which not only shows me that Pulumi is <em>highly</em> parallelised, but also gives me a better idea of where the time is taken when creating infrastructure; in this example, it’s the NAT Gateways:</p>
+<p><img loading="lazy" src="pulumi-observability-after.png" alt="honeycomb traces of all infrastructure resources in the pulumi stack"  />
+</p>
+<p>In the future, I want to expand this to cover far more details, such as including the reasons resources were created/modified/destroyed and including as much information as possible about what caused a resource to fail.</p>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>In the end, this turned out to be much easier to achieve than I had hoped.  Being able to use Pulumi progmatically, rather than running <code>os.Exec</code> directly myself was a huge productivity boost.</p>
+<p>I am looking forward to all the new kinds of tooling I can build to solve my user&rsquo;s problems continuing to utilise Honeycomb for my observability and Pulumi for my infrastructure.</p>
+]]></content:encoded></item></channel></rss>

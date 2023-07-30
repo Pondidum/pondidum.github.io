@@ -1,9 +1,431 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>stronk on Andy Dote</title><link>https://andydote.co.uk/tags/stronk/</link><description>Recent content in stronk on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 08 Sep 2018 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/stronk/rss.xml" rel="self" type="application/rss+xml"/><item><title>Semantic Configuration Validation: Earlier</title><link>https://andydote.co.uk/2018/09/08/semantic-configuration-validation-earlier/</link><pubDate>Sat, 08 Sep 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/09/08/semantic-configuration-validation-earlier/</guid><description>After my previous post on Validating Your Configuration, one of my colleagues made an interesting point, paraphrasing:
 I want to know if the configuration is valid earlier than that. At build time preferably. I don&amp;rsquo;t want my service to not start if part of it is invalid.
 There are two points here, namely when to validate, and what to do with the results of validation.
-Handling Validation Results If your configuration is invalid, you&amp;rsquo;d think the service should fail to start, as it might be configured in a dangerous manner.</description></item><item><title>Validate Your Configuration</title><link>https://andydote.co.uk/2018/08/26/validate-configuration/</link><pubDate>Sun, 26 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/26/validate-configuration/</guid><description>As I have written many times before, your application&amp;rsquo;s configuration should be strongly typed and validated that it loads correctly at startup.
+Handling Validation Results If your configuration is invalid, you&amp;rsquo;d think the service should fail to start, as it might be configured in a dangerous manner.</description><content:encoded><![CDATA[<p>After my previous post on <a href="/2018/08/26/validate-configuration/">Validating Your Configuration</a>, one of my colleagues made an interesting point, paraphrasing:</p>
+<blockquote>
+<p>I want to know if the configuration is valid earlier than that.  At build time preferably.  I don&rsquo;t want my service to not start if part of it is invalid.</p>
+</blockquote>
+<p>There are two points here, namely when to validate, and what to do with the results of validation.</p>
+<h2 id="handling-validation-results">Handling Validation Results</h2>
+<p>If your configuration is invalid, you&rsquo;d think the service should fail to start, as it might be configured in a dangerous manner.  While this makes sense for some service, others might need to work differently.</p>
+<p>Say you have an API which supports both writing and reading of a certain type of resource.  The read will return you a resource of some form, and the write side will trigger processing of a resource (and return you <a href="https://httpstatuses.com/202">a 202 Accepted, obviously</a>).</p>
+<p>What happens if your configuration just affects the write side of the API? Should you prevent people from reading too?  Probably not, but again it depends on your domain as to what makes sense.</p>
+<h2 id="validating-at-build-time">Validating at Build Time</h2>
+<p>This is the far more interesting point (to me).  How can we modify our build to validate that the environment&rsquo;s configuration is valid?  We have the code to do the validation: we have automated tests, and we have a configuration validator class (in this example, implemented using <a href="https://github.com/JeremySkinner/FluentValidation">FluentValidation</a>).</p>
+<p>Depending on where your master configuration is stored, the next step can get much harder.</p>
+<h3 id="local-configuration">Local Configuration</h3>
+<p>If your configuration is in the current repository (<a href="/2018/08/07/managing-consul-appsettings/">as it should be</a>) then it will be no problem to read.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ConfigurationTests</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> IEnumerable&lt;<span style="color:#66d9ef">object</span>[]&gt; AvailableEnvironments =&gt; Enum
+</span></span><span style="display:flex;"><span>        .GetValues(<span style="color:#66d9ef">typeof</span>(Environments))
+</span></span><span style="display:flex;"><span>        .Cast&lt;Environments&gt;()
+</span></span><span style="display:flex;"><span>        .Select(e =&gt; <span style="color:#66d9ef">new</span> <span style="color:#66d9ef">object</span>[] { e });
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [Theory]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [MemberData(nameof(AvailableEnvironments))]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Environment_specific_configuration_is_valid(Environments environment)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> config = <span style="color:#66d9ef">new</span> ConfigurationBuilder()
+</span></span><span style="display:flex;"><span>            .AddJsonFile(<span style="color:#e6db74">&#34;config.json&#34;</span>)
+</span></span><span style="display:flex;"><span>            .AddJsonFile(<span style="color:#e6db74">$&#34;config.{environment}.json&#34;</span>, optional: <span style="color:#66d9ef">true</span>)
+</span></span><span style="display:flex;"><span>            .Build()
+</span></span><span style="display:flex;"><span>            .Get&lt;AppConfiguration&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> validator = <span style="color:#66d9ef">new</span> AppConfigurationValidator();
+</span></span><span style="display:flex;"><span>        validator.ValidateAndThrow(config);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Given the following two configuration files, we can make it pass and fail:</p>
+<p><code>config.json:</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Callback&#34;</span>: <span style="color:#e6db74">&#34;https://localhost&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Timeout&#34;</span>: <span style="color:#e6db74">&#34;00:00:30&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;MaxRetries&#34;</span>: <span style="color:#ae81ff">100</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>config.local.json:</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;MaxRetries&#34;</span>: <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="remote-configuration">Remote Configuration</h3>
+<p>But what if your configuration is not in the local repository, or at least, not completely there?  For example, have a lot of configuration in Octopus Deploy, and would like to validate that at build time too.</p>
+<p>Luckily Octopus has a Rest API (and <a href="https://www.nuget.org/packages/Octopus.Client/">acompanying client</a>)  which you can use to query the values.  All we need to do is replace the <code>AddJsonFile</code> calls with an <code>AddInMemoryCollection()</code> and populate a dictionary from somewhere:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Theory]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">[MemberData(nameof(AvailableEnvironments))]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Octopus_environment_configuration_is_valid(Environments environment)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> variables = <span style="color:#66d9ef">await</span> FetchVariablesFromOctopus(
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;MyDeploymentProjectName&#34;</span>,
+</span></span><span style="display:flex;"><span>        environment);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> config = <span style="color:#66d9ef">new</span> ConfigurationBuilder()
+</span></span><span style="display:flex;"><span>        .AddInMemoryCollection(variables)
+</span></span><span style="display:flex;"><span>        .Build()
+</span></span><span style="display:flex;"><span>        .Get&lt;AppConfiguration&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> validator = <span style="color:#66d9ef">new</span> AppConfigurationValidator();
+</span></span><span style="display:flex;"><span>    validator.ValidateAndThrow(config);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Reading the variables from Octopus&rsquo; API requires a bit of work as you don&rsquo;t appear to be able to ask for all variables which would apply if you deployed to a specific environment, which forces you into building the logic yourself.  However, if you are just using Environment scoping, it shouldn&rsquo;t be too hard.</p>
+<h3 id="time-delays">Time Delays</h3>
+<p>Verifying the configuration at build time when your state is fetched from a remote store is not going to solve all your problems, as this little diagram illustrates:</p>
+<p><img loading="lazy" src="versioning-time.png" alt="test pass, a user changes value, deployment happens, startup fails"  />
+</p>
+<p>You need to validate in both places: early on in your process, and on startup.  How you handle the configuration being invalid doesn&rsquo;t have to be the same in both places:</p>
+<ul>
+<li>In the build/test phase, fail the build</li>
+<li>On startup, raise an alarm, but start if reasonable</li>
+</ul>
+<p>Again, how you handle the configuration errors when your application is starting is down to your domain, and what your application does.</p>
+]]></content:encoded></item><item><title>Validate Your Configuration</title><link>https://andydote.co.uk/2018/08/26/validate-configuration/</link><pubDate>Sun, 26 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/26/validate-configuration/</guid><description>As I have written many times before, your application&amp;rsquo;s configuration should be strongly typed and validated that it loads correctly at startup.
 This means not only that the source values (typically all represented as strings) can be converted to the target types (int, Uri, TimeSpan etc) but that the values are semantically valid too.
-For example, if you have a web.config file with the following AppSetting, and a configuration class to go with it:</description></item><item><title>Strong Configuration Composition</title><link>https://andydote.co.uk/2017/11/09/configuration-composition/</link><pubDate>Thu, 09 Nov 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/11/09/configuration-composition/</guid><description>It&amp;rsquo;s no secret I am a fan of strong typing - not only do I talk and blog about it a lot, but I also have a library called Stronk which provides strong typed configuration for non dotnet core projects.
+For example, if you have a web.config file with the following AppSetting, and a configuration class to go with it:</description><content:encoded><![CDATA[<p>As I have <a href="/2016/12/06/strong-type-all-the-configurations/">written</a> many <a href="/2017/11/09/configuration-composition/">times</a> before, your application&rsquo;s configuration should be strongly typed and validated that it loads correctly at startup.</p>
+<p>This means not only that the source values (typically all represented as strings) can be converted to the target types (<code>int</code>, <code>Uri</code>, <code>TimeSpan</code> etc) but that the values are <strong>semantically valid</strong> too.</p>
+<p>For example, if you have a <code>web.config</code> file with the following <code>AppSetting</code>, and a configuration class to go with it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-xml" data-lang="xml"><span style="display:flex;"><span><span style="color:#f92672">&lt;configuration&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&lt;appSettings&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;add</span> <span style="color:#a6e22e">key=</span><span style="color:#e6db74">&#34;Timeout&#34;</span> <span style="color:#a6e22e">value=</span><span style="color:#e6db74">&#34;20&#34;</span> <span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&lt;/appSettings&gt;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">&lt;/configuration&gt;</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Configuration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> TimeSpan Timeout { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We can now load the configuration using <a href="https://github.com/pondidum/stronk">Stronk</a> (or Microsoft.Extensions.Configuration if you&rsquo;re on dotnet core), and inspect the contents of the <code>Timeout</code> property:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> config = <span style="color:#66d9ef">new</span> StronkConfig().Build&lt;Configuration&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Console.WriteLine(config.Timeout); <span style="color:#75715e">// 20 days, 0 hours, 0 minutes, 0 seconds</span>
+</span></span></code></pre></div><p>Oops.  <strong>A timeout of 20 days is probably a <em>little</em> on the high side!</strong>  The reason this happened is that to parse the string value we use <code>TimeSpan.Parse(value)</code>, which will interpret it as days if no other units are specified.</p>
+<h2 id="how-to-validate">How to validate?</h2>
+<p>There are several ways we could go about fixing this, from changing to use <code>TimeSpan.ParseExact</code>, but then we need to provide the format string from somewhere, or force people to use Stronk&rsquo;s own decision on format strings.</p>
+<p>Instead, we can just write some validation logic ourselves.  If it is a simple configuration, then writing a few statements inline is probably fine:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> config = <span style="color:#66d9ef">new</span> StronkConfig()
+</span></span><span style="display:flex;"><span>    .Validate.Using&lt;Configuration&gt;(c =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (c.Timeout &lt; TimeSpan.FromSeconds(<span style="color:#ae81ff">60</span>) &amp;&amp; c.Timeout &gt; TimeSpan.Zero)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">throw</span> <span style="color:#66d9ef">new</span> ArgumentOutOfRangeException(nameof(c.Timeout), <span style="color:#e6db74">$&#34;Must be greater than 0, and less than 1 minute&#34;</span>);
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>    .Build&lt;Configuration&gt;();
+</span></span></code></pre></div><p>But we can make it much clearer by using a validation library such as <a href="https://github.com/JeremySkinner/FluentValidation">FluentValidation</a>, to do the validation:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> config = <span style="color:#66d9ef">new</span> StronkConfig()
+</span></span><span style="display:flex;"><span>    .Validate.Using&lt;Configuration&gt;(c =&gt; <span style="color:#66d9ef">new</span> ConfigurationValidator().ValidateAndThrow(c))
+</span></span><span style="display:flex;"><span>    .Build&lt;Configuration&gt;();
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ConfigurationValidator</span> : AbstractValidator&lt;Configuration&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">readonly</span> HashSet&lt;<span style="color:#66d9ef">string</span>&gt; ValidHosts = <span style="color:#66d9ef">new</span> HashSet&lt;<span style="color:#66d9ef">string</span>&gt;(
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">new</span>[] { <span style="color:#e6db74">&#34;localhost&#34;</span>, <span style="color:#e6db74">&#34;internal&#34;</span> },
+</span></span><span style="display:flex;"><span>        StringComparer.OrdinalIgnoreCase);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ConfigurationValidator()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        RuleFor(x =&gt; x.Timeout)
+</span></span><span style="display:flex;"><span>            .GreaterThan(TimeSpan.Zero)
+</span></span><span style="display:flex;"><span>            .LessThan(TimeSpan.FromMinutes(<span style="color:#ae81ff">2</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        RuleFor(x =&gt; x.Callback)
+</span></span><span style="display:flex;"><span>            .Must(url =&gt; url.Scheme == Uri.UriSchemeHttps)
+</span></span><span style="display:flex;"><span>            .Must(url =&gt; ValidHosts.Contains(url.Host));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Here, not only are we checking the <code>Timeout</code> is in a valid range, but that our <code>Callback</code> is HTTPS and that it is going to a domain on an Allow-List.</p>
+<h2 id="what-should-i-validate">What should I validate?</h2>
+<p>Everything?  If you have properties controlling the number of threads an application uses, probably checking it&rsquo;s a positive number, and less than <code>x * Environment.ProcessorCount</code> (for some value of x) is probably a good idea.</p>
+<p>If you are specifying callback URLs in the config file, checking they are in the right domain/scheme would be a good idea (e.g. must be https, must be in a domain allow-list).</p>
+<p>How do you check your configuration isn&rsquo;t going to bite you when an assumption turns out to be wrong?</p>
+]]></content:encoded></item><item><title>Strong Configuration Composition</title><link>https://andydote.co.uk/2017/11/09/configuration-composition/</link><pubDate>Thu, 09 Nov 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/11/09/configuration-composition/</guid><description>It&amp;rsquo;s no secret I am a fan of strong typing - not only do I talk and blog about it a lot, but I also have a library called Stronk which provides strong typed configuration for non dotnet core projects.
 The problem I come across often is large configurations. For example, given the following project structure (3 applications, all reference the Domain project):
-DemoService `-- src |-- Domain | |-- Domain.</description></item><item><title>Strong Type All The Configurations</title><link>https://andydote.co.uk/2016/12/06/strong-type-all-the-configurations/</link><pubDate>Tue, 06 Dec 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/12/06/strong-type-all-the-configurations/</guid><description>As anyone I work with can attest, I a have been prattling on about strong typing everything for quite a while. One of the places I feel people don&amp;rsquo;t utilise strong typing enough is in application configuration. This manifests in a number of problems in a codebase.
-The Problems The first problem is when nothing at all is done about it, and you end up with code spattered with this:</description></item></channel></rss>
+DemoService `-- src |-- Domain | |-- Domain.</description><content:encoded><![CDATA[<p>It&rsquo;s no secret I am a fan of strong typing - not only do I talk and blog about it a lot, but I also have a library called <a href="https://github.com/pondidum/stronk">Stronk</a> which provides strong typed configuration for non dotnet core projects.</p>
+<p>The problem I come across often is large configurations.  For example, given the following project structure (3 applications, all reference the Domain project):</p>
+<pre tabindex="0"><code>DemoService
+`-- src
+    |-- Domain
+    |   |-- Domain.csproj
+    |   `-- IConfiguration.cs
+    |-- QueueConsumer
+    |   |-- app.config
+    |   |-- QueueConsumerConfiguration.cs
+    |   `-- QueueConsumer.csproj
+    |-- RestApi
+    |   |-- RestConfiguration.cs
+    |   |-- RestApi.csproj
+    |   `-- web.config
+    `-- Worker
+        |-- app.config
+        |-- WorkerConfiguration.cs
+        `-- Worker.csproj
+</code></pre><p>The configuration defined in the domain will look something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Uri DocumentsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri ArchivalEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqUsername { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqPassword { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqVHost { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> BulkQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DirectQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> NotificationsQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Uri RabbitMqConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DatabaseConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> CacheConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>There are a number of problems with this configuration:</p>
+<p>First off, it lives in the <code>Domain</code> project, which kinda makes sense, as things in there need access to some of the properties - but none of them need to know the name of the Queue being listened to, or where the metrics are being written to.</p>
+<p>Next, and also somewhat related to the first point, is that all the entry projects (<code>RestApi</code>, <code>QueueConsumer</code> and <code>Worker</code>) need to supply all the configuration values, and you can&rsquo;t tell at a glance which projects actually need which values.</p>
+<p>Finally, classes which use this configuration are less externally discoverable.  For example, which properties does this need: <code>new DocumentDeduplicator(new Configuration())</code>? Probably the cache? Maybe the database? or possibly the DocumentsEndpoint?  Who knows without opening the class.</p>
+<h2 id="the-solution">The Solution</h2>
+<p>The key to solving this is the Interface Segregation Principal - the I in SOLID.  First we need to split the interface into logical parts, which will allow our consuming classes to only take in the configuration they require, rather than the whole thing:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IRabbitConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Uri RabbitMqConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqUsername { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqPassword { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqVHost { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> BulkQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DirectQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> NotificationsQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IDeduplicationConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Uri DocumentsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> CacheConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IStorageConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Uri ArchivalEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DatabaseConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We can also move the <code>IRabbitConfiguration</code> and <code>IDeduplicationConfiguration</code> out of the domain project, and into the <code>QueueConsumer</code> and <code>Worker</code> projects respectively, as they are only used by types in these projects:</p>
+<pre tabindex="0"><code>DemoService
+`-- src
+    |-- Domain
+    |   |-- Domain.csproj
+    |   `-- IStorageConfiguration.cs
+    |-- QueueConsumer
+    |   |-- app.config
+    |   |-- IRabbitConfiguration.cs
+    |   |-- QueueConsumerConfiguration.cs
+    |   `-- QueueConsumer.csproj
+    |-- RestApi
+    |   |-- RestConfiguration.cs
+    |   |-- RestApi.csproj
+    |   `-- web.config
+    `-- Worker
+        |-- app.config
+        |-- IDeduplicationConfiguration.cs
+        |-- WorkerConfiguration.cs
+        `-- Worker.csproj
+</code></pre><p>Next we can create some top-level configuration interfaces, which compose the relevant configuration interfaces for a project (e.g. the <code>RestApi</code> doesn&rsquo;t need <code>IDeduplicationConfiguration</code> or <code>IRabbitConfiguration</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IWorkerConfiguration</span> : IStorageConfiguration, IDeduplicationConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IRestConfiguration</span> : IStorageConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IQueueConsumerConfiguration</span> : IStorageConfiguration, IRabbitConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note how we have also not created a central interface for the application configuration - this is because the application configuration is specific to each entry project, and has no need to be passed on to the domain.</p>
+<p>Finally, an actual configuration class can be implemented (in this case using <a href="https://github.com/pondidum/stronk">Stronk</a>, but if you are on dotnet core, the inbuilt configuration builder is fine):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">QueueConsumerConfiguration</span> : IQueueConsumerConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Uri ArchivalEndpoint { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DatabaseConnection { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    Uri RabbitMqConnection { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqUsername { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqPassword { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqVHost { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> BulkQueue { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DirectQueue { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> NotificationsQueue { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> QueueConsumerConfiguration()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">this</span>.FromAppConfig();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And our startup class might look something like this (using <a href="http://structuremap.github.io/">StructureMap</a>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Startup</span> : IDisposable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Container _container;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IConsumer _consumer;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Startup(IQueueConsumerConfiguration config)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        ConfigureLogging(config);
+</span></span><span style="display:flex;"><span>        ConfigureMetrics(config);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        _container = <span style="color:#66d9ef">new</span> Container(_ =&gt;
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            _.Scan(a =&gt; {
+</span></span><span style="display:flex;"><span>                a.TheCallingAssembly();
+</span></span><span style="display:flex;"><span>                a.LookForRegistries();
+</span></span><span style="display:flex;"><span>            })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            _.For&lt;IQueueConsumerConfiguration&gt;().Use(config);
+</span></span><span style="display:flex;"><span>            _.For&lt;IStorageConfiguration&gt;().Use(config);
+</span></span><span style="display:flex;"><span>            _.For&lt;IRabbitConfiguration&gt;().Use(config);
+</span></span><span style="display:flex;"><span>        });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        _consumer = _container.GetInstance&lt;IConsumer&gt;();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Start() =&gt; <span style="color:#66d9ef">await</span> _consumer.Start();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Stop() =&gt; <span style="color:#66d9ef">await</span> _consumer.Stop();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">void</span> ConfigureLogging(IQueueConsumerConfiguration config) { <span style="color:#75715e">/* ... */</span> }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">void</span> ConfigureMetrics(IQueueConsumerConfiguration config) { <span style="color:#75715e">/* ... */</span> }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Dispose() =&gt; _container.Dispose();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As our <code>Startup</code> takes in the top-level configuration interface, if we want to write a test which tests our entire system, it can be done with a single mocked configuration object:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Fact]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task When_the_entire_system_is_run()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> config = Substitute.For&lt;IQueueConsumerConfiguration&gt;();
+</span></span><span style="display:flex;"><span>    config.RabbitMqConnection.Returns(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;localhost:5672&#34;</span>));
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// etc.</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> startup = <span style="color:#66d9ef">new</span> Startup(config);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> startup.Start();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> startup.Stop();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="one-final-thing">One Final Thing</h2>
+<p>Even if you have a microservice type project with only the one csproj, I would still recommend splitting your configuration into small interfaces, just due to the discoverability it provides.</p>
+<p>How do you do configuration?</p>
+]]></content:encoded></item><item><title>Strong Type All The Configurations</title><link>https://andydote.co.uk/2016/12/06/strong-type-all-the-configurations/</link><pubDate>Tue, 06 Dec 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/12/06/strong-type-all-the-configurations/</guid><description>As anyone I work with can attest, I a have been prattling on about strong typing everything for quite a while. One of the places I feel people don&amp;rsquo;t utilise strong typing enough is in application configuration. This manifests in a number of problems in a codebase.
+The Problems The first problem is when nothing at all is done about it, and you end up with code spattered with this:</description><content:encoded><![CDATA[<p>As anyone I work with can attest, I a have been prattling on about strong typing everything for quite a while.
+One of the places I feel people don&rsquo;t utilise strong typing enough is in application configuration.  This manifests in a number of problems in a codebase.</p>
+<h2 id="the-problems">The Problems</h2>
+<p>The first problem is when nothing at all is done about it, and you end up with code spattered with this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> someUrl = <span style="color:#66d9ef">new</span> Uri(ConfigurationManager.AppSettings[<span style="color:#e6db74">&#34;RemoteService&#34;</span>]);
+</span></span></code></pre></div><p>This itself causes a few problems:</p>
+<ul>
+<li><strong>Repeated:</strong> You have magic strings throughout your codebase</li>
+<li><strong>Consistency:</strong> Was it <code>RemoteService</code> or <code>RemoteServiceUri</code>. Or was it in <code>ConnectionStrings</code> or <code>AppSettings</code>?</li>
+<li><strong>Visibility:</strong> Can you tell which classes require on which (if any) configuration values?</li>
+<li><strong>Typing:</strong> Was it actually a URL? or was it DNS entry?</li>
+<li><strong>Late errors:</strong> You will only find out once that particular piece of code runs</li>
+<li><strong>Tight Coupling:</strong> Tests won&rsquo;t help either, as they&rsquo;ll be reading your test&rsquo;s <code>app.config</code> instead&hellip;</li>
+</ul>
+<h2 id="solution-version-1">Solution: Version 1</h2>
+<p>The first solution involves abstracting the <code>ConfigurationManager</code> behind a general interface, which can be injected into classes requiring configuration values.  The interface is usually along the following lines:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ISettings</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> GetString(<span style="color:#66d9ef">string</span> key);
+</span></span><span style="display:flex;"><span>    Uri GetUri(<span style="color:#66d9ef">string</span> key);
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// GetInt, GetShort, etc.</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And having an implementation which uses the <code>ConfigurationManager</code> directly:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Settings</span> : ISettings
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> GetString(<span style="color:#66d9ef">string</span> key) =&gt; ConfigurationManager.AppSettings[key];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Uri GetUri(<span style="color:#66d9ef">string</span> key) =&gt; <span style="color:#66d9ef">new</span> Uri(ConfigurationManager.AppSettings[key]);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This solves one of the problems of direct usage of the <code>ConfigurationManager</code>, namely <strong>Tight Coupling</strong>.  By using an interface we can now use <a href="http://nsubstitute.github.io/">NSubstitute</a> or similar mocking library to disconnect tests from <code>app.config</code> and <code>web.config</code>.</p>
+<p>It doesn&rsquo;t really solve the <strong>Typing</strong> issue however, as the casting is only done on fetching the configuration value, and so errors in casting still only happen when the code is executed.  It also doesn&rsquo;t really solve the <strong>Discoverability</strong> issue either - you can now tell if a class requires configuration values, but you cannot tell which values it requires from outside.</p>
+<p>The other issues such as <strong>Repeatablility</strong>, <strong>Late Errors</strong> and <strong>Consistency</strong> are not addressed by this method at all.</p>
+<h2 id="solution-version-2">Solution: Version 2</h2>
+<p>My preferred method of solving all of these problems is to replace direct usage of <code>ConfigurationManager</code> with an interface &amp; class pair, but with the abstraction being application specific, rather than general.  For example, at application might have this as the interface:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri RemoteHost { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> TimeoutSeconds { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This would then be implemented by a concrete class:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Configuration</span> : IConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Uri RemoteHost { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> TimeoutSeconds { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Configuration()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        ApplicationName = ConfigurationManager.AppSetting[nameof(ApplicationName)];
+</span></span><span style="display:flex;"><span>        RemoteHost = <span style="color:#66d9ef">new</span> Uri(ConfigurationManager.AppSetting[nameof(RemoteHost)]);
+</span></span><span style="display:flex;"><span>        TimeoutSeconds = (<span style="color:#66d9ef">int</span>)ConfigurationManager.AppSetting[nameof(TimeoutSeconds)];
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This method solves all of the first listed problems:</p>
+<p><strong>Repeated</strong> and <strong>Consistency</strong> are solved, as the only repetition is the usage of configuration properties themselves.  <strong>Visibility</strong> is solved as you can now either use &ldquo;Find Usages&rdquo; on a property, or you can split your configuration <code>interface</code> to have a specific set of properties for each class which is going to need configuration.</p>
+<p><strong>Typing</strong> and <strong>Late errors</strong> are solved as all properties are populated on the first creation of the class, and exceptions are thrown immediately if there are any type errors.</p>
+<p><strong>Tight Coupling</strong> is also solved, as you can fake the entire <code>IConfiguration</code> interface for testing with, or just the properties required for a given test.</p>
+<p>The only down side is the amount of writing needed to make the constructor, and having to do the same code in every application you write.</p>
+<h2 id="solution-version-3">Solution: Version 3</h2>
+<p>The third solution works exactly as the 2nd solution, but uses the <a href="https://www.nuget.org/packages/stronk">Stronk Nuget library</a> to populate the configuration object.  <strong>Stronk</strong> takes all the heavy lifting out of configuration reading, and works for most cases with zero extra configuration required.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri RemoteHost { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> TimeoutSeconds { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Configuration</span> : IConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Uri RemoteHost { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> TimeoutSeconds { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Configuration()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">this</span>.FromAppConfig(); <span style="color:#75715e">//this.FromWebConfig() works too</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><strong>Stronk</strong> supports a lot of customisation.  For example, if you wanted to be able to handle populating properties of type <code>MailAddress</code>, you can add it like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> Configuration()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> mailConverter = <span style="color:#66d9ef">new</span> LambdaValueConverter&lt;MailAddress&gt;(val =&gt; <span style="color:#66d9ef">new</span> MailAddress(val));
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> options = <span style="color:#66d9ef">new</span> StronkOptions();
+</span></span><span style="display:flex;"><span>    options.Add(mailConverter);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">this</span>.FromAppConfig(options);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>You can also replace (or supplement):</p>
+<ul>
+<li>How it detects which properties to populate</li>
+<li>How to populate a property</li>
+<li>How to pick a value from the configuration source for a given property</li>
+<li>How to convert a value for a property</li>
+<li>Where configuration is read from</li>
+</ul>
+<p>A few features to come soon:</p>
+<ul>
+<li>Additional types supported &ldquo;out of the box&rdquo; (such as <code>TimeSpan</code> and <code>DateTime</code>)</li>
+<li>Exception policy controlling:
+<ul>
+<li>What happens on not being able to find a value in the configuration source</li>
+<li>What happens on not being able to find a converter</li>
+<li>What happens on a converter throwing an exception</li>
+</ul>
+</li>
+</ul>
+<p>I hope you find it useful.  <a href="https://github.com/Pondidum/Stronk/">Stronk&rsquo;s Source is available on Github</a>, and contributions are welcome :)</p>
+]]></content:encoded></item></channel></rss>

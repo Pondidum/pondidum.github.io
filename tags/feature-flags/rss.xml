@@ -1,10 +1,870 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>feature flags on Andy Dote</title><link>https://andydote.co.uk/tags/feature-flags/</link><description>Recent content in feature flags on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 06 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/feature-flags/rss.xml" rel="self" type="application/rss+xml"/><item><title>Observability Driven CI</title><link>https://andydote.co.uk/2023/07/06/observability-driven-ci/</link><pubDate>Thu, 06 Jul 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/07/06/observability-driven-ci/</guid><description>Tracking where the time goes in your CI pipeline is an important step towards being able to make it go even faster. Up until somewhat recently, the only way of tracking how long tasks took in CI was either hoping people had wrapped all their commands in time ..., or by reading a timestamped build log and calculating the difference between numbers. Which isn&amp;rsquo;t great or fun, if we&amp;rsquo;re being honest.</description></item><item><title>Expand Contract for Databases and Services</title><link>https://andydote.co.uk/2023/05/18/expand-contract/</link><pubDate>Thu, 18 May 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/05/18/expand-contract/</guid><description>I haven&amp;rsquo;t seen Expand-Contract written about in some years, and I think it is a great way of performing database schema migrations without the need for application downtime. I also realised that it also applies to microservices and service-to-service communication in general.
-The Easy Example One of the two examples given is wanting to change how an address is stored in a database. The schema starts off looking like this:</description></item><item><title>Feature Flags in a CI Pipeline</title><link>https://andydote.co.uk/2023/01/16/feature-flags-ci/</link><pubDate>Mon, 16 Jan 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/01/16/feature-flags-ci/</guid><description>Feature flags are a great tool for helping software development; they provide controlled feature rollouts, facilitate A/B testing, and help decouple deployment from release. So when it comes to building our software, why do we treat the CI pipeline without the same level of engineering as the production code?
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>feature flags on Andy Dote</title><link>https://andydote.co.uk/tags/feature-flags/</link><description>Recent content in feature flags on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 06 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/feature-flags/rss.xml" rel="self" type="application/rss+xml"/><item><title>Observability Driven CI</title><link>https://andydote.co.uk/2023/07/06/observability-driven-ci/</link><pubDate>Thu, 06 Jul 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/07/06/observability-driven-ci/</guid><description>Tracking where the time goes in your CI pipeline is an important step towards being able to make it go even faster. Up until somewhat recently, the only way of tracking how long tasks took in CI was either hoping people had wrapped all their commands in time ..., or by reading a timestamped build log and calculating the difference between numbers. Which isn&amp;rsquo;t great or fun, if we&amp;rsquo;re being honest.</description><content:encoded><![CDATA[<p>Tracking where the time goes in your CI pipeline is an important step towards being able to make it go even faster.  Up until somewhat recently, the only way of tracking how long tasks took in CI was either hoping people had wrapped all their commands in <code>time ...</code>, or by reading a timestamped build log and calculating the difference between numbers.  Which isn&rsquo;t great or fun, if we&rsquo;re being honest.</p>
+<p>What if we could create graphs of what parts of the build took time?  Something like this?</p>
+<p><img loading="lazy" src="trace-build.png" alt="a graph of a single build showing each task as a horizontal box denoting start and durations"  />
+</p>
+<p>Being someone who cares about build pipelines and speed, I decided to add OpenTelemetry to our builds, and see what information we could get.  It turns out that there is far more useful information available than just timings.  For example:</p>
+<ul>
+<li><strong>number of main builds</strong>; are we merging often? is this speeding up or slowing down?</li>
+<li><strong>number commits merged to <code>main</code> at once</strong>; is our batch size going up? why?</li>
+<li><strong>deployments per day</strong>; are we still moving fast?  Are people scared to <a href="/2022/11/02/deploy-doesnt-mean-release/">deploy</a> on Friday?  why?</li>
+<li><strong>pass and failure ratios</strong>; are failures becoming more often? why?</li>
+<li><strong>runtime of failed builds</strong>; failing builds should be fast, so we re-ordered steps so that likely failures are hit first</li>
+<li><strong>what fails most often?</strong>; a test suite testing too much? flaky tests?  a dependency not being locally cached (and thus unavailable sometimes)?</li>
+</ul>
+<h2 id="terminology">Terminology</h2>
+<p>The <a href="https://opentelemetry.io/docs/concepts/glossary/">OTEL</a> website has details on what all the terminology means, but for a brief summary:</p>
+<ul>
+<li>span: the basic units which make up a trace.  They can be parented to other spans and can represent the entire build, a logical grouping of operations, or a single operation.</li>
+<li>trace: a collection of spans with one &ldquo;root span&rdquo; which has no parent.</li>
+<li>attributes: key-value pairs attached to spans to provide more context.</li>
+<li>[Otel Collector][otel-collector] - a service which accepts traces in a variety of formats and can forward them to other places.  Generally, you run one of these locally and all applications send to it, and it is configured to batch, enrich, and forward to a tracing service, such as <a href="https://honeycomb.io/">Honeycomb</a> or <a href="https://www.jaegertracing.io/">Jaeger</a></li>
+</ul>
+<h2 id="tracing-builds">Tracing Builds</h2>
+<p>The first step when tracing builds is to start with the overall picture: one span for the entire build.  Once this is in place, you can move on to adding details, focusing your efforts on figuring out what is the most likely place to find speed improvements.</p>
+<p>To do this, I use the <a href="https://github.com/Pondidum/Trace/">trace</a> tool, which is an opinionated CLI that creates OTEL traces for your build pipeline.  If you need more flexibility or don&rsquo;t like its opinions, you can either open a PR/Issue on Github, or there is the <a href="https://github.com/equinix-labs/otel-cli">otel-cli</a> which is much more low-level.</p>
+<p>The <code>trace</code> command will send spans to <code>localhost:4317</code> by default.  By setting the <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> environment variable, our traces will instead go to our local [OTEL Collector][otel-collector] instance, which is configured to send our traces elsewhere:</p>
+<p>Install the <code>trace</code> tool:</p>
+
+
+<div class="tab-panel">
+    <div class="tab-nav">
+    
+        <button
+          data-tab-item="Github Actions"
+          data-tab-group="default"
+          class="tab-nav-button btn active"
+          onclick="switchTab('default','Github Actions')"
+         >Github Actions</button>
+    
+        <button
+          data-tab-item="bash"
+          data-tab-group="default"
+          class="tab-nav-button btn "
+          onclick="switchTab('default','bash')"
+         >bash</button>
+    
+    </div>
+    <div class="tab-content">
+        
+        <div data-tab-item="Github Actions" data-tab-group="default" class="tab-item active">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">env</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">OTEL_EXPORTER_OTLP_ENDPOINT</span>: <span style="color:#ae81ff">https://otel.internal.xyz:443</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">jobs</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">build</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">runs-on</span>: <span style="color:#ae81ff">ubuntu-latest</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">steps</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Setup Trace</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">pondidum/trace@main</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">with</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">version</span>: <span style="color:#e6db74">&#34;0.0.9&#34;</span>
+</span></span></code></pre></div>
+        </div>
+        
+        <div data-tab-item="bash" data-tab-group="default" class="tab-item ">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>export OTEL_EXPORTER_OTLP_ENDPOINT<span style="color:#f92672">=</span>https://otel.internal.xyz:443
+</span></span><span style="display:flex;"><span>version<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;0.0.9&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>curl -sSL <span style="color:#e6db74">&#34;https://github.com/Pondidum/trace/releases/download/</span><span style="color:#e6db74">${</span>version<span style="color:#e6db74">}</span><span style="color:#e6db74">/trace&#34;</span> -o /usr/bin/trace
+</span></span><span style="display:flex;"><span>chmod +x /usr/bin/trace
+</span></span></code></pre></div>
+        </div>
+        
+    </div>
+</div>
+<p>Now we can start the trace; by default this will be marked as starting when the <code>trace start</code> command is run; we can change this with the <code>--when</code> flag, which is being fed the <code>created_at</code> field from Github so that our trace shows when the build was started.</p>
+
+
+<div class="tab-panel">
+    <div class="tab-nav">
+    
+        <button
+          data-tab-item="Github Actions"
+          data-tab-group="default"
+          class="tab-nav-button btn active"
+          onclick="switchTab('default','Github Actions')"
+         >Github Actions</button>
+    
+        <button
+          data-tab-item="bash"
+          data-tab-group="default"
+          class="tab-nav-button btn "
+          onclick="switchTab('default','bash')"
+         >bash</button>
+    
+    </div>
+    <div class="tab-content">
+        
+        <div data-tab-item="Github Actions" data-tab-group="default" class="tab-item active">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>    - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Start Trace</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">pondidum/trace/start@main</span>
+</span></span></code></pre></div>
+        </div>
+        
+        <div data-tab-item="bash" data-tab-group="default" class="tab-item ">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>json<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>curl -sSL <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --url <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>GITHUB_API_URL<span style="color:#e6db74">}</span><span style="color:#e6db74">/repos/</span><span style="color:#e6db74">${</span>GITHUB_REPOSITORY<span style="color:#e6db74">}</span><span style="color:#e6db74">/actions/runs/</span><span style="color:#e6db74">${</span>GITHUB_RUN_ID<span style="color:#e6db74">}</span><span style="color:#e6db74">/attempts/</span><span style="color:#e6db74">${</span>GITHUB_RUN_ATTEMPT<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -H <span style="color:#e6db74">&#34;Accept: application/vnd.github+json&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -H <span style="color:#e6db74">&#34;Authorization: Bearer </span><span style="color:#e6db74">${</span>GITHUB_TOKEN<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -H <span style="color:#e6db74">&#34;X-GitHub-Api-Version: 2022-11-28&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>created_at<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$json<span style="color:#e6db74">&#34;</span> | sed -n <span style="color:#e6db74">&#39;s/.*&#34;created_at&#34;.*&#34;\(.*\)&#34;.*/\1/p&#39;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>trace_parent<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>trace start <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>GITHUB_REPOSITORY<span style="color:#e6db74">}</span><span style="color:#e6db74">/</span><span style="color:#e6db74">${</span>GITHUB_WORKFLOW<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> --when <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>created_at<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;TRACEPARENT=</span><span style="color:#e6db74">${</span>trace_parent<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div>
+        </div>
+        
+    </div>
+</div>
+<p>So that we can capture the overhead of the build job starting and the first build command running, we also store the current time as an attribute:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>trace attr <span style="color:#e6db74">&#34;first_command&#34;</span> <span style="color:#66d9ef">$(</span>date +%s<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>At the end of the build, we finish the trace - this needs to happen no matter how the build finishes, pass or failure.</p>
+
+
+<div class="tab-panel">
+    <div class="tab-nav">
+    
+        <button
+          data-tab-item="Github Actions"
+          data-tab-group="default"
+          class="tab-nav-button btn active"
+          onclick="switchTab('default','Github Actions')"
+         >Github Actions</button>
+    
+        <button
+          data-tab-item="bash"
+          data-tab-group="default"
+          class="tab-nav-button btn "
+          onclick="switchTab('default','bash')"
+         >bash</button>
+    
+    </div>
+    <div class="tab-content">
+        
+        <div data-tab-item="Github Actions" data-tab-group="default" class="tab-item active">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>    - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Finish Trace</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">if</span>: <span style="color:#ae81ff">always()</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">pondidum/trace/finish@main</span>
+</span></span></code></pre></div><p>By using <code>if: always()</code>, we make sure this step runs no matter if the workflow was <code>failed</code>, <code>cancelled</code> or <code>success</code>.</p>
+<p>The action uses the <code>{{ job.status }}</code> context to add the <code>--error</code> flag and a message with the status in it, if the job doesn&rsquo;t pass.</p>
+
+        </div>
+        
+        <div data-tab-item="bash" data-tab-group="default" class="tab-item ">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>trap <span style="color:#e6db74">&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    rc=$?; # store the exit code
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    [ $rc = &#34;0&#34; ] &amp;&amp; echo trace finish ${TRACEPARENT}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    [ $rc != &#34;0&#34; ] &amp;&amp; echo trace finish --error=&#34;exit ${rc}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    trap - EXIT;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    exit
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  &#39;</span> EXIT INT HUP
+</span></span></code></pre></div><p>By using a <code>trap</code>, we can make sure the <code>./trace finish</code> command always runs regardless of how the script was killed.  This needs to be written near the top of the script however!</p>
+
+        </div>
+        
+    </div>
+</div>
+<h2 id="tracing-build-steps">Tracing Build Steps</h2>
+<p>Now that there is a trace for the entire build, we can start adding more details.</p>
+<p>For example, we might want to pull a few docker containers so that we have <a href="/2020/05/14/docker-layer-sharing/">warm caches</a>, and want to keep track of how long this takes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>group<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>trace group start <span style="color:#e6db74">&#34;docker_pull&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  trace task -- docker pull app:builder <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>  trace task -- docker pull app:latest <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>  trace task -- docker pull alpine:3.18 <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>trace group finish <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>group<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><h2 id="tracing-and-feature-flags">Tracing and Feature Flags</h2>
+<p>When you are using <a href="/2023/01/16/feature-flags-ci/">feature flags</a> in your CI system, adding their state to the trace is important; it allows us to filter traces by what flags were active on a given run, letting us see if a particular flag has an impact on success rate or time taken.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># flagon supports the `TRACEPARENT` environment variable, so you</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># also get spans for it querying your flag service too!</span>
+</span></span><span style="display:flex;"><span>vitest<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>flagon state <span style="color:#e6db74">&#34;ci-enable-vitest&#34;</span> <span style="color:#e6db74">&#34;false&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --user <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>email<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --attr <span style="color:#e6db74">&#34;branch=</span><span style="color:#e6db74">${</span>branch<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --output <span style="color:#e6db74">&#34;template={{.Value}}&#34;</span> <span style="color:#f92672">||</span> true<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>trace attr <span style="color:#e6db74">&#34;enable_vitest=</span><span style="color:#e6db74">${</span>vitest<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># later</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>group<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>trace group start <span style="color:#e6db74">&#34;testing&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>vitest<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;true&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    pnpm run vitest
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>    pnpm run jest
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>trace group finish <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>group<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><p>This will give us a trace with the <code>enable-vitest</code> flag state, and we can group by this to see if <code>vitest</code> is faster than <code>jest</code> and what effect it had on test count etc.</p>
+]]></content:encoded></item><item><title>Expand Contract for Databases and Services</title><link>https://andydote.co.uk/2023/05/18/expand-contract/</link><pubDate>Thu, 18 May 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/05/18/expand-contract/</guid><description>I haven&amp;rsquo;t seen Expand-Contract written about in some years, and I think it is a great way of performing database schema migrations without the need for application downtime. I also realised that it also applies to microservices and service-to-service communication in general.
+The Easy Example One of the two examples given is wanting to change how an address is stored in a database. The schema starts off looking like this:</description><content:encoded><![CDATA[<p>I haven&rsquo;t seen Expand-Contract written about in some years, and I think it is a great way of performing database schema migrations without the need for application downtime.  I also realised that it also applies to microservices and service-to-service communication in general.</p>
+<h2 id="the-easy-example">The Easy Example</h2>
+<p>One of the two examples given is wanting to change how an address is stored in a database.  The schema starts off looking like this:</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>name</th>
+<th>address</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Reaktor</td>
+<td>Läntinen Rantakatu 15, 20100, Turku, Finland</td>
+</tr>
+</tbody>
+</table>
+<p>The requirement is that the schema is changed to look like this:</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>name</th>
+<th>street</th>
+<th>postcode</th>
+<th>town</th>
+<th>country</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Reaktor</td>
+<td>Läntinen Rantakatu 15</td>
+<td>20100</td>
+<td>Turku</td>
+<td>Finland</td>
+</tr>
+</tbody>
+</table>
+<p>The way you would traditionally achieve this is with a migration:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">alter</span> <span style="color:#66d9ef">table</span> buildings
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">add</span> <span style="color:#66d9ef">column</span> street text,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">add</span> <span style="color:#66d9ef">column</span> postcode text, <span style="color:#75715e">-- postcodes can start with a 0, so store them as text
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">add</span> <span style="color:#66d9ef">column</span> town text,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">add</span> <span style="color:#66d9ef">column</span> country text
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">update</span> buildings <span style="color:#66d9ef">set</span>
+</span></span><span style="display:flex;"><span>  street    <span style="color:#f92672">=</span> split_part(address, <span style="color:#e6db74">&#39;,&#39;</span>, <span style="color:#ae81ff">1</span>),
+</span></span><span style="display:flex;"><span>  postcode  <span style="color:#f92672">=</span> split_part(address, <span style="color:#e6db74">&#39;,&#39;</span>, <span style="color:#ae81ff">2</span>),
+</span></span><span style="display:flex;"><span>  town      <span style="color:#f92672">=</span> split_part(address, <span style="color:#e6db74">&#39;,&#39;</span>, <span style="color:#ae81ff">3</span>),
+</span></span><span style="display:flex;"><span>  country   <span style="color:#f92672">=</span> split_part(address, <span style="color:#e6db74">&#39;,&#39;</span>, <span style="color:#ae81ff">4</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">where</span>
+</span></span><span style="display:flex;"><span>  address <span style="color:#f92672">!=</span> <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">alter</span> <span style="color:#66d9ef">table</span> buildings
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">drop</span> <span style="color:#66d9ef">column</span> address
+</span></span></code></pre></div><p>The problem with doing this is that the software using this table needs to be stopped while the update is happening; if the old version is running, the app will suddenly be trying to query a non-existing column.  If the new version is running, it will also be trying to query non-existing columns.</p>
+<p>The process has to look like this:</p>
+<ol>
+<li>stop the old app</li>
+<li>run the migration</li>
+<li>start the new app</li>
+</ol>
+<p>Step 2 however can be long, especially if there is lots of data.  And what happens if you cannot have downtime for your service?</p>
+<h2 id="the-expand-contract-way">The Expand Contract Way</h2>
+<ol>
+<li>add a new column to the table (nullable)</li>
+<li>release new software
+<ul>
+<li>for reads, read both old and new columns; prefer data in new columns if it exists</li>
+<li>for writes, write to new columns</li>
+</ul>
+</li>
+<li>run a script to migrate any remaining data</li>
+<li>release new software
+<ul>
+<li>only reads new columns</li>
+<li>only writes new columns</li>
+</ul>
+</li>
+<li>drop the old column</li>
+</ol>
+<p>This is more steps than the original method, but it means there is no downtime in your system.  Also, if you make step 2 write to both columns, the migration is easily reversible as no data is lost until the fourth step runs.
+.</p>
+<h2 id="what-about-apis--services">What about APIs?  Services?</h2>
+<p>Expand Contract doesn&rsquo;t have to just be about services either.  For example, you have two services and have decided that part of service A should be migrated into service B, which has a similar system.  The process is broadly similar to the database example above but with service releases instead:</p>
+<ol>
+<li>Service B&rsquo;s data model is expanded</li>
+<li>Service A is released:
+<ul>
+<li>for reads, read both it&rsquo;s own datastore and Service B.  Return result from B if available</li>
+<li>for writes, write to it&rsquo;s own datastore and Service B</li>
+</ul>
+</li>
+<li>Run a script/application to migrate the remaining data</li>
+<li>Release Service A:
+<ul>
+<li>uses Service B for all operations</li>
+</ul>
+</li>
+<li>Drop old data store tables</li>
+</ol>
+<p>As you can see, the process is broadly similar to when implementing a database change; the only difference is some coordination with the other service team.  The coordination is only to make sure their data model is ready; no need to release anything at the same time, and no downtime in either service is required.</p>
+<h2 id="downsides">Downsides</h2>
+<p>This may sound like a silver bullet, but as with all techniques, it has drawbacks.</p>
+<p>The primary drawback is the extra steps required.  There are multiple releases, and data migrates lazily/on demand.  Then there is the extra step of migrating the remaining data, which is an additional effort.</p>
+<p>The other drawback is a symptom of the first drawback: time.  It takes far longer to do expand-contract than to have a short downtime.  Depending on your application, short downtime might be the better choice to make.  For example, a queue processing service which doesn&rsquo;t have a synchronous API would probably be better choosing the downtime, assuming it can catch up with any messages which queue up during the downtime!</p>
+]]></content:encoded></item><item><title>Feature Flags in a CI Pipeline</title><link>https://andydote.co.uk/2023/01/16/feature-flags-ci/</link><pubDate>Mon, 16 Jan 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/01/16/feature-flags-ci/</guid><description>Feature flags are a great tool for helping software development; they provide controlled feature rollouts, facilitate A/B testing, and help decouple deployment from release. So when it comes to building our software, why do we treat the CI pipeline without the same level of engineering as the production code?
 So, why not use feature flags in your CI pipeline?
-TLDR Reduce the risk of breaking a CI pipeline for all of a project&amp;rsquo;s developers by using the flagon CLI to query Feature Flags, opting developers into and out of new CI features and processes by targeting groups of developers or branch naming patterns.</description></item><item><title>QA and Continuous Delivery</title><link>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</link><pubDate>Thu, 10 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</guid><description>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.
-While doing continuous delivery does change the QA process, when done well, it improves everyone&amp;rsquo;s lives and makes the software better quality. Are silver bullets incoming? Not quite, but we don&amp;rsquo;t have to make someone&amp;rsquo;s life worse to improve other people&amp;rsquo;s lives.</description></item><item><title>Deploy != Release</title><link>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</link><pubDate>Wed, 02 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</guid><description>Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.
+TLDR Reduce the risk of breaking a CI pipeline for all of a project&amp;rsquo;s developers by using the flagon CLI to query Feature Flags, opting developers into and out of new CI features and processes by targeting groups of developers or branch naming patterns.</description><content:encoded><![CDATA[<p>Feature flags are a great tool for helping software development; they provide controlled feature rollouts, facilitate A/B testing, and help decouple <a href="/2022/11/02/deploy-doesnt-mean-release/">deployment from release</a>.  So when it comes to building our software, why do we treat the CI pipeline without the same level of engineering as the production code?</p>
+<p>So, why not use feature flags in your CI pipeline?</p>
+<h2 id="tldr">TLDR</h2>
+<p>Reduce the risk of breaking a CI pipeline for all of a project&rsquo;s developers by using the <a href="https://github.com/pondidum/flagon">flagon</a> CLI to query Feature Flags, opting developers into and out of new CI features and processes by targeting groups of developers or branch naming patterns.</p>
+<h2 id="what-would-we-use-them-for">What would we use them for?</h2>
+<p>There are a few things that spring to mind that we could use feature flags for:</p>
+<ul>
+<li>Migrating CI system</li>
+<li>Job migration</li>
+<li>Replacing a step</li>
+<li>Trying a new step</li>
+</ul>
+<h2 id="why-would-using-flags-for-this-help">Why would using flags for this help?</h2>
+<p>The answer is risk reduction.  I don&rsquo;t want to break parts of the build and deployment process for everyone in the project when I make a mistake in the pipelines, and a way to help mitigate that risk is feature flags.</p>
+<p>With a feature flag, I can quickly opt people into or out of changes to the CI system, meaning that if something goes wrong, the impact is minimal.  It also allows me to monitor the effects of new vs old by having the flag states stored in our OTEL traces.  This lets me ask and answer questions like: is it faster?  Is it more reliable?  Does it work?</p>
+<p>One of the most significant risks is migrating from one CI system to another, which is exactly what I have been doing recently.  We are leaving <code>Truly Awful CI</code> and migrating to <code>Github Actions</code>.  Let&rsquo;s see how that goes.</p>
+<h2 id="migrating-from-old-to-new-ci">Migrating From Old to New CI</h2>
+<p>The CI process, on a high level, looks like this.  The three types of deployment are <code>ephemeral</code>, which are short-lived environments named after the branch which created them, <code>development</code>, which is the common development environment, and <code>production</code>, which is the live application.  The <code>production</code> and <code>development</code> environments are deployed to whenever something is merged to <code>main</code>, and <code>ephemeral</code> is for any other branch.</p>
+
+<div class="mermaid" align="left">
+graph LR
+
+    clone --> build --> test --> publish-container
+
+    publish-container --> |$BRANCH != 'main'| trigger-deploy-ephemeral
+    publish-container --> |$BRANCH == 'main'| trigger-deploy-development
+    publish-container --> |$BRANCH == 'main'| trigger-deploy-production
+</div>
+<p>To phase the changeover to GitHub Actions, I am using the <a href="https://github.com/pondidum/flagon">flagon</a> CLI to access our feature flags.  The query uses both the user id (committer email) and branch name so that I can target rollouts based on a group of users or perhaps with a branch name pattern.</p>
+<p>First, I create a duplicate workflow in GitHub Actions.  The docker container is published to a different tag, and all deployments have a feature flag condition added to them:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">jobs</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">flags</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">outputs</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">enable_ephemeral</span>: <span style="color:#ae81ff">${{ steps.query.outputs.enable_ephemeral }}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">steps</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Query Flags</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">id</span>: <span style="color:#ae81ff">query</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">run</span>: |<span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        ephemeral=$(flagon state &#34;ci-enable-gha-deployment&#34; &#34;false&#34; \
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">          --user &#34;${email}&#34; \
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">          --attr &#34;branch=${branch}&#34; \
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">          --output &#34;template={{.Value}}&#34; || true)
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        echo &#34;enable_ephemeral=${ephemeral}&#34; &gt;&gt; &#34;${GITHUB_OUTPUT}&#34;</span>        
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># build, test, etc.</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">deploy_ephemeral</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">./.github/workflows/deploy.yaml</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">needs</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#ae81ff">flags</span>
+</span></span><span style="display:flex;"><span>    - <span style="color:#ae81ff">build</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">if</span>: <span style="color:#ae81ff">${{ github.ref_name != &#39;master&#39; &amp;&amp; needs.flags.outputs.enable_ephemeral == &#39;true&#39; }}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">with</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">target_env</span>: <span style="color:#ae81ff">ephemeral</span>
+</span></span></code></pre></div><p>Then update the old CI pipeline to wrap the deployment trigger with a flag query:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> ! flagon <span style="color:#e6db74">&#34;ci-enable-gha-deploy&#34;</span> <span style="color:#e6db74">&#34;true&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --user <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>email<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --attr <span style="color:#e6db74">&#34;environment=ephemeral&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --attr <span style="color:#e6db74">&#34;BRANCH=</span><span style="color:#e6db74">${</span>branch<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  awful-ci trigger <span style="color:#e6db74">&#34;deploy - ephemeral&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --sha <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>commit<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --branch <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>branch<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>Note that the two CI systems are both querying the same flag, but the old system defaults to active, and the new system defaults to inactive.  This means that if the flagging service (LaunchDarkly in this case) cannot be reached, only one of the systems will be doing the deployment.</p>
+<h2 id="rolling-out">Rolling out</h2>
+<p>The plan for starting the switchover was as follows:</p>
+<ol>
+<li><code>ephemeral</code> for just me</li>
+<li><code>ephemeral</code> environment for a small group of developers</li>
+<li><code>ephemeral</code> for everyone</li>
+<li><code>development</code> for everyone</li>
+<li><code>production</code> for everyone</li>
+<li>WAIT</li>
+<li>Remove old implementation, remove flags</li>
+</ol>
+<p>During the rollout, the flag was switched on and off for various stages as small bugs were found.</p>
+<p>For example, I discovered that the deployments only looked like they were working in GitHub Actions due to some artefacts still being uploaded to CDN by the old CI system.</p>
+<h2 id="take-away">Take Away</h2>
+<p>Based on my experience of using flags in this migration, it is a technique that I will be using more in the future when updating our CI pipelines.</p>
+]]></content:encoded></item><item><title>QA and Continuous Delivery</title><link>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</link><pubDate>Thu, 10 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</guid><description>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.
+While doing continuous delivery does change the QA process, when done well, it improves everyone&amp;rsquo;s lives and makes the software better quality. Are silver bullets incoming? Not quite, but we don&amp;rsquo;t have to make someone&amp;rsquo;s life worse to improve other people&amp;rsquo;s lives.</description><content:encoded><![CDATA[<p>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.</p>
+<p>While doing continuous delivery does change the QA process, when done well, it improves everyone&rsquo;s lives and makes the software <em>better</em> quality.  Are silver bullets incoming?  Not quite, but we don&rsquo;t have to make someone&rsquo;s life worse to improve other people&rsquo;s lives.</p>
+<p>This article is going to rely heavily on <a href="/tags/feature-flags/">Feature Flags</a>, so a passing familiarity is useful.  In summary, feature flags are the ability to switch features on and off at runtime of the application without requiring re-deployment.  Feature flags can also be used to switch on features for specific users or groups of users.</p>
+<blockquote>
+<p>Aside; this post is a bit different from my usual style.  This time I have written a story about a fictional dev team and QA team and how they move towards continuous delivery together.</p>
+</blockquote>
+<h2 id="tldr">TLDR</h2>
+<p>Move your QA Engineers inside the dev teams; DevOps is a way of working in a cross-functional team; this should include everyone who can contribute.</p>
+<p>Test things early.  Involve QA with features hidden behind flags.  De-couple your deployments from your releases.</p>
+<h2 id="setting-the-scene">Setting The Scene</h2>
+<p>A team has gotten to the point where they want to switch from deploying at the end of each sprint to deployments happening as often as needed, be that 5 minutes for a text change or a few days for a bigger feature.</p>
+<p>When they happily announce this to the rest of their organisation, the QA Team reacts with dismay; how are they going to manage to do full testing before every deployment if the team is constantly deploying?  They object; this is ludicrous.</p>
+<p>Being level-headed people, everyone decides to sit down and talk through their concerns and what to do next.  The key points are written down:</p>
+<ul>
+<li>The development team wants to ship faster</li>
+<li>The QA team wants to test everything before it is deployed</li>
+<li>The management team doesn&rsquo;t want to hire 10 more QAs to try and keep up</li>
+</ul>
+<p>So what to do?</p>
+<h2 id="the-first-step">The first step</h2>
+<p>It is important to realise that while we want quality, not all changes are created equal; some need much closer scrutiny than others.  For example, fixing some spelling mistakes probably needs no one else&rsquo;s input (other than a spell-checking tool, perhaps) other than the person doing it.</p>
+<p>The teams agree on this; after some discussion, they write down the following:</p>
+<ul>
+<li>Small fixes can be released without a QA approval</li>
+</ul>
+<p>This raises a few further questions however:</p>
+<ol>
+<li>How big is small?</li>
+<li>If a small fix can be deployed without QA, what about a small feature?</li>
+<li>Why is QA the final authority on what can be released?</li>
+</ol>
+<h2 id="changing-perspective">Changing Perspective</h2>
+<p>While we could try and answer these questions (and spend countless hours deciding how many lines of code &ldquo;small&rdquo; is.  Does it depend on line length too?), a better tactic is to investigate why the QA process is happening <em>so late in the process</em>.</p>
+<p>We agree that features need QA testing, but what happens if features can be hidden?  What happens if we can move the testing from &ldquo;before deployment&rdquo; to &ldquo;before release&rdquo;?  Because as I have written before <a href="deploy-not-release"><code>deploy doesn't mean release</code></a>.</p>
+<p>The team realises that they have a Feature Flagging tool available.  Currently, they are not really using it, but they have been meaning to for a while.  What if new features were developed behind flags?  It could be deployed to production without affecting anyone, and QA could test at their leisure by enabling the flag for just one tester or for the whole team.</p>
+<p>The QA team thinks this could work in principle, but how do they know a change is <em>really</em> isolated behind a flag?  What happens if it escapes?</p>
+<p>Let&rsquo;s look at the process they came up with, with an example.</p>
+<h2 id="the-new-feature">The New Feature</h2>
+<p>The current web application has a notification system.  It&rsquo;s nothing glamorous; it&rsquo;s an icon in the app which gets a small dot when there is a new notification.  Currently, only notifications from the system itself are supported, but there has been a request to have other parts of the system send notifications there too, along with feature requests for being able to remove read notifications and mark notifications to trigger again later.</p>
+<p>This seems like the ideal candidate for a feature flag, so the development team writes down their next steps:</p>
+<ol>
+<li>create a flag <code>enable-rich-notifications</code></li>
+<li>develop all the capabilities (API, UI)</li>
+<li>deploy</li>
+<li>QA can test it with the flag</li>
+<li>release it to the world</li>
+</ol>
+<p>Someone points out that Step 2 looks like several weeks of work on its own, and that isn&rsquo;t very continuous.  They break down the tasks a bit further:</p>
+<ol>
+<li>create a flag <code>enable-rich-notifications</code></li>
+<li>update the API with a new <code>/rich</code> endpoint, which can only be queried if you have the flag.</li>
+<li>create some fake data for the <code>/rich</code> endpoint to return</li>
+<li>create a new UI component which uses the new endpoint</li>
+<li>update the application to use the new component if you have the flag and the old component otherwise</li>
+</ol>
+<p>With implicit &ldquo;Deploy&rdquo; steps after each step.  This seems reasonable to the development team, but the QA team still have questions: when should they test the UI?  once it is fully complete?  And how do they know it is working?</p>
+<p>The development team also realises that the new notifications system will be using the same data model as the old system, and they need to make sure the old system continues to work correctly.  Come to think of it, QA involvement would be useful here too&hellip;</p>
+<h2 id="moving-qa-earlier">Moving QA Earlier</h2>
+<blockquote>
+<p>As an aside, I find it much better to have a QA Engineer be part of the development team.  The whole DevOps thing is about working in one cross-functional team, and why should QA, Security, or anyone else be excluded from this?  Regrettably, this is a slow organisational change to make, so we come up with ways to make it work as best we can and iterate towards the embedded QA model.</p>
+</blockquote>
+<p>When the new notifications feature is being designed, the development team requests someone from QA be involved from the start; there are things which they should be aware of, and have useful input on.</p>
+<ol>
+<li>Update the data model in place with the new design</li>
+<li>QA to test it in an isolated environment; no changes expected</li>
+<li>Deploy</li>
+</ol>
+<p>The QA points out that as far as they are aware, there aren&rsquo;t any tests for the old notifications system; it was so barebones and unused that no one bothered.  The QA also points out that they have been evaluating switching to a more code-first UI automation tool, and this might be the ideal candidate to start with, and could they put the UI testing code in the repo alongside the feature?</p>
+<p>This is well received by the dev team; this might help the regressions they keep causing when a selector is updated, and the UI tests break; if it&rsquo;s all in the same repository, <code>grep</code> can find all the instances at once!  It&rsquo;s win-win again.</p>
+<p>The again updated list of actions is now:</p>
+<ol>
+<li>QA creates UI tests for the current system (and verifies against isolated environment)</li>
+<li>Devs Update the data model</li>
+<li>QA verifies nothing has changed in a staging environment</li>
+<li>Deploy</li>
+</ol>
+<p>Note there are no flags involved yet!</p>
+<p>The team goes ahead and makes all the discussed changes; however, when the new UI tests are run against the environment with the new data model, they break, and it isn&rsquo;t apparent why.  The QA and the developer sit down and dig around until they find the problem; the format of a field has changed slightly, and the UI tests are catching the problem.</p>
+<p>They fix the issue, test again, and this time deploy into production.</p>
+<h2 id="the-new-api-and-ui">The New API and UI</h2>
+<p>Now that involving QA earlier has been tried and seems to work, the team decide to move forward with the API changes and the feature flag for the original version and the rich version of notifications.</p>
+<p>The flag is created, the API is wrapped with a check for the flag, the developers test it works, and deployment is done.  No problems so far.</p>
+<p>The UI is up next; as this is early on in the process, the dev team, designer, and QA engineer are all sitting together to figure out exactly how it will work.  As the QA is present, they can start writing outlines for UI testing.  As the code for tests is alongside the application code, the developers can help keep the tests working as they flesh out the UI, and they might even write a test themselves too.</p>
+<p>The interesting realisation comes that with a feature flag, two QAs can be involved at once; one is running tests for the flag off, and one is running the tests for the flag on.  It isn&rsquo;t required to be like this of course, but it does mean you can spread the work further.</p>
+<p>Features are developed, tests are written, and deployments are done.</p>
+<h2 id="ready-for-release">Ready for Release</h2>
+<p>The team, which now includes the QA by default, is getting close to being ready to release their new rich notifications to the world.  They have one more test they would like to conduct: what is the load like when users are re-notifying themselves?  How do they even go about testing this?</p>
+<p>The answer, perhaps unsurprisingly, is a feature flag.  In this case, a new feature flag called <code>load-generator-rich-notifications</code>.  When this flag is enabled, the rich notifications system is still hidden, but a small piece of code randomly activates notifications for re-notifying and varying intervals.  The team can switch it on for a few percent of users and then watch their traces and monitoring systems to keep an eye on the health of the system.</p>
+<p>They can add more and more users to the test until they are happy.  Then disable the load generator and clean up all the mess it has left.</p>
+<blockquote>
+<p>Aside; this is how Facebook Messenger was load tested before the public saw anything!</p>
+</blockquote>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>The key takeaway from this is that QA is an important part of the delivery lifecycle.  Your QA Engineers are smart people who want to make things better, so involve them early and see what conversations and ideas can happen when you put smart people together and task them with making things better.</p>
+<p>This was a lot longer than it sounded in my head when I thought this up while cycling home, but I like how it&rsquo;s gone.  I might even turn this into a talk to give to clients if it is well received.</p>
+]]></content:encoded></item><item><title>Deploy != Release</title><link>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</link><pubDate>Wed, 02 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</guid><description>Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.
 also deploy != release
 —Andy, baiting discussion in Slack This turned out to be somewhat controversial until we discussed what I specifically meant by deploy and release.
-As with all things, agreeing on definitions or understanding what someone means when they use a specific term is essential, so I thought I would write down a short blog post on it.</description></item><item><title>Feature Toggles: Reducing Coupling</title><link>https://andydote.co.uk/2019/06/11/feature-toggles-reducing-coupling/</link><pubDate>Tue, 11 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/11/feature-toggles-reducing-coupling/</guid><description>One of the points I make in my Feature Toggles talk is that you shouldn&amp;rsquo;t be querying a toggle&amp;rsquo;s status all over your codebase. Ideally, each toggle gets checked in as few places as possible - preferably only one place. The advantage of doing this is that very little of your codebase needs to be coupled to the toggles (either the toggle itself or the library/system for managing toggles itself).</description></item><item><title>Feature Toggles: Branch by Abstraction</title><link>https://andydote.co.uk/2019/06/03/feature-toggles-branch-by-abstraction/</link><pubDate>Mon, 03 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/03/feature-toggles-branch-by-abstraction/</guid><description>Recently, I was asked if I could provide an example of Branch By Abstraction when dealing with feature toggles. As this has come up a few times, I thought a blog post would be a good idea so I can refer others to it later too.
-The Context As usual, this is some kind of backend (micro)service, and it will send email messages somehow. We will start with two implementations of message sending: the &amp;ldquo;current&amp;rdquo; version; which is synchronous, and a &amp;ldquo;new&amp;rdquo; version; which is async.</description></item><item><title>Feature Toggles with Consul</title><link>https://andydote.co.uk/2018/09/06/consul-feature-toggles/</link><pubDate>Thu, 06 Sep 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/09/06/consul-feature-toggles/</guid><description>Feature Toggles are a great way of helping to deliver working software, although there are a few things which could go wrong. See my talk Feature Toggles: The Good, The Bad and The Ugly for some interesting stories and insights on it!
-I was talking with a colleague the other day about how you could go about implementing Feature Toggles in a centralised manner into an existing system, preferably with a little overhead as possible.</description></item></channel></rss>
+As with all things, agreeing on definitions or understanding what someone means when they use a specific term is essential, so I thought I would write down a short blog post on it.</description><content:encoded><![CDATA[<p>Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.</p>
+<blockquote>
+<p>also <code>deploy</code> != <code>release</code></p>
+</blockquote>
+<figcaption>—Andy, <cite>baiting discussion in Slack</cite></figcaption>
+<p>This turned out to be somewhat controversial until we discussed what I specifically meant by <code>deploy</code> and <code>release</code>.</p>
+<p>As with all things, agreeing on definitions or understanding what someone means when they use a specific term is essential, so I thought I would write down a short blog post on it.</p>
+<p>To start with, a picture helps in my experience:</p>
+<p><img loading="lazy" src="definitions.jpg" alt="definitons"  />
+</p>
+<h2 id="tldr">TLDR</h2>
+<p><strong>Deploy</strong> is the act of moving software into an environment and running it.</p>
+<p><strong>Release</strong> is the process of making a feature visible to a user or subset of users.</p>
+<p>Read on for longer descriptions.</p>
+<h2 id="build">Build</h2>
+<p>A build is a process, usually run in a central CI system, which produces one or many <strong>artefacts</strong>.  A build process can consist of testing, linting, compilation, transpilation, or any other number of steps.</p>
+<h2 id="artefact">Artefact</h2>
+<p>An <strong>artefact</strong> is the result of the <strong>build</strong>.  It has a <strong>version</strong>, and can be <strong>deployed</strong> to an <strong>environment</strong>.  An artefact can contain many features which can be uniquely controlled.</p>
+<p>It should also have metadata embedded in it to link it back to the build which produced it and also to the source it was built from.</p>
+<p>If a build is producing multiple different versioned artefacts, having a way to link them all to the same process is important.</p>
+<h2 id="version">Version</h2>
+<p>A <strong>version</strong> is an identifier which uniquely labels an artefact.   This can be a chosen format such as SemVer, a datestamp, or a commit hash.  It could also be an auto-incrementing build counter.</p>
+<h2 id="deploy">Deploy</h2>
+<p>The process of getting an <strong>artifact</strong> into an <strong>environment</strong>.  Doesn&rsquo;t necessarily cause any visible changes to a user or client of the application.</p>
+<h2 id="environment">Environment</h2>
+<p>A location running the application.  An environment may have multiple applications running, making up one complete product.</p>
+<h2 id="release">Release</h2>
+<p><strong>Release</strong> is switching on (or off) a feature to users, independent of <strong>deploy</strong>.  This is usually done with Feature Flags, and can mean releasing to all users, or just a subset (either a random sample or specific users.)</p>
+<p>You can also automate feature rollout by combining it with your observability data, rolling out to more users over time if, for example, error rates don&rsquo;t increase.</p>
+]]></content:encoded></item><item><title>Feature Toggles: Reducing Coupling</title><link>https://andydote.co.uk/2019/06/11/feature-toggles-reducing-coupling/</link><pubDate>Tue, 11 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/11/feature-toggles-reducing-coupling/</guid><description>One of the points I make in my Feature Toggles talk is that you shouldn&amp;rsquo;t be querying a toggle&amp;rsquo;s status all over your codebase. Ideally, each toggle gets checked in as few places as possible - preferably only one place. The advantage of doing this is that very little of your codebase needs to be coupled to the toggles (either the toggle itself or the library/system for managing toggles itself).</description><content:encoded><![CDATA[<p>One of the points I make in my <a href="https://www.youtube.com/watch?v=r7VI5x2XKXw">Feature Toggles talk</a> is that you shouldn&rsquo;t be querying a toggle&rsquo;s status all over your codebase.  Ideally, each toggle gets checked in as few places as possible - preferably only one place.  The advantage of doing this is that very little of your codebase needs to be coupled to the toggles (either the toggle itself or the library/system for managing toggles itself).</p>
+<p>This post will go over several situations when that seems hard to do, namely: multiple services, multiple distinct areas of a codebase, and multiple times in a complex class or method.  As in the <a href="/2019/06/03/feature-toggles-branch-by-abstraction/">previous post</a> on this, we will be using <a href="https://www.martinfowler.com/bliki/BranchByAbstraction.html">Branch By Abstraction</a> to do most of the heavy lifting.</p>
+<h2 id="multiple-services">Multiple Services</h2>
+<p>Multiple services interacting with the same feature toggle is a problematic situation to deal with, especially if multiple teams own the different services.</p>
+<p>One of the main issues with this is trying to coordinate the two (or more) services.  For example, if one team needs to switch off their implementation due to a problem, should the other services also get turned off too?  To compound on this problem, what happens if one system can react to the toggle change faster than the other?</p>
+<p>Services changing configuration at different speeds can also cause issues with handling in-flight requests too: if the message format is different when the toggle is on, will the receiving system be able to process a message produced when the toggle was in one state but consumed in the other state?</p>
+<p>We can solve some of this by using separate toggles for each service (and they are not allowed to query the other service&rsquo;s toggle state), and by writing the services so that they can handle both old format and new format requests at the same time.</p>
+<p>For example, if we had a sending system which when the toggle is off will send this DTO:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PurchaseOptions</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Address Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And when the toggle is enabled, it will send the following DTO instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PurchaseOptions</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> BillingAddress Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> DeliveryAddress Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To make the receiving system handle this, we deserialize the request into a DTO which contains all possible versions of the address, and then use the best version based on our own toggle state:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PurchaseOptionsRequest</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Address Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> BillingAddress Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> DeliveryAddress Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PurchaseController</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task&lt;PurchaseOptionsResponse&gt; Post(PurchaseOptionsRequest request)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (separateAddresses.Enabled)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">var</span> deliveryAddress = request.DeliveryAddress ?? request.Address;
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">var</span> billingAddress = request.BillingAddress ?? request.Address;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            ConfigureDelivery(deliveryAddress);
+</span></span><span style="display:flex;"><span>            CreateInvoice(billingAddress, deliveryAddress);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">var</span> address = request.Address ?? request.DeliveryAddress ?? request.BillingAddress;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            ConfigureDelivery(address)
+</span></span><span style="display:flex;"><span>            CreateInvoice(address, address);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note how both sides of the toggle check read all three possible address fields, but try to use different fields first.  This means that no matter whether the sending service has it&rsquo;s toggle on or not, we will use the correct address.</p>
+<h2 id="multiple-areas-of-the-codebase">Multiple Areas of the Codebase</h2>
+<p>To continue using the address example, we might have a UI, Controller and Handler, which all need to act differently based on the same toggle:</p>
+<ul>
+<li>The UI needs to display either one or two address editors</li>
+<li>The controller needs to have different validation logic for multiple addresses</li>
+<li>The Command Handler will need to dispatch different values</li>
+</ul>
+<p>We can solve this all by utilising <a href="https://www.martinfowler.com/bliki/BranchByAbstraction.html">Branch By Abstraction</a> and Dependency Injection to make most of the codebase unaware that a feature toggle exists.  Even the implementations won&rsquo;t need to know about the toggles.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Startup</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ConfigureContainer(ServiceRegistry services)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (separateAddresses.Enabled) {
+</span></span><span style="display:flex;"><span>            services.Add&lt;IAddressEditor, MultiAddressEditor&gt;();
+</span></span><span style="display:flex;"><span>            services.Add&lt;IRequestValidator, MultiAddressValidator&gt;();
+</span></span><span style="display:flex;"><span>            services.Add&lt;IDeliveryHandler, MultiAddressDeliveryHandler&gt;();
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>            services.Add&lt;IAddressEditor, SingleAddressEditor&gt;();
+</span></span><span style="display:flex;"><span>            services.Add&lt;IRequestValidator, SingleAddressValidator&gt;();
+</span></span><span style="display:flex;"><span>            services.Add&lt;IDeliveryHandler, SingleAddressDeliveryHandler&gt;();
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Let&rsquo;s look at how one of these might work.  The <code>IRequestValidator</code> has a definition like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IRequestValidator</span>&lt;TRequest&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;<span style="color:#66d9ef">string</span>&gt; Validate(TRequest request);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>There is a middleware in the API request pipeline which will pick the right validator out of the container, based on the request type being processed.  We implement two validators, once for the single address, and one for multiaddress:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">SingleAddressValidator</span> : IRequestValidator&lt;SingleAddressRequest&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;<span style="color:#66d9ef">string</span>&gt; Validate(SingleAddressRequest request)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//complex validation logic..</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (request.Address == <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">yield</span> <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;No Address specified&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (PostCode.Validate(request.Address.PostCode) == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">yield</span> <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;Invalid Postcode&#34;</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">MultiAddressValidator</span> : IRequestValidator&lt;MultiAddressRequest&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;<span style="color:#66d9ef">string</span>&gt; Validate(MultiAddressRequest request)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> billingMessages = ValidateAddress(request.BillingAddress);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (billingMessages.Any())
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> billingMessages;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (request.DifferentDeliveryAddress)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> ValidateAddress(request.DeliveryAddress);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The implementations themselves don&rsquo;t need to know about the state of the toggle, as the container and middleware take care of picking the right implementation to use.</p>
+<h2 id="multiple-places-in-a-classmethod">Multiple Places in a Class/Method</h2>
+<p>If you have a single method (or class) which needs to check the toggle state in multiple places, you can also use the same Branch by Abstraction technique as above, by creating a custom interface and pair of implementations, which contain all the functionality which changes.</p>
+<p>For example, if we have a method for finding an offer for a customer&rsquo;s basket, which has a few separate checks that the toggle is enabled in it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> SuggestedBasket CreateOffer(CreateOfferCommand command)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (newFeature.Enabled) {
+</span></span><span style="display:flex;"><span>        ExtraPreValidation(command).Throw();
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>        StandardPreValidation(command).Throw();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> offer = SelectBestOffer(command.Items);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (offer == <span style="color:#66d9ef">null</span> &amp;&amp; newFeature.Enabled) {
+</span></span><span style="display:flex;"><span>        offer = FindAlternativeOffer(command.Customer, command.Items);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> SuggestedBasket
+</span></span><span style="display:flex;"><span>        .From(command)
+</span></span><span style="display:flex;"><span>        .With(offer);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We can extract an interface for this, and replace the toggle specific parts with calls to the interface instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ICreateOfferStrategy</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    IThrowable PreValidate(CreateOfferCommand command);
+</span></span><span style="display:flex;"><span>    Offer AlternativeOffer(CreateOfferCommand command, Offer existingOffer);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DefaultOfferStrategy</span> : ICreateOfferStrategy
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IThrowable PreValidate(CreateOfferCommand command)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> StandardPreValidation(command);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Offer AlternativeOffer(CreateOfferCommand command, Offer existingOffer)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> existingOffer;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DefaultOfferStrategy</span> : ICreateOfferStrategy
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IThrowable PreValidate(CreateOfferCommand command)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> ExtraPreValidation(command);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Offer AlternativeOffer(CreateOfferCommand command, Offer existingOffer)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (existingOffer != <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> existingOffer;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> TryFindAlternativeOffer(command.Customer, command.Items, offer);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">OfferBuilder</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> ICreateOfferStrategy _strategy;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> OfferBuilder(ICreateOfferStrategy strategy)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _strategy = strategy;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> SuggestedBasket CreateOffer(CreateOfferCommand command)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _strategy.PreValidation(command).Throw();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> offer = SelectBestOffer(command.Items);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        offer = _strategy.AlternativeOffer(command, offer);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> SuggestedBasket
+</span></span><span style="display:flex;"><span>            .From(command)
+</span></span><span style="display:flex;"><span>            .With(offer);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now that we have done this, our <code>CreateOffer</code> method has shrunk dramatically and no longer needs to know about the toggle state, as like the rest of our DI examples, the toggle can be queried once in the startup of the service and the correct <code>ICreateOfferStrategy</code> implementation registered into the container.</p>
+<h2 id="end">End</h2>
+<p>Hopefully, this post will give a few insights into different ways of reducing the number of calls to your feature toggling library, and prevent you scattering lots of if statements around the codebase!</p>
+]]></content:encoded></item><item><title>Feature Toggles: Branch by Abstraction</title><link>https://andydote.co.uk/2019/06/03/feature-toggles-branch-by-abstraction/</link><pubDate>Mon, 03 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/03/feature-toggles-branch-by-abstraction/</guid><description>Recently, I was asked if I could provide an example of Branch By Abstraction when dealing with feature toggles. As this has come up a few times, I thought a blog post would be a good idea so I can refer others to it later too.
+The Context As usual, this is some kind of backend (micro)service, and it will send email messages somehow. We will start with two implementations of message sending: the &amp;ldquo;current&amp;rdquo; version; which is synchronous, and a &amp;ldquo;new&amp;rdquo; version; which is async.</description><content:encoded><![CDATA[<p>Recently, I was asked if I could provide an example of Branch By Abstraction when dealing with feature toggles.  As this has come up a few times, I thought a blog post would be a good idea so I can refer others to it later too.</p>
+<h2 id="the-context">The Context</h2>
+<p>As usual, this is some kind of backend (micro)service, and it will send email messages somehow.  We will start with two implementations of message sending: the &ldquo;current&rdquo; version; which is synchronous, and a &ldquo;new&rdquo; version; which is async.</p>
+<p>We&rsquo;ll do a bit of setup to show how feature toggling can be done in three ways for this feature:</p>
+<ol>
+<li>Static: Configured on startup</li>
+<li>Dynamic: Check the toggle state on each send</li>
+<li>Dynamic: Check the toggle for a given message</li>
+</ol>
+<h2 id="abstractions-and-implementations">Abstractions and Implementations</h2>
+<p>We have an interface called <code>IMessageDispatcher</code> which defines a single <code>Send</code> method, which returns a <code>Task</code> (or <code>Promise</code>, <code>Future</code>, etc. depending on your language.)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IMessageDispatcher</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Task&lt;SendResult&gt; Send(Message message);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The two message sending implementations don&rsquo;t matter, but we need the types to show the other code examples.  Fill in the blanks if you want!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">HttpMessageDispatcher</span> : IMessageDispatcher
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">QueueMessageDispatcher</span> : IMessageDispatcher
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="1-static-configuration">1. Static Configuration</h2>
+<p>The word static in this context means that we check the feature toggle&rsquo;s state once on startup and pick an implementation.  We don&rsquo;t recheck the toggle state unless the service is restarted.</p>
+<p>For instance, in an ASP.Net core application, you could change which service is registered into the container at startup like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ConfigureServices(IServiceCollection services)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> toggleSource = <span style="color:#66d9ef">new</span> ToggleSource(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (toggleSource.IsActive(Toggles.AsyncMessageDispatch))
+</span></span><span style="display:flex;"><span>        services.AddTransient&lt;IMessageDispatcher, QueueMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>        services.AddTransient&lt;IMessageDispatcher, HttpMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Which means any class which takes in an instance of <code>IMessageDispatcher</code> doesn&rsquo;t need to check the toggle state or worry about which implementation to use.</p>
+<h2 id="2-dynamic-configuration">2. Dynamic Configuration</h2>
+<p>We can build on this abstraction to enable more flexibility, if we want to be able to change the toggle state while the service is running, without needing to restart it.  To do this, we can implement another version of the <code>IMessageDispatcher</code> interface which will check the toggle state on each invocation of <code>Send()</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ToggleDispatcher</span> : IMessageDispatcher
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Func&lt;<span style="color:#66d9ef">bool</span>&gt; _isToggleActive;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IMessageDispatcher _queueSender;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IMessageDispatcher _httpSender;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ToggleDispatcher(Func&lt;<span style="color:#66d9ef">bool</span>&gt; isToggleActive, IMessageDispatcher queueSender, IMessageDispatcher httpSender)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _isToggleActive = isToggleActive;
+</span></span><span style="display:flex;"><span>        _queueSender = queueSender;
+</span></span><span style="display:flex;"><span>        _httpSender = httpSender;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Task&lt;SendResult&gt; Send(Message message)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> chosen = _isToggleActive()
+</span></span><span style="display:flex;"><span>            ? _queueSender
+</span></span><span style="display:flex;"><span>            : _httpSender;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> chosen.Send(message);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And in our startup class, we can change the service registration to use the new version.  Note how we are now registering the two concrete versions into the container so that they can be resolved later by the ToggleDispatcher registration:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ConfigureServices(IServiceCollection services)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> toggleSource = <span style="color:#66d9ef">new</span> ToggleSource(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;HttpMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;QueueMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;IMessageDispatcher&gt;(context =&gt; <span style="color:#66d9ef">new</span> ToggleDispatcher(
+</span></span><span style="display:flex;"><span>        () =&gt; toggleSource.IsActive(Toggles.AsyncMessageDispatch),
+</span></span><span style="display:flex;"><span>        context.GetService&lt;QueueMessageDispatcher&gt;(),
+</span></span><span style="display:flex;"><span>        context.GetService&lt;HttpMessageDispatcher&gt;())
+</span></span><span style="display:flex;"><span>    );
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="3-dynamicer-configuration">3. Dynamic(er) Configuration</h2>
+<p>We can take this another step further too, if we want to be able to have a phased rollout of this new <code>QueueMessageDispatcher</code>, for example, based on the sender address.  In this case, we can create another decorator which uses the individual message to make the decision.  The only difference to the original <code>ToggleDispatcher</code> is that the first argument now also provides a <code>Message</code> object:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">MessageBasedToggleDispatcher</span> : IMessageDispatcher
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Func&lt;Message, <span style="color:#66d9ef">bool</span>&gt; _isToggleActive;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IMessageDispatcher _queueSender;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IMessageDispatcher _httpSender;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> MessageBasedToggleDispatcher(Func&lt;Message, <span style="color:#66d9ef">bool</span>&gt; isToggleActive, IMessageDispatcher queueSender, IMessageDispatcher httpSender)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _isToggleActive = isToggleActive;
+</span></span><span style="display:flex;"><span>        _queueSender = queueSender;
+</span></span><span style="display:flex;"><span>        _httpSender = httpSender;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Task&lt;SendResult&gt; Send(Message message)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> chosen = _isToggleActive(message)
+</span></span><span style="display:flex;"><span>            ? _queueSender
+</span></span><span style="display:flex;"><span>            : _httpSender;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> chosen.Send(message);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The startup registration is modified to pass the message property we care about to the <code>ToggleSource</code>, with the <code>toggleSource.IsActive()</code> call being responsible for what to do with the key we have passed in.  Perhaps it does something like a consistent hash of the address, and if the value is above a certain threshold the toggle is active, or maybe it queries a whitelist of people who the toggle is enabled for.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ConfigureServices(IServiceCollection services)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> toggleSource = <span style="color:#66d9ef">new</span> ToggleSource(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;HttpMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;QueueMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;IMessageDispatcher&gt;(context =&gt; <span style="color:#66d9ef">new</span> MessageBasedToggleDispatcher(
+</span></span><span style="display:flex;"><span>        message =&gt; toggleSource.IsActive(Toggles.AsyncMessageDispatch, message.SenderAddress),
+</span></span><span style="display:flex;"><span>        context.GetService&lt;QueueMessageDispatcher&gt;(),
+</span></span><span style="display:flex;"><span>        context.GetService&lt;HttpMessageDispatcher&gt;())
+</span></span><span style="display:flex;"><span>    );
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="conclusion">Conclusion</h2>
+<p>This method of branching is extremly flexible, as it allows us to use toggles to replace feature implementations, but also gives us lots of places where we can add other decorators to add functionality to the pipeline.  For example, we could add an auditing decorator or one which implements the outbox pattern - and the calling code which depends only on <code>IMessageDispatcher</code> doesn&rsquo;t need to care.</p>
+]]></content:encoded></item><item><title>Feature Toggles with Consul</title><link>https://andydote.co.uk/2018/09/06/consul-feature-toggles/</link><pubDate>Thu, 06 Sep 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/09/06/consul-feature-toggles/</guid><description>Feature Toggles are a great way of helping to deliver working software, although there are a few things which could go wrong. See my talk Feature Toggles: The Good, The Bad and The Ugly for some interesting stories and insights on it!
+I was talking with a colleague the other day about how you could go about implementing Feature Toggles in a centralised manner into an existing system, preferably with a little overhead as possible.</description><content:encoded><![CDATA[<p>Feature Toggles are a great way of helping to deliver working software, although there are a few things which could go wrong.  See my talk <a href="https://www.youtube.com/watch?v=r7VI5x2XKXw">Feature Toggles: The Good, The Bad and The Ugly</a> for some interesting stories and insights on it!</p>
+<p>I was talking with a colleague the other day about how you could go about implementing Feature Toggles in a centralised manner into an existing system, preferably with a little overhead as possible.  The most obvious answer is to use a SAAS solution such as <a href="https://launchdarkly.com/">LauchDarkly</a>, but what if you either don&rsquo;t want to or can&rsquo;t use a SAAS solution?</p>
+<p>What if we already are using Consul for things such as service discovery, could we use the key-value store as a basic Feature Toggle service?  It has a few advantages:</p>
+<ul>
+<li>Consul is already in place, so there is no extra infrastructure required and no additional costs</li>
+<li>Low stopping cost - If we decide we don&rsquo;t want to use Consul, or not to use Toggles at all, we can stop</li>
+<li>Low learning curve - we know how to use Consul already</li>
+<li>Security - we can make use of Consul&rsquo;s <a href="https://www.consul.io/docs/guides/acl.html#key-value-rules">ACL</a> to allow services to only read, and operators to write Feature Toggles.</li>
+</ul>
+<p>There are also some downsides to consider too:</p>
+<ul>
+<li>We&rsquo;d effectively be reinventing the wheel</li>
+<li>There won&rsquo;t be any &ldquo;value protection&rdquo; on the settings (nothing stopping us putting an int into a field which will be parsed as a guid for example)</li>
+<li>No statistics - we won&rsquo;t be able to tell if a value is used still</li>
+<li>No fine-grained control - unless we build some extra hierarchies, everyone gets the same value for a given key</li>
+</ul>
+<p>So what would our system look like?</p>
+<p><img loading="lazy" src="consul-feature-toggles.png" alt="write to consul kv store, results distributed to other consul instances"  />
+</p>
+<p>It&rsquo;s pretty straightforward.  We already have a Consul Cluster, and then there are several machines with Consul clients running on them, as well as a Container Host with Consul too.</p>
+<p>Any configuration written to a Consul node is replicated to all other nodes, so our user can write values to any node to get it to the rest of the cluster.</p>
+<p>As mentioned earlier, we can use the <a href="https://www.consul.io/docs/guides/acl.html#key-value-rules">ACL</a> system to lock things down.  Our services will have a read-only role, and our updating user will have a writeable role.</p>
+<h2 id="what-next">What Next?</h2>
+<p>Assuming this system covers enough of what we want to do, the next steps might be to make some incremental improvements in functionality, although again I would suggest looking into not reinventing the wheel&hellip;</p>
+<h3 id="statistics">Statistics</h3>
+<p>While we can&rsquo;t use Consul to collect statistics on what keys are being read, we could provide this functionality by making a small client library which would log the queries and send them somewhere for aggregation.</p>
+<p>Most microservice environments have centralised logging or monitoring (and if they don&rsquo;t, they really should), so we can use this to record toggle usage.</p>
+<p>This information would be useful to have in the same place you set the feature toggles, which brings us nicely onto the next enhancement.</p>
+<h3 id="user-interface">User Interface</h3>
+<p>A simple static website could be used to read all the Toggles and their relevant states and statistics and provide a way of setting them.  The UI could further be expanded to give some type safety, such as extra data indicating what type a given key&rsquo;s value should be.</p>
+<h3 id="fine-grained-values">FIne Grained Values</h3>
+<p>Currently, everyone has the same value for a given key, but the system could be expanded to be more fine-grained.  Rather than storing a feature toggle in the current form:</p>
+<pre tabindex="0"><code>/kv/toggles/fast-rendering =&gt; true
+</code></pre><p>We could add another level which would indicate a grouping:</p>
+<pre tabindex="0"><code>/kv/toggles/fast-rendering/early-access =&gt; true
+/kv/toggles/fast-rendering/others =&gt; false
+</code></pre><p>At this point though, you are starting to add a lot of complexity.  Think about whether you are solving the right problem! Choose where you are spending your <a href="http://mcfunley.com/choose-boring-technology">Innovation Tokens</a>.</p>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>Should you do this? Maybe. Probably not.  I don&rsquo;t know your system and what infrastructure you have available, so I don&rsquo;t want to give any blanket recommendations.</p>
+<p>I will, however, suggest that if you are starting out with Feature Toggles, <strong>go for something simple first</strong>.  My current team&rsquo;s first use of a Feature Toggle was just a setting in the <code>web.config</code>, and we just changed the value of it when we wanted the new functionality to come on.</p>
+<p>See what works for you, and if you start needing something more complicated than just simple key-value toggles, have a look into an existing system.</p>
+]]></content:encoded></item></channel></rss>

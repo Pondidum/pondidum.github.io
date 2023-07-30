@@ -1,2 +1,99 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>ddd on Andy Dote</title><link>https://andydote.co.uk/tags/ddd/</link><description>Recent content in ddd on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 04 May 2014 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/ddd/rss.xml" rel="self" type="application/rss+xml"/><item><title>Writing Rich Domain Models</title><link>https://andydote.co.uk/2014/05/04/rich-domain-modeling/</link><pubDate>Sun, 04 May 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/05/04/rich-domain-modeling/</guid><description>The term Rich Domain Model is used to describe a domain model which really shows you how you should be using and manipulating the model, rather than letting you do anything with it. It is the opposite of an Anaemic Domain Model, which provides a very low abstraction over the data storage (generally), but with little to no enforcing of rules.
-The Anaemic Domain Model To take the standard model of a person who has addresses and phone numbers etc seems a little contrite, so lets run through an example using timesheets (bear in mind I don&amp;rsquo;t know what really goes into a timesheet system, this just seems reasonable).</description></item></channel></rss>
+The Anaemic Domain Model To take the standard model of a person who has addresses and phone numbers etc seems a little contrite, so lets run through an example using timesheets (bear in mind I don&amp;rsquo;t know what really goes into a timesheet system, this just seems reasonable).</description><content:encoded><![CDATA[<p>The term Rich Domain Model is used to describe a domain model which really shows you how you should be using and manipulating the model, rather than letting you do anything with it.  It is the opposite of an Anaemic Domain Model, which provides a very low abstraction over the data storage (generally), but with little to no enforcing of rules.</p>
+<h2 id="the-anaemic-domain-model">The Anaemic Domain Model</h2>
+<p>To take the standard model of a person who has addresses and phone numbers etc seems a little contrite, so lets run through an example using timesheets (bear in mind I don&rsquo;t know what really goes into a timesheet system, this just seems reasonable).  The current model looks something like the following:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TimeSheet</span> : DbEntity
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime WeekDate { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> TimeSheetStates State { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> TimeSheetLineCollection Lines { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TimeSheetLineCollection</span> : DbEntityCollection&lt;TimeSheetLine&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TimeSheetLine</span> : DbEntity
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime Day { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>;}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> LineTypes LineType { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">decimal</span> HourlyRate { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">decimal</span> Hours { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">enum</span> TimeSheetStates
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	New,
+</span></span><span style="display:flex;"><span>	Saved,
+</span></span><span style="display:flex;"><span>	Submitted,
+</span></span><span style="display:flex;"><span>	Approved,
+</span></span><span style="display:flex;"><span>	Rejected
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">enum</span> LineTypes
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	Normal,
+</span></span><span style="display:flex;"><span>	Holiday,
+</span></span><span style="display:flex;"><span>	Sick
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The first problem with this model is that the domain entities are inheriting directly from a <code>DbEntity</code> which is coupling our logic directly to our data access, which amongst other things is a violation of <a href="http://andydote.co.uk/solid-principles-srp">SRP</a>.  Putting this aside for the time being, the next issue is that the domain model lets you do anything with the objects and collections.</p>
+<p>The model implies that there are rules governing its usage somewhere, but gives no hint as to what these rules are, or where they are located.  Rules such as &lsquo;only allow hours to be entered in increments of half an hour&rsquo; and &rsquo;no more than 5 lines in a given week&rsquo; really should be in the domain model itself, as a Rich Domain Model should not allow itself to get into an invalid state.</p>
+<p>The model also is leaking what kind of data store it is built on - after all, if you had an Event Sourcing pattern for storage, a <code>Delete</code> operation on the <code>TimeSheetLineCollection</code> would not make a lot of sense.</p>
+<h2 id="the-rich-domain-model">The Rich Domain Model</h2>
+<p>A better version of this model is to make all the behaviour explicit, rather than just exposing the collections for external modification:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">TimeSheet</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DateTime WeekDate { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> TimeSheetStates State { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;TimeSheetLine&gt; Lines { <span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> _lines; } }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> List&lt;TimeSheetLine&gt; _lines;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> TimeSheetRules _rules;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> TimeSheet(TimeSheetRules rules, DateTime weekDate)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_lines = <span style="color:#66d9ef">new</span> List&lt;TimeSheetLine&gt;();
+</span></span><span style="display:flex;"><span>		_rules = rules;
+</span></span><span style="display:flex;"><span>		WeekDate = weekDate
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> AddLine(DayOfWeek day, LineTypes lineType, <span style="color:#66d9ef">decimal</span> hours, <span style="color:#66d9ef">decimal</span> hourlyRate)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> line = <span style="color:#66d9ef">new</span> TimeSheetLine {
+</span></span><span style="display:flex;"><span>			Day = WeekDate.AddDays(day),
+</span></span><span style="display:flex;"><span>			LineType = lineType,
+</span></span><span style="display:flex;"><span>			Hours = hours,
+</span></span><span style="display:flex;"><span>			HourlyRate = hourlyRate
+</span></span><span style="display:flex;"><span>		};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		_rules.ValidateAdd(Lines, line);	<span style="color:#75715e">//throws a descriptive error message if you can&#39;t do add.</span>
+</span></span><span style="display:flex;"><span>		_lines.Add(line);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The Rich model does a number of interesting things.  The first is that all the properties of the <code>TimeSheet</code> class are now <code>private set</code>.  This allows us to enforce rules on when and how they get set.  For example, the <code>WeekDate</code> property value gets passed in via the constructor, as our domain says that for a week to be valid it must have a weekdate.</p>
+<p>The major improvement is in adding lines to the <code>TimeSheet</code>.  In the Anaemic version of the model, you could have just created a <code>TimeSheetLine</code> object and set the <code>Day</code> property to an arbitrary date, rather than one in the given week&rsquo;s range.  The Rich model forces the caller to pass in a <code>DayOfWeek</code> to the function, which ensures that a valid datetime will get stored for the line.  The <code>AddLine</code> method also calls <code>_rules.ValidateAdd()</code> which gives us a central place for putting rules on line actions.</p>
+<p>Now that the user has been able to fill out all the lines in their timesheet, the next likely action they want to perform is to submit it for authorization.  We can do this by adding the following method:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> SubmitForApproval(User approver)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	_rules.ValidateTimeSheetIsComplete(<span style="color:#66d9ef">this</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	approver.AddWaitingTimeSheet(<span style="color:#66d9ef">this</span>);
+</span></span><span style="display:flex;"><span>	State = TimeSheetStates.Submitted;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note this method only validates if the timesheet is complete enough to be approved - validation for whether the approver can actually approve this timesheet is held within the <code>apperover.AddWaitingTimeSheet</code> method.</p>
+<p>The next thing to consider is when the approver rejects the timesheet because the user filled out the wrong weekdate.  Rather than just exposing Weekdate to be publicly setable, we can capture the intent of the adjustment with a set of methods:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> UserEnteredIncorrectWeek(DateTime newDate)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> delta = WeekDate - newDate;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	WeekDate = newDate;
+</span></span><span style="display:flex;"><span>	_lines.ForEach(line =&gt; line.Day = line.Day.AddDays(-delta));
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note how the method is named to capture the reason for the change.  Although we are not actively storing the reason, if we were using an EventStream for the backing store, or maintaining a separate log of changes we would now have a reason as to why the change was made.  This helps guide UI elements - rather then just having an &ldquo;Edit Week Date&rdquo; button, there could be a UI element which says &ldquo;Change Incorrect Week&rdquo; or similar.</p>
+<p>The function also has some logic baked into it - each of the <code>TimeSheetLine</code>s needs its <code>Day</code> property re-calculating.</p>
+<p>Hopefully this helps demonstrate why Rich Domain Models are better solutions to complex domain problems than Anaemic Domain Models are.</p>
+<p>For a really good video on this subject, check out Jimmy Bogard&rsquo;s <a href="http://vimeo.com/43598193">Crafting Wicked Domain Models</a> talk.</p>
+]]></content:encoded></item></channel></rss>

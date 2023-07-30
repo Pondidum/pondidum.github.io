@@ -1,15 +1,1052 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>architecture on Andy Dote</title><link>https://andydote.co.uk/tags/architecture/</link><description>Recent content in architecture on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 23 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/architecture/rss.xml" rel="self" type="application/rss+xml"/><item><title>Architecture Testing</title><link>https://andydote.co.uk/2023/07/23/architecture-testing/</link><pubDate>Sun, 23 Jul 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/07/23/architecture-testing/</guid><description>One of the many reasons given for using microservices rather than a mono repository is that it enforces boundaries between services/modules. However, there are ways to achieve strong boundaries between modules/services in one repository, using tools which are already available: test runners.
 Given a repository with the following structure:
-. ├── libraries │ ├── core │ ├── events │ └── ui ├── services │ ├── catalogue │ ├── billing │ └── shipping └── tools └── admin-cli There are a few rules we should enforce:</description></item><item><title>Expand Contract for Databases and Services</title><link>https://andydote.co.uk/2023/05/18/expand-contract/</link><pubDate>Thu, 18 May 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/05/18/expand-contract/</guid><description>I haven&amp;rsquo;t seen Expand-Contract written about in some years, and I think it is a great way of performing database schema migrations without the need for application downtime. I also realised that it also applies to microservices and service-to-service communication in general.
-The Easy Example One of the two examples given is wanting to change how an address is stored in a database. The schema starts off looking like this:</description></item><item><title>How do you tag docker images?</title><link>https://andydote.co.uk/2021/11/10/docker-tagging/</link><pubDate>Wed, 10 Nov 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/11/10/docker-tagging/</guid><description>An interesting question came up at work today: how do you tag your Docker images? In previous projects, I&amp;rsquo;ve always used a short git sha, or sometimes a semver, but with no great consistency.
-As luck would have it, I had pushed for a change in tagging format at a client not so long ago as the method we were using didn&amp;rsquo;t make a lot of sense and, worst of all, it was a manual process.</description></item><item><title>Architecture Decision Records</title><link>https://andydote.co.uk/2019/06/29/architecture-decision-records/</link><pubDate>Sat, 29 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/29/architecture-decision-records/</guid><description>This is a text version of a short talk (affectionately known as a &amp;ldquo;Coffee Bag&amp;rdquo;) I gave at work this week, on Architecture Design Records. You can see the slides here, but there isn&amp;rsquo;t a recording available, unfortunately.
-It should be noted; these are not to replace full architecture diagrams; you should definitely still write C4 Models to cover the overall architecture. ADRs are for the details, such as serializer formats, convention-over-configuration details, number precisions for timings, or which metrics library is used and why.</description></item><item><title>Microservices or Components</title><link>https://andydote.co.uk/2018/10/28/microservices-or-components/</link><pubDate>Sun, 28 Oct 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/10/28/microservices-or-components/</guid><description>One of the reasons people list for using MicroServices is that it helps enforce separation of concerns. This is usually achieved by adding a network boundary between the services. While this is useful, it&amp;rsquo;s not without costs; namely that you&amp;rsquo;ve added a set of new failure modes: the network. We can achieve the same separation of concerns within the same codebase if we put our minds to it. In fact, this is what Simon Brown calls a Modular Monolith, and DHH calls the Majestic Monolith.</description></item><item><title>Feature Toggles with Consul</title><link>https://andydote.co.uk/2018/09/06/consul-feature-toggles/</link><pubDate>Thu, 06 Sep 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/09/06/consul-feature-toggles/</guid><description>Feature Toggles are a great way of helping to deliver working software, although there are a few things which could go wrong. See my talk Feature Toggles: The Good, The Bad and The Ugly for some interesting stories and insights on it!
-I was talking with a colleague the other day about how you could go about implementing Feature Toggles in a centralised manner into an existing system, preferably with a little overhead as possible.</description></item><item><title>Evolutionary Development</title><link>https://andydote.co.uk/2017/11/17/evolutionary-development/</link><pubDate>Fri, 17 Nov 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/11/17/evolutionary-development/</guid><description>Having recently finished reading the Building Evolutionary Architectures: Support Constant Change book, I got to thinking about a system which was fairly representative of an architecture which was fine for it&amp;rsquo;s initial version, but it&amp;rsquo;s usage had outgrown the architecture.
-Example System: Document Storage The system in question was a file store for a multi user, internal, desktop based CRM system. The number of users was very small, and the first implementation was just a network file share.</description></item><item><title>Strong Configuration Composition</title><link>https://andydote.co.uk/2017/11/09/configuration-composition/</link><pubDate>Thu, 09 Nov 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/11/09/configuration-composition/</guid><description>It&amp;rsquo;s no secret I am a fan of strong typing - not only do I talk and blog about it a lot, but I also have a library called Stronk which provides strong typed configuration for non dotnet core projects.
+. ├── libraries │ ├── core │ ├── events │ └── ui ├── services │ ├── catalogue │ ├── billing │ └── shipping └── tools └── admin-cli There are a few rules we should enforce:</description><content:encoded><![CDATA[<p>One of the many reasons given for using microservices rather than a mono repository is that it enforces boundaries between services/modules.  However, there are ways to achieve strong boundaries between modules/services in one repository, using tools which are already available: test runners.</p>
+<p>Given a repository with the following structure:</p>
+<pre tabindex="0"><code>.
+├── libraries
+│   ├── core
+│   ├── events
+│   └── ui
+├── services
+│   ├── catalogue
+│   ├── billing
+│   └── shipping
+└── tools
+    └── admin-cli
+</code></pre><p>There are a few rules we should enforce:</p>
+<ul>
+<li>Services cannot reference each other</li>
+<li>tools cannot reference each other</li>
+<li>Services cannot reference tools</li>
+<li>Libraries can only reference other libraries</li>
+<li>Libraries cannot have circular dependencies</li>
+</ul>
+<p>There are also the conventions that we want to enforce:</p>
+<ul>
+<li>Feature folders should be used, not <code>models</code>, <code>views</code> and <code>controllers</code></li>
+<li>Specific libraries should not be used</li>
+<li>all services should expose a <code>/api/stats</code> endpoint</li>
+</ul>
+<p>How to write these tests will vary greatly depending on what programming languages and tools you use, but I know for sure they can be written in Go, C#, and TypeScript.  Not only that, but the tests can be written in a different language than the applications; in this example, our applications are written in a mix of NodeJS and Go, and the architectural tests are written in Go.</p>
+<h2 id="testing-for-a-convention">Testing for a Convention</h2>
+<p>The convention we will test for is that we strongly prefer folder-by-feature over folder-by-type.</p>
+<p>The test itself uses a couple of helper methods: <code>repositoryFolders</code> returns a slice of every folder recursively in the project, with information such as all child folders and all child files, along with names, paths, etc., populated.</p>
+<p>The <code>hasLayers</code> function itself is just checking if the direct children of a folder contain &ldquo;models&rdquo;, &ldquo;views&rdquo; and &ldquo;controllers&rdquo; or &ldquo;models&rdquo;, &ldquo;views&rdquo; and &ldquo;presenters&rdquo;.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestFolderByFeature</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">folders</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">repositoryFolders</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">folder</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">folders</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">hasLayers</span>(<span style="color:#a6e22e">folder</span>) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Failf</span>(<span style="color:#a6e22e">t</span>, <span style="color:#e6db74">&#34;found type folders, not slices&#34;</span>, <span style="color:#a6e22e">wrap80</span>(<span style="color:#e6db74">`
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">It looks like &#39;%s&#39; is using this folder structure, known as &#34;folder-by-type&#34;, which is discouraged:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Instead, you should use folders-by-feature:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">For more information, see this ADR: ./docs/arch/005-folder-layout.md
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">If this test failure is a false positive, please let us know, or you can either improve the test or add your folder path to the &#39;.architecture-ignore&#39; file.  Here is the fragment that can be added:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      `</span>, <span style="color:#a6e22e">folder</span>.<span style="color:#a6e22e">Path</span>, <span style="color:#a6e22e">layers</span>(<span style="color:#a6e22e">folder</span>), <span style="color:#a6e22e">slices</span>(<span style="color:#a6e22e">folder</span>), <span style="color:#a6e22e">folderByTypeArchitectureIgnore</span>(<span style="color:#a6e22e">folder</span>)))
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The error message in this kind of test is very important; it needs to cover:</p>
+<ul>
+<li>What was wrong</li>
+<li>Where the failure was (i.e. the path)</li>
+<li>Why this is considered wrong (with links to more information if needed)</li>
+<li>How to fix it</li>
+<li>How to add an exception to the rules (if desired)</li>
+<li>How to handle false positives</li>
+</ul>
+<p>For example, this is what the rendered output of the test above looks like, showing the folder that was detected to have folder-by-type, showing an example of how it should look, and linking to the <a href="/tags/adr/">adr</a>, which documents why this was chosen.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>It looks like &#39;services/catalogue/src&#39; is using this folder structure, known as
+</span></span><span style="display:flex;"><span>&#34;folder-by-type&#34;, which is discouraged:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>services/catalogue/src
+</span></span><span style="display:flex;"><span>├── controllers
+</span></span><span style="display:flex;"><span>├── models
+</span></span><span style="display:flex;"><span>└── views
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Instead, you should use folder-by-feature:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>services/catalogue/src
+</span></span><span style="display:flex;"><span>├── details
+</span></span><span style="display:flex;"><span>│   ├── controller.ts
+</span></span><span style="display:flex;"><span>│   ├── model.ts
+</span></span><span style="display:flex;"><span>│   └── view.ts
+</span></span><span style="display:flex;"><span>├── indexing
+</span></span><span style="display:flex;"><span>└── search
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>For more information, see this ADR: ./docs/arch/005-folder-layout.md
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>If this test failure is a false positive, please let us know, or you can either
+</span></span><span style="display:flex;"><span>improve the test or add your folder path to the &#39;.architecture-ignore&#39; file.
+</span></span><span style="display:flex;"><span>Here is the fragment that can be added:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>```toml
+</span></span><span style="display:flex;"><span>[[services]]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>[service.catalogue]
+</span></span><span style="display:flex;"><span>allowFolderByType = true
+</span></span><span style="display:flex;"><span>```.
+</span></span></code></pre></div><p>There is also the text on how to skip a test if there is a good reason to or the test failure is a false negative.  Adding to the <code>.architecture-ignore</code> file notifies the core team about an addition, but <strong>does not block the PR</strong>, as teams are all trusted; we just want to verify if something is happening a lot or if there is some case the tests are not handling.</p>
+<p>An example of a good reason for ignoring this test is when a team is taking ownership of a service and adding it to the repository: they want to pull its source in and make as few changes as possible until it is under their control; refactoring can then happen later.</p>
+<h2 id="testing-a-project-rule">Testing a Project Rule</h2>
+<p>Now let&rsquo;s look at how we verify that our services don&rsquo;t reference other services.  The test is similar to the previous one other than the <code>repositoryServices()</code> function returns a map of service names and Services.  The <code>Service</code> struct is an abstraction which allows us to handle both NodeJS projects and Go projects with the same test.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestServicesCannotReferenceOtherServices</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">allServices</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">repositoryServices</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">service</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">allServices</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">reference</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">service</span>.<span style="color:#a6e22e">References</span> {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">other</span>, <span style="color:#a6e22e">found</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">allServices</span>[<span style="color:#a6e22e">reference</span>.<span style="color:#a6e22e">Name</span>]; <span style="color:#a6e22e">found</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>         <span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Failf</span>(<span style="color:#a6e22e">t</span>, <span style="color:#e6db74">&#34;service references another service&#34;</span>, <span style="color:#a6e22e">wrap80</span>(<span style="color:#e6db74">`
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">It looks like the &#39;%s&#39; service is referencing the &#39;%s&#39; service.
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">1.  Service Boundary
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Needing data from another service is often an indication of non-optimal service boundary, which could mean we need to refactor our design a bit.
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">1.  Distributed Ball of Mud
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Having many service to service dependencies make all our services more tightly coupled, making refactoring and deployment harder.
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Sometimes a service to service reference is fine however!  You can add your service to service definition to the &#39;.architecture-ignore&#39; file if this is the case.  Here is the fragment that can be added:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">%s
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">         `</span>, <span style="color:#a6e22e">service</span>.<span style="color:#a6e22e">Name</span>, <span style="color:#a6e22e">other</span>.<span style="color:#a6e22e">Name</span>, <span style="color:#a6e22e">serviceToServiceArchitectureIgnore</span>(<span style="color:#a6e22e">service</span>, <span style="color:#a6e22e">other</span>)))
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span></code></pre></div><p>The error message when rendered looks like this, again adding as much detail as we can along with how to add the exception if needed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-md" data-lang="md"><span style="display:flex;"><span>It looks like the catalogue &#39;service&#39; is referencing the &#39;offers&#39; service.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Service to Service references are discouraged for two main reasons:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">1.</span>  Service Boundary
+</span></span><span style="display:flex;"><span>Needing data from another service is often an indication of non-optimal service
+</span></span><span style="display:flex;"><span>boundary, which could mean we need to refactor our design a bit.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">2.</span>  Distributed Ball of Mud
+</span></span><span style="display:flex;"><span>Having many service to service dependencies make all our services more tightly
+</span></span><span style="display:flex;"><span>coupled, making refactoring and deployment harder.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Sometimes a service to service reference is fine however!  You can add your
+</span></span><span style="display:flex;"><span>service to service definition to the &#39;.architecture-ignore&#39; file if this is the
+</span></span><span style="display:flex;"><span>case.  Here is the fragment that can be added:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>```toml
+</span></span><span style="display:flex;"><span>[[services]]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>[services.catalogue]
+</span></span><span style="display:flex;"><span>references = [
+</span></span><span style="display:flex;"><span>    &#34;offers&#34;
+</span></span><span style="display:flex;"><span>]
+</span></span><span style="display:flex;"><span>```.
+</span></span></code></pre></div><h2 id="further-work">Further Work</h2>
+<p>Using tests like this also allows you to build extra things on top of them; for migrating from one library to another, you can add tests that specify that the number of usages can only go down over time, never up.</p>
+<p>You can also use <code>codeowners</code> (or equivalent) to keep an eye on what is being added to the <code>.architecture-ignore</code> file, allowing you to react to emerging patterns and either guide teams towards the pattern or away from it.</p>
+<p>The key with this is that you trust your teams; this is all &ldquo;trust but verify&rdquo; with the ignore file.  You should (almost) never be blocking a team from working.</p>
+]]></content:encoded></item><item><title>Expand Contract for Databases and Services</title><link>https://andydote.co.uk/2023/05/18/expand-contract/</link><pubDate>Thu, 18 May 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/05/18/expand-contract/</guid><description>I haven&amp;rsquo;t seen Expand-Contract written about in some years, and I think it is a great way of performing database schema migrations without the need for application downtime. I also realised that it also applies to microservices and service-to-service communication in general.
+The Easy Example One of the two examples given is wanting to change how an address is stored in a database. The schema starts off looking like this:</description><content:encoded><![CDATA[<p>I haven&rsquo;t seen Expand-Contract written about in some years, and I think it is a great way of performing database schema migrations without the need for application downtime.  I also realised that it also applies to microservices and service-to-service communication in general.</p>
+<h2 id="the-easy-example">The Easy Example</h2>
+<p>One of the two examples given is wanting to change how an address is stored in a database.  The schema starts off looking like this:</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>name</th>
+<th>address</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Reaktor</td>
+<td>Läntinen Rantakatu 15, 20100, Turku, Finland</td>
+</tr>
+</tbody>
+</table>
+<p>The requirement is that the schema is changed to look like this:</p>
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>name</th>
+<th>street</th>
+<th>postcode</th>
+<th>town</th>
+<th>country</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Reaktor</td>
+<td>Läntinen Rantakatu 15</td>
+<td>20100</td>
+<td>Turku</td>
+<td>Finland</td>
+</tr>
+</tbody>
+</table>
+<p>The way you would traditionally achieve this is with a migration:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">alter</span> <span style="color:#66d9ef">table</span> buildings
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">add</span> <span style="color:#66d9ef">column</span> street text,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">add</span> <span style="color:#66d9ef">column</span> postcode text, <span style="color:#75715e">-- postcodes can start with a 0, so store them as text
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">add</span> <span style="color:#66d9ef">column</span> town text,
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">add</span> <span style="color:#66d9ef">column</span> country text
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">update</span> buildings <span style="color:#66d9ef">set</span>
+</span></span><span style="display:flex;"><span>  street    <span style="color:#f92672">=</span> split_part(address, <span style="color:#e6db74">&#39;,&#39;</span>, <span style="color:#ae81ff">1</span>),
+</span></span><span style="display:flex;"><span>  postcode  <span style="color:#f92672">=</span> split_part(address, <span style="color:#e6db74">&#39;,&#39;</span>, <span style="color:#ae81ff">2</span>),
+</span></span><span style="display:flex;"><span>  town      <span style="color:#f92672">=</span> split_part(address, <span style="color:#e6db74">&#39;,&#39;</span>, <span style="color:#ae81ff">3</span>),
+</span></span><span style="display:flex;"><span>  country   <span style="color:#f92672">=</span> split_part(address, <span style="color:#e6db74">&#39;,&#39;</span>, <span style="color:#ae81ff">4</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">where</span>
+</span></span><span style="display:flex;"><span>  address <span style="color:#f92672">!=</span> <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">alter</span> <span style="color:#66d9ef">table</span> buildings
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">drop</span> <span style="color:#66d9ef">column</span> address
+</span></span></code></pre></div><p>The problem with doing this is that the software using this table needs to be stopped while the update is happening; if the old version is running, the app will suddenly be trying to query a non-existing column.  If the new version is running, it will also be trying to query non-existing columns.</p>
+<p>The process has to look like this:</p>
+<ol>
+<li>stop the old app</li>
+<li>run the migration</li>
+<li>start the new app</li>
+</ol>
+<p>Step 2 however can be long, especially if there is lots of data.  And what happens if you cannot have downtime for your service?</p>
+<h2 id="the-expand-contract-way">The Expand Contract Way</h2>
+<ol>
+<li>add a new column to the table (nullable)</li>
+<li>release new software
+<ul>
+<li>for reads, read both old and new columns; prefer data in new columns if it exists</li>
+<li>for writes, write to new columns</li>
+</ul>
+</li>
+<li>run a script to migrate any remaining data</li>
+<li>release new software
+<ul>
+<li>only reads new columns</li>
+<li>only writes new columns</li>
+</ul>
+</li>
+<li>drop the old column</li>
+</ol>
+<p>This is more steps than the original method, but it means there is no downtime in your system.  Also, if you make step 2 write to both columns, the migration is easily reversible as no data is lost until the fourth step runs.
+.</p>
+<h2 id="what-about-apis--services">What about APIs?  Services?</h2>
+<p>Expand Contract doesn&rsquo;t have to just be about services either.  For example, you have two services and have decided that part of service A should be migrated into service B, which has a similar system.  The process is broadly similar to the database example above but with service releases instead:</p>
+<ol>
+<li>Service B&rsquo;s data model is expanded</li>
+<li>Service A is released:
+<ul>
+<li>for reads, read both it&rsquo;s own datastore and Service B.  Return result from B if available</li>
+<li>for writes, write to it&rsquo;s own datastore and Service B</li>
+</ul>
+</li>
+<li>Run a script/application to migrate the remaining data</li>
+<li>Release Service A:
+<ul>
+<li>uses Service B for all operations</li>
+</ul>
+</li>
+<li>Drop old data store tables</li>
+</ol>
+<p>As you can see, the process is broadly similar to when implementing a database change; the only difference is some coordination with the other service team.  The coordination is only to make sure their data model is ready; no need to release anything at the same time, and no downtime in either service is required.</p>
+<h2 id="downsides">Downsides</h2>
+<p>This may sound like a silver bullet, but as with all techniques, it has drawbacks.</p>
+<p>The primary drawback is the extra steps required.  There are multiple releases, and data migrates lazily/on demand.  Then there is the extra step of migrating the remaining data, which is an additional effort.</p>
+<p>The other drawback is a symptom of the first drawback: time.  It takes far longer to do expand-contract than to have a short downtime.  Depending on your application, short downtime might be the better choice to make.  For example, a queue processing service which doesn&rsquo;t have a synchronous API would probably be better choosing the downtime, assuming it can catch up with any messages which queue up during the downtime!</p>
+]]></content:encoded></item><item><title>How do you tag docker images?</title><link>https://andydote.co.uk/2021/11/10/docker-tagging/</link><pubDate>Wed, 10 Nov 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/11/10/docker-tagging/</guid><description>An interesting question came up at work today: how do you tag your Docker images? In previous projects, I&amp;rsquo;ve always used a short git sha, or sometimes a semver, but with no great consistency.
+As luck would have it, I had pushed for a change in tagging format at a client not so long ago as the method we were using didn&amp;rsquo;t make a lot of sense and, worst of all, it was a manual process.</description><content:encoded><![CDATA[<p>An interesting question came up at work today: how do you tag your Docker images?  In previous projects, I&rsquo;ve always used a short git sha, or sometimes a semver, but with no great consistency.</p>
+<p>As luck would have it, I had pushed for a change in tagging format at a client not so long ago as the method we were using didn&rsquo;t make a lot of sense and, worst of all, it was a <em>manual</em> process.  One of the things that I push at all clients is documenting all architectural decisions made, in the form of <a href="/2019/06/29/architecture-decision-records">Architecture Decision Records</a>, so I&rsquo;m reproducing it here, with a few details changed to mask where this happened.</p>
+<p>One of the most interesting points of this is that I went in with an idea on the right way to do this, and over the course of discussion and review of the document, <em>changed my mind</em>.</p>
+<hr>
+<h2 id="change-versioning-scheme">Change Versioning Scheme</h2>
+<h3 id="status">Status</h3>
+<p>Accepted</p>
+<h3 id="context">Context</h3>
+<p>Currently, the UI uses a <a href="https://semver.org/">SemVer</a> style version number. However, we have no convention for what kind of modifications constitute a major, minor, or patch change.  We also have no processes or people who care specifically about what kind of change it is, just that a new version was deployed.</p>
+<p>The other problem with using SemVer is that people wait until a branch has been approved, and then make an additional commit with the version number change (as another prod deployment might have happened in the meantime), meaning they need to wait for an additional build before they can deploy.</p>
+<p>Not to mention, it&rsquo;s possible to accidentally go backwards in numbers if a value was misread or if someone forgets to update the version number in their branch.</p>
+<h3 id="considered-options">Considered Options</h3>
+<h4 id="1-auto-incrementing-integer-version">1. Auto-incrementing integer version</h4>
+<p>On production deployment, we would write a version number to the application.  The negative of this approach is not having a version number in pre-production environments, such as test environments.</p>
+<p>We could generate the number on the build phase (when the container is created), but this means that we might not release versions &ldquo;in order&rdquo;, as the order of what feature is deployed to production is not guaranteed, although the need to merge <code>master</code> into your branch would mean a rebuild, so a new version could be generated.</p>
+<p>This method would also mean gaps in version numbers, as not all builds hit production, which might be a touch confusing.</p>
+<p>Another issue with this method is that we build multiple containers from the same commit in separate pipelines, so we would need some way to generate a version in both pipelines which would match, which would mean either a function deriving from the commit hash or a service which would calculate and cache version numbers so they could be generated and looked up by multiple pipelines.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>1870
+</code></pre><h4 id="2-git-short-sha-of-the-commit">2. Git (short) sha of the commit</h4>
+<p>On build, write the short (7 char) SHA as the version number.  The negative of this approach is not having an easy to understand order of version numbers.  However, this scheme means we can easily see exactly which commit is currently running in production (or any environment, for that matter.)</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>84d33bb
+</code></pre><h4 id="3-build-id-from-ci-system">3. Build ID from CI System</h4>
+<p>On build, embed the buildID as the version number.  The pipeline id is a 24 character string consisting of numbers and letters, so this is functionally similar to <a href="#2-git-short-sha-of-the-commit">Option 2</a>, but with a longer number that doesn&rsquo;t tie back to a commit.</p>
+<p>As with <a href="#1-auto-incrementing-integer-version">Option 1</a>, we would need to decide if this number comes from the build pipeline, or from the deployment pipeline.  This also has the same multi-pipeline problem too.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>611a0be261ddea19dab67c22
+</code></pre><h4 id="4-datestamp">4. Datestamp</h4>
+<p>On build, use the current commit&rsquo;s datestamp as the tag.</p>
+<p>As long as we keep the resolution of the datestamp large enough, the multiple pipelines needing to generate the same ID shouldn&rsquo;t be a problem.  I guess 1-minute resolution would be enough, although if a rebuild is needed (e.g. flakey internet connection), we would end up with a different datestamp.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>2021-08-16.13-07
+</code></pre><h4 id="5-commit-datestamp">5. Commit Datestamp</h4>
+<p>Similar to <a href="#4-datestamp">Option 4</a>, except we use the commit&rsquo;s commit date to build the version number.  This solves multiple pipelines needing to generate the same tag in parallel, as well as being unique and ordered.  The timestamps can also be higher precision than <a href="#4-datestamp">Option 4</a>, as we don&rsquo;t need to hope that pipelines start at a close enough time.</p>
+<p>This is how we would generate it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>timestamp<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>git show -s --format<span style="color:#f92672">=</span>%cd --date<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;format:%Y-%m-%d.%H-%M-%S&#34;</span><span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>Example Version:</p>
+<pre tabindex="0"><code>2021-08-16.13-07-34
+</code></pre><h4 id="6-automatic-semver">6. Automatic SemVer</h4>
+<p>On build, calculate the version number using <a href="https://github.com/semantic-release/semantic-release">Semantic-Release</a>.</p>
+<p>This method means that we would need to start enforcing commit message styles, and I am not sure the format that Semantic Release is ideal for us, so it might be better to cover the commit message formatting outside this process.</p>
+<p>The commit format would be as follows:</p>
+<pre tabindex="0"><code>&lt;type&gt;(&lt;scope&gt;): &lt;short summary&gt;
+│       │             │
+│       │             └─⫸ Summary in the present tense. Not capitalized. No period at the end.
+│       │
+│       └─⫸ Commit Scope: animations|bazel|benchpress|common|compiler|compiler-cli|core|
+│                          elements|forms|http|language-service|localize|platform-browser|
+│                          platform-browser-dynamic|platform-server|router|service-worker|
+│                          upgrade|zone.js|packaging|changelog|dev-infra|docs-infra|migrations|
+│                          ngcc|ve
+│
+└─⫸ Commit Type: build|ci|docs|feat|fix|perf|refactor|test
+</code></pre><p>Having worked in repositories with this enforced, I would recommend against it, as it causes a lot of frustration (&ldquo;omg <em>why</em> has my commit been rejected again?!&rdquo;) and as mentioned in other options, I am not sure semver itself makes sense for our UI (or UI projects in general.)</p>
+<p>We will still need developers to decide if a given commit is a major/minor/patch.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>13.4.17
+</code></pre><h4 id="6-combination-datestamp--git">6. Combination: Datestamp + Git</h4>
+<p>On build, use a combination of <a href="#5-commit-datestamp">Option 5</a> and <a href="#2-git-short-sha-of-the-commit">Option 2</a> to generate a unique build number.</p>
+<p>This method had the advantage of the meaning of the date, with the uniqueness of the git commit, but the likelihood of us needing to distinguish two commits made at identical times by their commit sha is unlikely, especially as we require clean merges to master.</p>
+<p>Example Version:</p>
+<pre tabindex="0"><code>2021-08-16.13-07-34.84d33bb
+</code></pre><h3 id="chosen-decision">Chosen Decision</h3>
+<p><a href="#5-commit-datestamp">Option 5</a></p>
+<p>We will also embed other build information as labels in the docker container, such as:</p>
+<ul>
+<li>branch name</li>
+<li>pipeline/build number</li>
+<li>git hash</li>
+<li>git commit timestamp</li>
+</ul>
+<h3 id="consequences">Consequences</h3>
+<ul>
+<li>No need to tag commits as a released version, but we could automate this if we wanted</li>
+<li>No need to rebuild for changing the version number</li>
+<li>No need to remember to change the version number</li>
+<li>No need to decide on major/minor/patch semantics</li>
+<li>Gain an understandable version number, with meaning</li>
+</ul>
+<hr>
+<h2 id="summary">Summary</h2>
+<p>As I said earlier, I went into this process (which I drove) wanting to pick the 2nd option - Short Git Sha, and I came away agreeing that the commit datestamp was the best thing to use.</p>
+<p>Not only was my mind changed in the course of this, but also people who join the project later can check out the <code>./docs/adr/</code> and see what options we considered for everything about this project, and how we arrived at the conclusions.  It also means I have examples to refer back to when people ask interesting questions at work.</p>
+<p>How do <em>you</em> tag your containers?</p>
+]]></content:encoded></item><item><title>Architecture Decision Records</title><link>https://andydote.co.uk/2019/06/29/architecture-decision-records/</link><pubDate>Sat, 29 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/29/architecture-decision-records/</guid><description>This is a text version of a short talk (affectionately known as a &amp;ldquo;Coffee Bag&amp;rdquo;) I gave at work this week, on Architecture Design Records. You can see the slides here, but there isn&amp;rsquo;t a recording available, unfortunately.
+It should be noted; these are not to replace full architecture diagrams; you should definitely still write C4 Models to cover the overall architecture. ADRs are for the details, such as serializer formats, convention-over-configuration details, number precisions for timings, or which metrics library is used and why.</description><content:encoded><![CDATA[<p>This is a text version of a short talk (affectionately known as a &ldquo;Coffee Bag&rdquo;) I gave at work this week, on Architecture Design Records.  You can see the <a href="/presentations/index.html?adr">slides here</a>, but there isn&rsquo;t a recording available, unfortunately.</p>
+<p>It should be noted; these are not to replace full architecture diagrams; you should definitely still write <a href="https://c4model.com">C4 Models</a> to cover the overall architecture.  ADRs are for the details, such as serializer formats, convention-over-configuration details, number precisions for timings, or which metrics library is used and why.</p>
+<h2 id="what">What?</h2>
+<p>Architecture Design Records are there to solve the main question people repeatedly ask when they view a new codebase or look at an older part of their current codebase:</p>
+<blockquote>
+<p>Why on earth was it done like this?!</p>
+</blockquote>
+<p>Generally speaking, architectural decisions have been made in good faith at the time, but as time marches on, things change, and the reasoning gets lost.  The reasoning might be discoverable through the commit history, or some comments in a type somewhere, and every once in a while, people remember the Wiki exists, and hope that someone else remembered and put some docs there.  They didn&rsquo;t by the way.</p>
+<p>Architecture Design Records are aiming to solve all of this, with three straightforward attributes: Easy to Write, Easy to Read, and Easy to Find.  Let&rsquo;s look at these on their own, and then have a look at an example.</p>
+<h2 id="easy-to-find">Easy to Find</h2>
+<p>As I alluded to earlier, &ldquo;easy to find&rdquo; doesn&rsquo;t mean &ldquo;hidden in confluence&rdquo; (or any other wiki, for that matter.)  The best place to put records of architecture decisions is in the repository.  If you want them elsewhere, that&rsquo;s fine, but the copy in the repository should be the source of truth.</p>
+<p>As long as the location is consistent (and somewhat reasonable), it doesn&rsquo;t matter too much where they go.  I like to put them in the <code>docs/arch</code> path, but a common option is <code>docs/adr</code> too:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>$ tree ~/dev/projects/awesome-api
+</span></span><span style="display:flex;"><span>|-- docs
+</span></span><span style="display:flex;"><span>|   <span style="color:#e6db74">`</span>-- arch
+</span></span><span style="display:flex;"><span>|       |-- api-error-codes.md
+</span></span><span style="display:flex;"><span>|       |-- controller-convention.md
+</span></span><span style="display:flex;"><span>|       <span style="color:#e6db74">`</span>-- serialization-format.md
+</span></span><span style="display:flex;"><span>|-- src
+</span></span><span style="display:flex;"><span>|-- test
+</span></span><span style="display:flex;"><span><span style="color:#e6db74">`</span>-- readme.md
+</span></span></code></pre></div><p>The file names for each architecture decision are imperative - e.g. &ldquo;serialization format&rdquo;, rather than &ldquo;figure out what format to use&rdquo;, much like your commit messages are (right?)  You might also note that the files are Markdown.  Because what else would they be really?</p>
+<h2 id="easy-to-write">Easy to Write</h2>
+<p>As just mentioned, I usually use Markdown for writing all documents, but as long as you are consistent (notice a pattern here?) and that it is plain-text viewable (i.e. in a terminal), it doesn&rsquo;t matter too much.  Try and pick a format that doesn&rsquo;t add much mental overhead to writing the documents, and if it can be processed by tools easily, that&rsquo;s a bonus, as we will look into later.</p>
+<h2 id="easy-to-read">Easy to Read</h2>
+<p>There are two components to this:  Rendering and Format.</p>
+<p>Rendering is covering how we actually read it - plain text in a terminal, syntax highlighting in an editor, or rendered into a web page.  Good ADRs can handle all three, and Markdown is a good fit for all of them!  By using Markdown, not only can we render to HTML, we can even use Confluences&rsquo;s questionable &ldquo;Insert Markdown Markup&rdquo; support to write them into a wiki location if desired.</p>
+<p>Format is covering what the content of the document is.  There are <a href="https://github.com/joelparkerhenderson/architecture_decision_record">many different templates you can use</a>, which have different levels of detail, and are aimed at different levels of decisions.  I like to use a template based off <a href="https://github.com/joelparkerhenderson/architecture_decision_record/blob/master/adr_template_by_michael_nygard.md">Michael Nygard&rsquo;s</a>, which I modified a little bit to have the following sections:</p>
+<ul>
+<li>Title</li>
+<li>Status</li>
+<li>Context</li>
+<li>Considered Options</li>
+<li>Chosen Decision</li>
+<li>Consequences</li>
+</ul>
+<p>Let&rsquo;s have a look at these in an example.</p>
+<h2 id="example">Example</h2>
+<p>We have a new API we are developing, and we need to figure out which serialization format we should use for all the requests and responses it will handle.</p>
+<p>We&rsquo;ll start off with our empty document and add in the Title, and Status:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span># Serialization Format
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Status
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>In Progress
+</span></span></code></pre></div><p>The Title is <em>usually</em> the same as the file name, but not necessarily.  The Status indicates where the document is in its lifespan.  What statuses you choose is up to you, but I usually have:</p>
+<ul>
+<li>In Progress</li>
+<li>Accepted</li>
+<li>Rejected</li>
+<li>Superseded</li>
+<li>Deprecated</li>
+</ul>
+<p>Once an ADR is Accepted (or Rejected), the content won&rsquo;t change again.  Any subsequent changes will be a new ADR, and the previous one will be marked as either Deprecated or Superseded, along with a link to the ADR which replaces it, for example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Status
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>Superseded by [<span style="color:#f92672">Api Transport Mechanisms</span>](<span style="color:#a6e22e">api-transport-mechanisms.md</span>)
+</span></span></code></pre></div><p>Next, we need to add some context for the decision being made.  In our serialization example, this will cover what area of the codebase we are covering (the API, rather than storage), and any key points, such as message volume, compatibilities etc.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Context
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>We need to have a consistent serialization scheme for the API.  It needs to be backwards and forwards compatible, as we don&#39;t control all of the clients.  Messages will be fairly high volume and don&#39;t <span style="font-style:italic">*need*</span> to be human readable.
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>Now that we have some context, we need to explain what choices we have available.  This will help when reading past decisions, as it will let us answer the question &ldquo;was xxxx or yyyy considered?&rdquo;.  In our example, we consider JSON, Apache Avro, the inbuilt binary serializer, and a custom built serializer (and others, such as Thrift, ProtoBufs, etc.)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Considered Options
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">1.</span> <span style="font-weight:bold">**Json**</span>: Very portable, and with serializers available for all languages.  We need to agree on a date format, and numeric precision, however.  The serialization should not include white space to save payload size.  Forwards and Backwards compatibility exists but is the developer&#39;s responsibility.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">2.</span> <span style="font-weight:bold">**Apache Avro**</span>: Binary format which includes the schema with the data, meaning no need for schema distribution.  No code generator to run, and libraries are available for most languages.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">3.</span> <span style="font-weight:bold">**Inbuilt Binary**</span>: The API is awkward to use, and its output is not portable to other programming languages, so wouldn&#39;t be easy to consume for other teams, as well as some of our internal services.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">4.</span> <span style="font-weight:bold">**Custom Built**</span>: A lot of overhead for little to no benefit over Avro/gRPC etc.
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">5.</span> <span style="font-weight:bold">**Thrift**</span>: ...
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>The second to last section is our Chosen Decision, which will not only list which one we picked (Avro, in this case) but also why it was chosen over other options.  All this helps reading older decisions, as it lets you know what was known at the time the decision was made - and you will always know less at the time of the decision than you do now.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Chosen Decision
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="font-weight:bold">**2. Apache Avro**</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Avro was chosen because it has the best combination of message size and schema definition.  No need to have a central schema repository set up is also a huge benefit.
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>In this example, we have selected Avro and listed that our main reasons were message size, and the fact that Avro includes the schema with each message, meaning we don&rsquo;t need a central (or distributed) schema repository to be able to read messages.</p>
+<p>The final section is for Consequences of the decision.  This is <strong>not</strong> to list reasons that we could have picked other decisions, but to explain things that we need to start doing or stop doing because of this decision.  Let&rsquo;s see what our example has:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span><span style="color:#75715e">## Consequences
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>As the messages are binary format, we cannot directly view them on the wire.  However, a small CLI will be built to take a message and pretty print it to aid debugging.
+</span></span></code></pre></div><p>{: .wrap }</p>
+<p>As we have selected a binary message format, the messages can&rsquo;t be easily viewed any more, so we will build a small CLI which when given a message (which as noted, contains the schema), renders a human-readable version of the message.</p>
+<h2 id="dates">Dates</h2>
+<p>You might notice that the record doesn&rsquo;t contain any dates so far.  That is because it&rsquo;s tracked in source control, which means we can pull all the relevant information from the commit history.  For example, a full list of changes to any ADR could be fetched from Git with this command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>git log --format<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;%ci %s&#39;</span> -- docs/arch/
+</span></span></code></pre></div><p>Likewise, when you&rsquo;re running your build process, you could extract the commit history which effects a single ADR:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>git log --reverse --format<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;%ci %s&#39;</span> -- docs/arch/serialization-format.md
+</span></span></code></pre></div><p>And then take that list and insert it into the rendered output so people can see what changed, and when:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-html" data-lang="html"><span style="display:flex;"><span>&lt;<span style="color:#f92672">div</span> <span style="color:#a6e22e">style</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;float: right&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#f92672">h2</span>&gt;History&lt;/<span style="color:#f92672">h2</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#f92672">ul</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-26&lt;/<span style="color:#f92672">strong</span>&gt; start serialization format docs&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-26&lt;/<span style="color:#f92672">strong</span>&gt; consider json&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-26&lt;/<span style="color:#f92672">strong</span>&gt; consider avro, inbuilt binary and custom binary&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-27&lt;/<span style="color:#f92672">strong</span>&gt; should consider thrift too&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-28&lt;/<span style="color:#f92672">strong</span>&gt; select Avro&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2018-09-28&lt;/<span style="color:#f92672">strong</span>&gt; accepted :)&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">li</span>&gt;&lt;<span style="color:#f92672">strong</span>&gt;2019-03-12&lt;/<span style="color:#f92672">strong</span>&gt; accept api transport mechanisms&lt;/<span style="color:#f92672">li</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;/<span style="color:#f92672">ul</span>&gt;
+</span></span><span style="display:flex;"><span>&lt;/<span style="color:#f92672">div</span>&gt;
+</span></span></code></pre></div><p>Note how that last log entry is the deprecation of this ADR.  You can, of course, expand your log parsing only to detect Status changes etc.</p>
+<h2 id="end">End</h2>
+<p>Hopefully, this gives you a taste of how easily useful documentation can be written, read and found.  I&rsquo;m interested to hear anyone else&rsquo;s thoughts on whether they find this useful, or any other alternatives.</p>
+]]></content:encoded></item><item><title>Microservices or Components</title><link>https://andydote.co.uk/2018/10/28/microservices-or-components/</link><pubDate>Sun, 28 Oct 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/10/28/microservices-or-components/</guid><description>One of the reasons people list for using MicroServices is that it helps enforce separation of concerns. This is usually achieved by adding a network boundary between the services. While this is useful, it&amp;rsquo;s not without costs; namely that you&amp;rsquo;ve added a set of new failure modes: the network. We can achieve the same separation of concerns within the same codebase if we put our minds to it. In fact, this is what Simon Brown calls a Modular Monolith, and DHH calls the Majestic Monolith.</description><content:encoded><![CDATA[<p>One of the reasons people list for using MicroServices is that it helps enforce separation of concerns.  This is usually achieved by adding a network boundary between the services.  While this is useful, it&rsquo;s not without costs; namely that you&rsquo;ve added a set of new failure modes: the network. We can achieve the same separation of concerns within the same codebase if we put our minds to it.  In fact, this is what <a href="https://www.simonbrown.je/">Simon Brown</a> calls a <a href="https://www.codingthearchitecture.com/presentations/sa2015-modular-monoliths">Modular Monolith</a>, and <a href="https://twitter.com/dhh">DHH</a> calls the <a href="https://m.signalvnoise.com/the-majestic-monolith-29166d022228">Majestic Monolith</a>.</p>
+<p>We recently needed to expand an existing service to have some new functionality.  The current process looks something like this, where the user has done something which will eventually return them a URL which can be clicked to get to a web page to see the results.</p>
+<p><img loading="lazy" src="microservice-existing.png" alt="api call does some work, returns a result_url which points to a web interface"  />
+</p>
+<p>The new process is an additional authentication challenge which the user will need to complete before they can get to the final results page.  The new process looks like this:</p>
+<p><img loading="lazy" src="microservice-challenge.png" alt="api call does work, makes a request to challenge API, passing the result_url as an argument.  The challenge-response returns a challenge_url, which is returned to the user instead of the return_url"  />
+</p>
+<h2 id="design-decisions">Design Decisions</h2>
+<p>Currently, the challenge functionality will only be used by this one service, but there is a high probability that we will need it for other services in the future too.  At this point we have a decision to make: do we keep this functionality in-process, or make a separate microservice for it?</p>
+<h3 id="time-to-live">Time To Live</h3>
+<p>The first trade-off is time:  it is slightly quicker to make it in-process, but if we do want to use this from somewhere else later, we&rsquo;ll need to extract it; which is more work.  The key here is &ldquo;if&rdquo; - we don&rsquo;t know for sure that other services will need this exact functionality.</p>
+<p>If we keep the new API and UI within the existing API and UI projects, we can also make some code reuse: there is a data store, data access tooling, permissions, styles that can be reused.  Also, all of our infrastructure such as logging and monitoring is already in place, which will save us some time too.</p>
+<h3 id="api-risk">API Risk</h3>
+<p>We want to avoid deploying a service which then needs to undergo a lot of rework in the future if the second and third users of it have slightly different requirements.  If we build it as a separate service now, will we be sure we are making something which is generic and reusable by other services?  Typically you only get the answer to this question after the second or third usage, so it seems unlikely that we would get our API design perfect on the first attempt.</p>
+<h3 id="technical-risks">Technical Risks</h3>
+<p>If we are to go the separate service route, we are introducing new failure modes to the existing API.  What if the challenge API is down? What if the request times out? Are we using HTTP or a Message Broker to communicate with it?</p>
+<p>If we keep the service in-process to start with we can eliminate all of these concerns.  Luckily, we tend to have very thin controllers and make use of <a href="https://github.com/jbogard/MediatR">Mediatr</a>, so the actual implementation of how the remote call is made can be hidden in the message handler to a certain extent.</p>
+<h3 id="technical-decisions">Technical Decisions</h3>
+<p>As alluded to in the Time To Live point, we can reuse the existing data store and data access code, but this is a tradeoff in itself: what if the current storage tech is not quite ideal for the new requirements?</p>
+<p>If the current service makes use of a complex Entity Framework model, but the new service is so simple that Dapper makes more sense, do we introduce the new dependency or not?  What if we wanted to migrate away from one datastore to another (e.g. removing all MongoDB usage in favour of Postgres), but this is already using Mongo?  We&rsquo;d be increasing our dependency on a datastore we are explicitly trying to migrate away from.</p>
+<p>All this assumes we want to write the service in the same programming language as the existing service!  In our case we do but it&rsquo;s worth considering if you have multiple languages in use already.</p>
+<p>Finally on the data storefront, if we decide to extract this as a separate service later, we will have to take into account data migrations, and how we can handle that with little if any, downtime.</p>
+<h2 id="the-decision">The Decision</h2>
+<p>After weighing up all these points (and a few others), we decided to keep the service inside the existing services.  The Challenge API will live in its own area in the current API, and likewise, the Challenge UI will live in its own area in the existing UI.</p>
+<p>How do we go about keeping it all separated though?</p>
+<ul>
+<li><strong>Communication</strong> we discuss all changes we want to make anyway, so the first line of defence to preventing the code becoming tightly coupled are these discussions.</li>
+<li><strong>Pull Requests</strong> someone will notice you are doing something which is reducing the separation, and a discussion about how to avoid this will happen.</li>
+<li><strong>Naming Conventions</strong> the Challenge API shares no naming of properties with the existing API.  For example, the current API passes in a <code>results_url</code> and <code>results_id</code>, but the Challenge API stores and refers to these as the <code>redirect_url</code> and <code>external_id</code>.</li>
+<li><strong>Readme</strong> it&rsquo;ll go into the repository&rsquo;s readme file, along with any other notes which developers will find useful.  The sequence diagrams we drew (with much more detail) will also go in here.</li>
+</ul>
+<h2 id="technical-debt">Technical Debt?</h2>
+<p>The final question on this decision is &ldquo;Isn&rsquo;t this technical debt we are introducing?&rdquo;.  The answer I feel is &ldquo;no&rdquo;, it feels much closer to applying the YAGNI Principle (You Ain&rsquo;t Gonna Need It).  While there is work in the backlog which can use a Challenge API at the moment, that doesn&rsquo;t necessarily mean it will still be there next week, or if it will be pushed further back or changed later.</p>
+<p>In the end, the meeting where we came up with this and drew things on the whiteboard together was productive, and likely much shorter than it took me to write all this down.  We were able to resist the &ldquo;cool hip microservice&rdquo; trend and come up with a design which is pretty contained and composable with other systems in the future.</p>
+<p>If after all this discussion we decided to go the MicroService route, I would still be happy with the decision, as we would have all this material to look back on and justify our choice, rather than waving our hands about and shouting &ldquo;but microservices&rdquo; loudly.</p>
+<p>How do you go about designing systems?  Microservice all the things? Monolith all the things? Or something in between which makes the most sense for the situation at hand?</p>
+]]></content:encoded></item><item><title>Feature Toggles with Consul</title><link>https://andydote.co.uk/2018/09/06/consul-feature-toggles/</link><pubDate>Thu, 06 Sep 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/09/06/consul-feature-toggles/</guid><description>Feature Toggles are a great way of helping to deliver working software, although there are a few things which could go wrong. See my talk Feature Toggles: The Good, The Bad and The Ugly for some interesting stories and insights on it!
+I was talking with a colleague the other day about how you could go about implementing Feature Toggles in a centralised manner into an existing system, preferably with a little overhead as possible.</description><content:encoded><![CDATA[<p>Feature Toggles are a great way of helping to deliver working software, although there are a few things which could go wrong.  See my talk <a href="https://www.youtube.com/watch?v=r7VI5x2XKXw">Feature Toggles: The Good, The Bad and The Ugly</a> for some interesting stories and insights on it!</p>
+<p>I was talking with a colleague the other day about how you could go about implementing Feature Toggles in a centralised manner into an existing system, preferably with a little overhead as possible.  The most obvious answer is to use a SAAS solution such as <a href="https://launchdarkly.com/">LauchDarkly</a>, but what if you either don&rsquo;t want to or can&rsquo;t use a SAAS solution?</p>
+<p>What if we already are using Consul for things such as service discovery, could we use the key-value store as a basic Feature Toggle service?  It has a few advantages:</p>
+<ul>
+<li>Consul is already in place, so there is no extra infrastructure required and no additional costs</li>
+<li>Low stopping cost - If we decide we don&rsquo;t want to use Consul, or not to use Toggles at all, we can stop</li>
+<li>Low learning curve - we know how to use Consul already</li>
+<li>Security - we can make use of Consul&rsquo;s <a href="https://www.consul.io/docs/guides/acl.html#key-value-rules">ACL</a> to allow services to only read, and operators to write Feature Toggles.</li>
+</ul>
+<p>There are also some downsides to consider too:</p>
+<ul>
+<li>We&rsquo;d effectively be reinventing the wheel</li>
+<li>There won&rsquo;t be any &ldquo;value protection&rdquo; on the settings (nothing stopping us putting an int into a field which will be parsed as a guid for example)</li>
+<li>No statistics - we won&rsquo;t be able to tell if a value is used still</li>
+<li>No fine-grained control - unless we build some extra hierarchies, everyone gets the same value for a given key</li>
+</ul>
+<p>So what would our system look like?</p>
+<p><img loading="lazy" src="consul-feature-toggles.png" alt="write to consul kv store, results distributed to other consul instances"  />
+</p>
+<p>It&rsquo;s pretty straightforward.  We already have a Consul Cluster, and then there are several machines with Consul clients running on them, as well as a Container Host with Consul too.</p>
+<p>Any configuration written to a Consul node is replicated to all other nodes, so our user can write values to any node to get it to the rest of the cluster.</p>
+<p>As mentioned earlier, we can use the <a href="https://www.consul.io/docs/guides/acl.html#key-value-rules">ACL</a> system to lock things down.  Our services will have a read-only role, and our updating user will have a writeable role.</p>
+<h2 id="what-next">What Next?</h2>
+<p>Assuming this system covers enough of what we want to do, the next steps might be to make some incremental improvements in functionality, although again I would suggest looking into not reinventing the wheel&hellip;</p>
+<h3 id="statistics">Statistics</h3>
+<p>While we can&rsquo;t use Consul to collect statistics on what keys are being read, we could provide this functionality by making a small client library which would log the queries and send them somewhere for aggregation.</p>
+<p>Most microservice environments have centralised logging or monitoring (and if they don&rsquo;t, they really should), so we can use this to record toggle usage.</p>
+<p>This information would be useful to have in the same place you set the feature toggles, which brings us nicely onto the next enhancement.</p>
+<h3 id="user-interface">User Interface</h3>
+<p>A simple static website could be used to read all the Toggles and their relevant states and statistics and provide a way of setting them.  The UI could further be expanded to give some type safety, such as extra data indicating what type a given key&rsquo;s value should be.</p>
+<h3 id="fine-grained-values">FIne Grained Values</h3>
+<p>Currently, everyone has the same value for a given key, but the system could be expanded to be more fine-grained.  Rather than storing a feature toggle in the current form:</p>
+<pre tabindex="0"><code>/kv/toggles/fast-rendering =&gt; true
+</code></pre><p>We could add another level which would indicate a grouping:</p>
+<pre tabindex="0"><code>/kv/toggles/fast-rendering/early-access =&gt; true
+/kv/toggles/fast-rendering/others =&gt; false
+</code></pre><p>At this point though, you are starting to add a lot of complexity.  Think about whether you are solving the right problem! Choose where you are spending your <a href="http://mcfunley.com/choose-boring-technology">Innovation Tokens</a>.</p>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>Should you do this? Maybe. Probably not.  I don&rsquo;t know your system and what infrastructure you have available, so I don&rsquo;t want to give any blanket recommendations.</p>
+<p>I will, however, suggest that if you are starting out with Feature Toggles, <strong>go for something simple first</strong>.  My current team&rsquo;s first use of a Feature Toggle was just a setting in the <code>web.config</code>, and we just changed the value of it when we wanted the new functionality to come on.</p>
+<p>See what works for you, and if you start needing something more complicated than just simple key-value toggles, have a look into an existing system.</p>
+]]></content:encoded></item><item><title>Evolutionary Development</title><link>https://andydote.co.uk/2017/11/17/evolutionary-development/</link><pubDate>Fri, 17 Nov 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/11/17/evolutionary-development/</guid><description>Having recently finished reading the Building Evolutionary Architectures: Support Constant Change book, I got to thinking about a system which was fairly representative of an architecture which was fine for it&amp;rsquo;s initial version, but it&amp;rsquo;s usage had outgrown the architecture.
+Example System: Document Storage The system in question was a file store for a multi user, internal, desktop based CRM system. The number of users was very small, and the first implementation was just a network file share.</description><content:encoded><![CDATA[<p>Having recently finished reading the <a href="https://www.goodreads.com/book/show/35755822-building-evolutionary-architectures">Building Evolutionary Architectures: Support Constant Change book</a>, I got to thinking about a system which was fairly representative of an architecture which was fine for it&rsquo;s initial version, but it&rsquo;s usage had outgrown the architecture.</p>
+<h2 id="example-system-document-storage">Example System: Document Storage</h2>
+<p>The system in question was a file store for a multi user, internal, desktop based CRM system.  The number of users was very small, and the first implementation was just a network file share.  This was a fine solution to start with, but as the number of CRM users grew, cracks started to appear in the system.</p>
+<p>A few examples of problems seen were:</p>
+<ul>
+<li>Concurrent writes to the same files</li>
+<li>Finding files for a specific record in the CRM</li>
+<li>Response time</li>
+<li>Files &ldquo;going missing&rdquo;</li>
+<li>Storage size</li>
+<li>Data retention rules</li>
+</ul>
+<p>Most of this was caused by the number of file stored, which was well past the 5 million mark.  For example, queries for &ldquo;all files for x record&rdquo; got slower and slower over time.</p>
+<p>Samba shares can&rsquo;t be listed in date-modified order (you actually get all the file names, then sorting is applied), which means you can&rsquo;t auto delete old files, or auto index (e.g. export text to elasticsearch) updated files easily.</p>
+<p>The key to dealing with this problem is to take small steps - if you have a large throughput to support, the last thing you want to do is break it for everyone at once, by doing a &ldquo;big bang&rdquo; release.</p>
+<p>Not only can we take small steps in deploying our software, but we can also utilise Feature Toggles to make things safer.  We can switch on a small part of the new system for a small percentage of users, and slowly ramp up usage while monitoring for errors.</p>
+<h2 id="incremental-replacement">Incremental Replacement</h2>
+<p>To replace this in an incremental manner, we are going to do the following 4 actions for every feature, until all features are done:</p>
+<ol>
+<li>Implement new feature in API and client</li>
+<li>Deploy client (toggle: off)</li>
+<li>Deploy API</li>
+<li>Start toggle roll out</li>
+</ol>
+<p>Now that we know how each feature is going to be delivered, we can write out our list of features, in a rough implementation order:</p>
+<ul>
+<li>Create API, build scripts, CI and deployment pipeline</li>
+<li>Implement authentication on the API</li>
+<li>Implement fetching a list of files for a record</li>
+<li>Implement fetching a single file&rsquo;s content for a record</li>
+<li>Implement storing a single file for a record</li>
+<li>Implement deletion of a single file for a record</li>
+</ul>
+<p>The development and deployment of our features can be overlapped too: we can be deploying the next version of the client with the next feature off while we are still rolling out the previous feature(s).  This all assumes that your features are nice and isolated however!</p>
+<p>Once this list of features is done, and all the toggles are on, from the client perspective we are feature complete.</p>
+<p>We are free to change how the backend of the API works.  As long as we don&rsquo;t change the API&rsquo;s contract, the client doesn&rsquo;t need any more changes.</p>
+<p>Our next set of features could be:</p>
+<ul>
+<li>Implement audit log of API actions</li>
+<li>Publish store and delete events to a queue</li>
+<li>Change our indexing process to consume the store and delete events</li>
+<li>Make the samba hidden (except to the API)</li>
+<li>Implement background delete of old documents</li>
+<li>Move storage backend (to S3, for example)</li>
+</ul>
+<p>This list of features doesn&rsquo;t impact the front end (client) system, but the backend systems can now have a more efficient usage of the file store.  As with the client and initial API development, we would do this with a quick, iterative process.</p>
+<h2 id="but-we-cant-do-iterative-because">But we can&rsquo;t do iterative because&hellip;</h2>
+<p>This is a common reaction when an iterative approach is suggested, and thankfully can be countered in a number of ways.</p>
+<p>First off, if this is an absolute requirement, we can do our iterations an feature toggling rollouts to another environment, such a Pre-Production, or QA.  While this reduces some of the benefits (we loose out on live data ramp up), it does at least keep small chunks of work.</p>
+<p>Another work around is to use feature toggles anyway, but only have a couple of &ldquo;trusted&rdquo; users use the new functionality.  Depending on what you are releasing, this could mean a couple of users you know, or giving a few users a non-visible change (i.e. they&rsquo;re not aware they&rsquo;ve been selected!)  You could also use NDA (Non Disclosure Agreements) if you need to keep them quiet, although this is quite an extreme measure.</p>
+<p>A final option is to use experiments, using an experimentation library (such as <a href="https://github.com/github/scientist">Github&rsquo;s Scientist</a>) which continues to use the existing features, but in parallel runs and records the results of the replacement feature.  This obviously has to be done with care, as you don&rsquo;t want to cause side effects.</p>
+<p>How do you replace old software? Big bang, iterative, experimentation, or some other process?</p>
+]]></content:encoded></item><item><title>Strong Configuration Composition</title><link>https://andydote.co.uk/2017/11/09/configuration-composition/</link><pubDate>Thu, 09 Nov 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/11/09/configuration-composition/</guid><description>It&amp;rsquo;s no secret I am a fan of strong typing - not only do I talk and blog about it a lot, but I also have a library called Stronk which provides strong typed configuration for non dotnet core projects.
 The problem I come across often is large configurations. For example, given the following project structure (3 applications, all reference the Domain project):
-DemoService `-- src |-- Domain | |-- Domain.</description></item><item><title>Repositories Revisited (and why CQRS is better)</title><link>https://andydote.co.uk/2017/09/09/repositories-revisited/</link><pubDate>Sat, 09 Sep 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/09/09/repositories-revisited/</guid><description>TLDR: I still don&amp;rsquo;t like Repositories!
+DemoService `-- src |-- Domain | |-- Domain.</description><content:encoded><![CDATA[<p>It&rsquo;s no secret I am a fan of strong typing - not only do I talk and blog about it a lot, but I also have a library called <a href="https://github.com/pondidum/stronk">Stronk</a> which provides strong typed configuration for non dotnet core projects.</p>
+<p>The problem I come across often is large configurations.  For example, given the following project structure (3 applications, all reference the Domain project):</p>
+<pre tabindex="0"><code>DemoService
+`-- src
+    |-- Domain
+    |   |-- Domain.csproj
+    |   `-- IConfiguration.cs
+    |-- QueueConsumer
+    |   |-- app.config
+    |   |-- QueueConsumerConfiguration.cs
+    |   `-- QueueConsumer.csproj
+    |-- RestApi
+    |   |-- RestConfiguration.cs
+    |   |-- RestApi.csproj
+    |   `-- web.config
+    `-- Worker
+        |-- app.config
+        |-- WorkerConfiguration.cs
+        `-- Worker.csproj
+</code></pre><p>The configuration defined in the domain will look something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Uri DocumentsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri ArchivalEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqUsername { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqPassword { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqVHost { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> BulkQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DirectQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> NotificationsQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Uri RabbitMqConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DatabaseConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> CacheConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>There are a number of problems with this configuration:</p>
+<p>First off, it lives in the <code>Domain</code> project, which kinda makes sense, as things in there need access to some of the properties - but none of them need to know the name of the Queue being listened to, or where the metrics are being written to.</p>
+<p>Next, and also somewhat related to the first point, is that all the entry projects (<code>RestApi</code>, <code>QueueConsumer</code> and <code>Worker</code>) need to supply all the configuration values, and you can&rsquo;t tell at a glance which projects actually need which values.</p>
+<p>Finally, classes which use this configuration are less externally discoverable.  For example, which properties does this need: <code>new DocumentDeduplicator(new Configuration())</code>? Probably the cache? Maybe the database? or possibly the DocumentsEndpoint?  Who knows without opening the class.</p>
+<h2 id="the-solution">The Solution</h2>
+<p>The key to solving this is the Interface Segregation Principal - the I in SOLID.  First we need to split the interface into logical parts, which will allow our consuming classes to only take in the configuration they require, rather than the whole thing:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IRabbitConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Uri RabbitMqConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqUsername { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqPassword { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqVHost { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> BulkQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DirectQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> NotificationsQueue { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IDeduplicationConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Uri DocumentsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> CacheConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IStorageConfiguration</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Uri ArchivalEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DatabaseConnection { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We can also move the <code>IRabbitConfiguration</code> and <code>IDeduplicationConfiguration</code> out of the domain project, and into the <code>QueueConsumer</code> and <code>Worker</code> projects respectively, as they are only used by types in these projects:</p>
+<pre tabindex="0"><code>DemoService
+`-- src
+    |-- Domain
+    |   |-- Domain.csproj
+    |   `-- IStorageConfiguration.cs
+    |-- QueueConsumer
+    |   |-- app.config
+    |   |-- IRabbitConfiguration.cs
+    |   |-- QueueConsumerConfiguration.cs
+    |   `-- QueueConsumer.csproj
+    |-- RestApi
+    |   |-- RestConfiguration.cs
+    |   |-- RestApi.csproj
+    |   `-- web.config
+    `-- Worker
+        |-- app.config
+        |-- IDeduplicationConfiguration.cs
+        |-- WorkerConfiguration.cs
+        `-- Worker.csproj
+</code></pre><p>Next we can create some top-level configuration interfaces, which compose the relevant configuration interfaces for a project (e.g. the <code>RestApi</code> doesn&rsquo;t need <code>IDeduplicationConfiguration</code> or <code>IRabbitConfiguration</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IWorkerConfiguration</span> : IStorageConfiguration, IDeduplicationConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IRestConfiguration</span> : IStorageConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IQueueConsumerConfiguration</span> : IStorageConfiguration, IRabbitConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note how we have also not created a central interface for the application configuration - this is because the application configuration is specific to each entry project, and has no need to be passed on to the domain.</p>
+<p>Finally, an actual configuration class can be implemented (in this case using <a href="https://github.com/pondidum/stronk">Stronk</a>, but if you are on dotnet core, the inbuilt configuration builder is fine):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">QueueConsumerConfiguration</span> : IQueueConsumerConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> ApplicationName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> LogPath { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    Uri MetricsEndpoint { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Uri ArchivalEndpoint { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DatabaseConnection { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    Uri RabbitMqConnection { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqUsername { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqPassword { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> RabbitMqVHost { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> BulkQueue { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> DirectQueue { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> NotificationsQueue { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> QueueConsumerConfiguration()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">this</span>.FromAppConfig();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And our startup class might look something like this (using <a href="http://structuremap.github.io/">StructureMap</a>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Startup</span> : IDisposable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Container _container;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IConsumer _consumer;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Startup(IQueueConsumerConfiguration config)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        ConfigureLogging(config);
+</span></span><span style="display:flex;"><span>        ConfigureMetrics(config);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        _container = <span style="color:#66d9ef">new</span> Container(_ =&gt;
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            _.Scan(a =&gt; {
+</span></span><span style="display:flex;"><span>                a.TheCallingAssembly();
+</span></span><span style="display:flex;"><span>                a.LookForRegistries();
+</span></span><span style="display:flex;"><span>            })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            _.For&lt;IQueueConsumerConfiguration&gt;().Use(config);
+</span></span><span style="display:flex;"><span>            _.For&lt;IStorageConfiguration&gt;().Use(config);
+</span></span><span style="display:flex;"><span>            _.For&lt;IRabbitConfiguration&gt;().Use(config);
+</span></span><span style="display:flex;"><span>        });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        _consumer = _container.GetInstance&lt;IConsumer&gt;();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Start() =&gt; <span style="color:#66d9ef">await</span> _consumer.Start();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Stop() =&gt; <span style="color:#66d9ef">await</span> _consumer.Stop();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">void</span> ConfigureLogging(IQueueConsumerConfiguration config) { <span style="color:#75715e">/* ... */</span> }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">void</span> ConfigureMetrics(IQueueConsumerConfiguration config) { <span style="color:#75715e">/* ... */</span> }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Dispose() =&gt; _container.Dispose();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As our <code>Startup</code> takes in the top-level configuration interface, if we want to write a test which tests our entire system, it can be done with a single mocked configuration object:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Fact]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task When_the_entire_system_is_run()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> config = Substitute.For&lt;IQueueConsumerConfiguration&gt;();
+</span></span><span style="display:flex;"><span>    config.RabbitMqConnection.Returns(<span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;localhost:5672&#34;</span>));
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// etc.</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> startup = <span style="color:#66d9ef">new</span> Startup(config);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> startup.Start();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> startup.Stop();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="one-final-thing">One Final Thing</h2>
+<p>Even if you have a microservice type project with only the one csproj, I would still recommend splitting your configuration into small interfaces, just due to the discoverability it provides.</p>
+<p>How do you do configuration?</p>
+]]></content:encoded></item><item><title>Repositories Revisited (and why CQRS is better)</title><link>https://andydote.co.uk/2017/09/09/repositories-revisited/</link><pubDate>Sat, 09 Sep 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/09/09/repositories-revisited/</guid><description>TLDR: I still don&amp;rsquo;t like Repositories!
 Recently I had a discussion with a commenter on my The problems with, and solutions to Repositories post, and felt it was worth expanding on how I don&amp;rsquo;t use repositories.
-My applications tend to use the mediator pattern to keep things decoupled (using the Mediatr library), and this means that I end up with &amp;ldquo;handler&amp;rdquo; classes which process messages; they load something from storage, call domain methods, and then write it back to storage, possibly returning some or all the data.</description></item><item><title>Don't write Frameworks, write Libraries</title><link>https://andydote.co.uk/2017/04/16/dont-write-frameworks-write-libraries/</link><pubDate>Sun, 16 Apr 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/04/16/dont-write-frameworks-write-libraries/</guid><description>Programmers have a fascination with writing frameworks for some reason. There are many problems with writing frameworks:
-Opinions Frameworks are opinionated, and will follow their author&amp;rsquo;s opinions on how things should be done, such as application structure, configuration, and methodology. The problem this gives is that not everyone will agree with the author, or their framework&amp;rsquo;s opinions. Even if they really like part of how the framework works, they might not like another part, or might not be able to rewrite their application to take advantage of the framework.</description></item><item><title>Don't Let The Database Dictate Your Design</title><link>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</link><pubDate>Wed, 01 Apr 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</guid><description>I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases. An example of this is the design of a system which stores data about people, specifically for this, their email addresses. A cut down version of the structure is this:
-table people id serial primary key firstname varchar(50) lastname varchar(50) table emails id serial primary key person_id int =&amp;gt; people.</description></item><item><title>The problems with and solutions to Repositories</title><link>https://andydote.co.uk/2015/03/28/problems-with-and-solutions-to-repositories/</link><pubDate>Sat, 28 Mar 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/03/28/problems-with-and-solutions-to-repositories/</guid><description>Repositories are a design pattern which I have never been a huge fan of. I can see the use of them as a good layer boundary, but too often I see them being used all over the place instead of at an infrastructure level in a code base.
-A particularly prevalent version of this misuse I see is self populating collections. These generally inherit List&amp;lt;TEntity&amp;gt; or Dictionary&amp;lt;TID, TEntity&amp;gt;, and provide a set of methods such as .</description></item></channel></rss>
+My applications tend to use the mediator pattern to keep things decoupled (using the Mediatr library), and this means that I end up with &amp;ldquo;handler&amp;rdquo; classes which process messages; they load something from storage, call domain methods, and then write it back to storage, possibly returning some or all the data.</description><content:encoded><![CDATA[<p><strong>TLDR:</strong> I still don&rsquo;t like Repositories!</p>
+<p>Recently I had a discussion with a commenter on my <a href="2015/03/28/problems-with-and-solutions-to-repositories/">The problems with, and solutions to Repositories</a> post, and felt it was worth expanding on how I don&rsquo;t use repositories.</p>
+<p>My applications tend to use the mediator pattern to keep things decoupled (using the <a href="https://github.com/jbogard/MediatR">Mediatr</a> library), and this means that I end up with &ldquo;handler&rdquo; classes which process messages; they load something from storage, call domain methods, and then write it back to storage, possibly returning some or all the data.</p>
+<p>For example you could implement a handler to update the tags on a toggle class like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">UpdateToggleTagsHandler</span> : IAsyncRequestHandler&lt;UpdateToggleTagsRequest, UpdateToggleTagsResponse&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> GetToggleQuery _getToggle;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> SaveToggleCommand _saveToggle;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> UpdateToggleTagsHandler(GetToggleQuery getToggle, SaveToggleCommand saveToggle)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _getToggle = getToggle;
+</span></span><span style="display:flex;"><span>        _saveToggle = saveToggle;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task&lt;UpdateToggleTagsResponse&gt; Handle(UpdateToggleTagsRequest message)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> toggle = <span style="color:#66d9ef">await</span> _getToggle.Execute(message.ToggleID);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        toggle.AddTag(message.Tag);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> _saveToggle(toggle);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> UpdateToggleTagsResponse
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            Tags = toggle.Tags.ToArray()
+</span></span><span style="display:flex;"><span>        };
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note how we use constructor injection to get a single command and a single query, and that  the business logic is contained within the <code>Toggle</code> class itself, not the <code>Handler</code>.</p>
+<p>By depending on commands and queries rather than using a repository, we can see at a glance what the <code>UpdateToggleTagsHandler</code> requires in the way of data, rather than having to pick through the code and figure out which of 20 methods on a repository is actually being called.</p>
+<p>The actual domain classes (in this case, the <code>Toggle</code> class) know nothing of storage concerns.  As I use EventSourcing a lot, the domain classes just need a few methods to facilitate storage: applying events, fetching pending events, and clearing pending events.  For non EventSourced classes, I tend to use the Memento pattern: each class implements two methods, one to load from a plain object, one to write to the same plain object.</p>
+<p>If your handler starts needing many commands or many queries passed in, it&rsquo;s a pretty good indication that your design has a weakness which will probably need refactoring.  This is harder to notice when using repositories as you might still only have a single constructor parameter, but be calling tens of methods on it.</p>
+<p>Hopefully this provides a bit more reasoning behind my dislike of repositories, and how I try to implement alternatives.</p>
+]]></content:encoded></item><item><title>Don't write Frameworks, write Libraries</title><link>https://andydote.co.uk/2017/04/16/dont-write-frameworks-write-libraries/</link><pubDate>Sun, 16 Apr 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/04/16/dont-write-frameworks-write-libraries/</guid><description>Programmers have a fascination with writing frameworks for some reason. There are many problems with writing frameworks:
+Opinions Frameworks are opinionated, and will follow their author&amp;rsquo;s opinions on how things should be done, such as application structure, configuration, and methodology. The problem this gives is that not everyone will agree with the author, or their framework&amp;rsquo;s opinions. Even if they really like part of how the framework works, they might not like another part, or might not be able to rewrite their application to take advantage of the framework.</description><content:encoded><![CDATA[<p>Programmers have a fascination with writing frameworks for some reason.  There are many problems with writing frameworks:</p>
+<h3 id="opinions">Opinions</h3>
+<p>Frameworks are opinionated, and will follow their author&rsquo;s opinions on how things should be done, such as application structure, configuration, and methodology.  The problem this gives is that not everyone will agree with the author, or their framework&rsquo;s opinions.  Even if they really like part of how the framework works, they might not like another part, or might not be able to rewrite their application to take advantage of the framework.</p>
+<h3 id="configurability">Configurability</h3>
+<p>The level of configuration available in a framework is almost never correct.  Not only is there either too little or too much configuration options, but how the configuration is done can cause issues.  Some developers love conventions, other prefer explicit configuration.</p>
+<h3 id="development">Development</h3>
+<p>Frameworks suffer from the danger of not solving the right problem, or missing the problem due to how long it took to implement the framework.  This is compounded by <em>when</em> a framework is decided to be developed, which is often way before the general case is even recognised.  Writing a framework before writing your project is almost certain to end up with a framework which either isn&rsquo;t suitable for the project, or isn&rsquo;t suitable for any other projects.</p>
+<h2 id="what-about-a-library-or-two">What about a library or two?</h2>
+<p>If you want a higher chance at success, reduce your scope and write a library.</p>
+<p>A library is usually a small unit of functionality, and does one thing and does it well (sound like microservices or Bounded Contexts much?).  This gives it a higher chance of success, as the opinions of the library are going to effect smaller portions of peoples applications.  It won&rsquo;t dictate their entire app structure.  They can opt in to using the libraries they like, rather than all the baggage which comes with a framework.</p>
+<h2 id="but-i-really-want-to-write-a-framework">But I really want to write a framework</h2>
+<p>Resist, if you can!  Perhaps a framework will evolve from your software, perhaps not.  What I have found to be a better path is to create libraries which work on their own, but also work well with each other.  This can make this more difficult, but it also give you the ability to release libraries as they are completed, rather than waiting for an entire framework to be &ldquo;done&rdquo;.</p>
+<h2 id="some-examples">Some examples</h2>
+<p>These are some libraries I have written which solve small problems in an isolated manner</p>
+<ul>
+<li><a href="https://github.com/pondidum/stronk">Stronk</a> - A library to populate strong typed configuration objects.</li>
+<li><a href="https://github.com/pondidum/FileSystem">FileSystem</a> - Provides a FileSystem abstraction,  with decorators and an InMemory FileSystem implementation.</li>
+<li><a href="https://github.com/pondidum/Finite">Finite</a> - a Finite State Machine library.</li>
+<li><a href="https://github.com/pondidum/conifer">Conifer</a> - Strong typed, Convention based routing for WebAPI, also with route lookup abilities</li>
+</ul>
+<p>So why not write some libraries?</p>
+]]></content:encoded></item><item><title>Don't Let The Database Dictate Your Design</title><link>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</link><pubDate>Wed, 01 Apr 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/04/01/dont-let-the-database-dictate-your-design/</guid><description>I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases. An example of this is the design of a system which stores data about people, specifically for this, their email addresses. A cut down version of the structure is this:
+table people id serial primary key firstname varchar(50) lastname varchar(50) table emails id serial primary key person_id int =&amp;gt; people.</description><content:encoded><![CDATA[<p>I have been thinking recently about how the database can influence our design decisions, and perhaps makes them harder than they need to be in some cases.  An example of this is the design of a system which stores data about people, specifically for this, their email addresses.  A cut down version of the structure is this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">table</span> people
+</span></span><span style="display:flex;"><span>id serial <span style="color:#66d9ef">primary</span> <span style="color:#66d9ef">key</span>
+</span></span><span style="display:flex;"><span>firstname varchar(<span style="color:#ae81ff">50</span>)
+</span></span><span style="display:flex;"><span>lastname varchar(<span style="color:#ae81ff">50</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">table</span> emails
+</span></span><span style="display:flex;"><span>id serial <span style="color:#66d9ef">primary</span> <span style="color:#66d9ef">key</span>
+</span></span><span style="display:flex;"><span>person_id int <span style="color:#f92672">=&gt;</span> people.id
+</span></span><span style="display:flex;"><span>address varchar(<span style="color:#ae81ff">100</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">type</span> int
+</span></span></code></pre></div><p>Which is represented in code like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Person</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> FirstName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> LastName { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> List&lt;Email&gt; Emails { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Person()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Emails = <span style="color:#66d9ef">new</span> List&lt;Email&gt;();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Email</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> PersonID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> EmailTypes Type { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>While this works, it is heavily influenced by the storage technology.  Email addresses by definition are unique already, so why do we need a primary key column? They are also associated with exactly one person, so the <code>person_id</code> column is only here to facilitate that.  Why not get rid of the emails table completely, and store the person&rsquo;s email addresses in a single column in the person table?  This could be done with a simple csv, but it would be more fore-thinking to use json, so we can associate a little more data with each email address.</p>
+<p>So before we get on to putting data in one column, what reasons we have to keep emails as a separate table?</p>
+<ul>
+<li>So they can be queried by ID.</li>
+<li>So we can put a constraint across <code>[person_id, address]</code> and <code>[person_id, type]</code>.</li>
+<li>So all emails of a given type can be found.</li>
+<li>So a person can be looked up by email.</li>
+<li>So we can attach rules to them.</li>
+</ul>
+<p>The first three can be answered easily: you never query for an email address by its primary key, only by the address itself.  The constraints are really just a safety net, and a nice to have at best - the collection which manages emails is well tested, implements all business rules properly, and everything which deals with emails uses it.  Getting all emails of a particular type is a legitamate requirement, but can be gotten around in several ways: selecting the entire email column in a sql query, and doing additional filtering client side for the specific email types, or if you are using a database which supports json querying (such as postgres), using that to narrow the results down.</p>
+<p>The final point is the most interesting, as it could be resolved with a few different designs.  The current design has one additional table:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sql" data-lang="sql"><span style="display:flex;"><span><span style="color:#66d9ef">table</span> rules
+</span></span><span style="display:flex;"><span>id serial <span style="color:#66d9ef">primary</span> <span style="color:#66d9ef">key</span>
+</span></span><span style="display:flex;"><span>person_id int <span style="color:#f92672">=&gt;</span> people.id
+</span></span><span style="display:flex;"><span>target_type int <span style="color:#75715e">--e.g 1=email, 2=phone, 3=address etc
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>target_id int
+</span></span><span style="display:flex;"><span>active bool
+</span></span></code></pre></div><p>And the <code>Person</code> object has a method like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">bool</span> HasRuleInForce(Entity target)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> Rules
+</span></span><span style="display:flex;"><span>		.Where(rule =&gt; rule.TargetType == target.Type)
+</span></span><span style="display:flex;"><span>		.Where(rule =&gt; rule.TargetID == target.ID)
+</span></span><span style="display:flex;"><span>		.Where(rule =&gt; rule.Active)
+</span></span><span style="display:flex;"><span>		.Any();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>While this works, the design has a few problems:</p>
+<ul>
+<li>There is no foreign keying of <code>rules.target_id</code> available</li>
+<li>So you have to remember to delete rules when deleting any entity</li>
+<li>You have to remember if an entity is valid for rules to be attached to</li>
+<li>If normalisation was your argument for an <code>emails</code> table, explain this table relationship&hellip;</li>
+</ul>
+<p>There are two solutions to this problem:</p>
+<p>The first is to change the rules table to just have a <code>target</code> column, and put the unique data in there e.g. a rule for an email would have the email address in the <code>target</code> column, a rule for a phone number would have the actual phone number in the <code>target</code> column.  While this works, it doesn&rsquo;t really improve the design of the system; we still have the existing joins and &ldquo;remember to also&rdquo; problems of before.</p>
+<p>The second solution is to remove the <code>rules</code> table entirely and implement rules as small collections on each target entity, and make the <code>person.Rules</code> property a readonly aggregate.  This has a few advantages: each entity explicitly has a rule collection if applicable, and we no longer need to remember to check another collection for updates/deletes.</p>
+<p>The implementation of a <code>.Rules</code> property on each entity is trivial - just a standard list property:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Email</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> ID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">int</span> PersonID { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> EmailTypes Type { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> List&lt;Rule&gt; Rules { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As we don&rsquo;t wish to repeat the logic on each collection of rules, we can add an extension method for checking if rules are in force:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RulesExtensions</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">bool</span> HasRuleInForce(<span style="color:#66d9ef">this</span> IEnumerable&lt;Rule&gt; self)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> self.Any(rule =&gt; rule.Active);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And finally on the <code>Person</code> object itself, we can make a simple aggregate property for all child entity&rsquo;s rules:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> IEnumerable&lt;Rule&gt; Rules
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">get</span>
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> all = <span style="color:#66d9ef">new</span>[]
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			Emails.SelectMany(e =&gt; e.Rules),
+</span></span><span style="display:flex;"><span>			Phones.SelectMany(p =&gt; p.Rules),
+</span></span><span style="display:flex;"><span>		};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> all.SelectMany(r =&gt; r);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Personally I prefer the 2nd form of this, as it makes domain modelling a lot more straight forward - however like all things, you should consider all your requirements carefully - and don&rsquo;t let the database (sql or nosql variety) dictate your model.</p>
+]]></content:encoded></item><item><title>The problems with and solutions to Repositories</title><link>https://andydote.co.uk/2015/03/28/problems-with-and-solutions-to-repositories/</link><pubDate>Sat, 28 Mar 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/03/28/problems-with-and-solutions-to-repositories/</guid><description>Repositories are a design pattern which I have never been a huge fan of. I can see the use of them as a good layer boundary, but too often I see them being used all over the place instead of at an infrastructure level in a code base.
+A particularly prevalent version of this misuse I see is self populating collections. These generally inherit List&amp;lt;TEntity&amp;gt; or Dictionary&amp;lt;TID, TEntity&amp;gt;, and provide a set of methods such as .</description><content:encoded><![CDATA[<p>Repositories are a design pattern which I have never been a huge fan of.  I can see the use of them as a good layer boundary, but too often I see them being used all over the place instead of at an infrastructure level in a code base.</p>
+<p>A particularly prevalent version of this misuse I see is self populating collections.  These generally inherit <code>List&lt;TEntity&gt;</code> or <code>Dictionary&lt;TID, TEntity&gt;</code>, and provide a set of methods such as <code>.LoadByParentID(TID id)</code>.  The problem with this is that the collection still exposes methods such as <code>.Add()</code> and <code>.Remove()</code> - but these operations only run on the in-memory entities, and don&rsquo;t effect the data source itself.</p>
+<h2 id="the-alternative">The Alternative</h2>
+<p>The technique I prefer for reads are Query objects.  These are simple classes which expose a single public method to return some data.  For example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">GetDocumentsWaitingQuery</span> : IDocumentsQuery
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDataStore _dataStore;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> GetDocumentsWaitingQuery(IDataStore datastore)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_dataStore = datastore;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Document&gt; Execute()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = _dataStore.Open())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> connection
+</span></span><span style="display:flex;"><span>				.Query&lt;Document&gt;(
+</span></span><span style="display:flex;"><span>					<span style="color:#e6db74">&#34;select * from documents where status == @status&#34;</span>,
+</span></span><span style="display:flex;"><span>					<span style="color:#66d9ef">new</span> { status = DocumentStatuses.Waiting})
+</span></span><span style="display:flex;"><span>				.ToList();
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The code using this class might look something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DocumentProcessor</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDocumentsQuery _query;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> DocumentProcessor(IDocumentsQuery waitingDocumentsQuery)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_query = waitingDocumentsQuery;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Run()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">foreach</span> (<span style="color:#66d9ef">var</span> document <span style="color:#66d9ef">in</span> _query.Execute())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#75715e">//some operation on document...</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This class is almost too simple, but resembles a system&rsquo;s processor which I wrote.  They key here is that the <code>DocumentProcessor</code> only relies on an <code>IDocumentsQuery</code>, not a specific query.</p>
+<p>Normal usage of the system looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ProcessAll()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> query = <span style="color:#66d9ef">new</span> GetDocumentsWaitingQuery(_dataStore);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> saveCommand = <span style="color:#66d9ef">new</span> SaveDocumentCommand(_dataStore);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> processor = <span style="color:#66d9ef">new</span> DocumentProcessor(query, saveCommand);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	processor.Run();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>When the user requests a single document get reprocessed, we just substitute in a different Query:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> query = <span style="color:#66d9ef">new</span> GetDocumentByIDQuery(_dataStore, id: <span style="color:#ae81ff">123123</span>);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> saveCommand = <span style="color:#66d9ef">new</span> SaveDocumentCommand(_dataStore);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> processor = <span style="color:#66d9ef">new</span> DocumentProcessor(query, saveCommand);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>processor.Run();
+</span></span></code></pre></div><p>And finally, when the system is under test, we can pass in completely fake commands:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Fact]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> When_multiple_documents_for_the_same_user()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> first = <span style="color:#66d9ef">new</span> Document { .UserID = <span style="color:#ae81ff">1234</span>, .Name = <span style="color:#e6db74">&#34;Document One&#34;</span> };
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> second = <span style="color:#66d9ef">new</span> Document { .UserID = <span style="color:#ae81ff">1234</span>, .Name = <span style="color:#e6db74">&#34;Document Two&#34;</span> };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> query = Substitute.For&lt;IDocumentsQuery&gt;();
+</span></span><span style="display:flex;"><span>	query.Execute().Returns(<span style="color:#66d9ef">new</span>[] {first, second});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> processor = <span style="color:#66d9ef">new</span> DocumentProcessor(query, Substitute.For&lt;ISaveDocumentCommand&gt;());
+</span></span><span style="display:flex;"><span>	processor.Run();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	first.Primary.ShouldBe(<span style="color:#66d9ef">true</span>);
+</span></span><span style="display:flex;"><span>	second.Primary.ShouldBe(<span style="color:#66d9ef">false</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This means that in the standard usage, it gets passed an instance of <code>GetDocumentsWaitingQuery</code>, but when under test gets a <code>Substitute.For&lt;IDocumentsQuery&gt;()</code>, and for debugging a problem with a specific document, it gets given <code>new GetSingleDocumentQuery(id: 234234)</code> for example.</p>
+<h2 id="commands">Commands</h2>
+<p>What about saving?  Well it&rsquo;s pretty much the same story:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">SaveDocumentCommand</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDataStore datastore;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> SaveDocumentCommand(IDataStore datastore)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_dataStore = datastore
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Execute(Document document)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = _dataStore.Open())
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			connection.Execute(<span style="color:#e6db74">&#34;update documents set status = @status where id = @id&#34;</span>, document);
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Obviously the sql in the save command would be a bit more complete&hellip;</p>
+<h2 id="but-repositories">But Repositories&hellip;</h2>
+<p>Well yes, you can create methods on your repositories to do all of this, like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> IDocumentRepository
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> SaveDocument(Document document) { <span style="color:#75715e">/* ... */</span> }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IEnumerable&lt;Document&gt; GetDocumentsWaiting() { <span style="color:#75715e">/* ... */</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>But now your classes utilising this repository are tied to the methods it implements - you cannot just swap out the workings of <code>.GetDocumentsWaiting</code> for a single document query any more.</p>
+<p>This is why I like to use Command and Query objects - the not only provide good encapsulation (all your sql is contained within), but they also provide a large level of flexibility in your system, and make it very easy to test to boot too!</p>
+]]></content:encoded></item></channel></rss>

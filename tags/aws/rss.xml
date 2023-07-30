@@ -1,11 +1,1002 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>aws on Andy Dote</title><link>https://andydote.co.uk/tags/aws/</link><description>Recent content in aws on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 17 Jul 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/aws/rss.xml" rel="self" type="application/rss+xml"/><item><title>Pulumi Conditional Infrastructure for Speed</title><link>https://andydote.co.uk/2022/07/17/pulumi-faster-processes/</link><pubDate>Sun, 17 Jul 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/07/17/pulumi-faster-processes/</guid><description>One of the reasons I prefer Pulumi over Terraform is the additional control I have over my processes due to the fact that it&amp;rsquo;s a programming language.
-For example, I have a CLI, that creates a cluster of machines for a user; the machines use IAM Authentication with Vault so that they can request certificates on boot. The trouble with this application is that it is slow; it takes 175 seconds on average to provision the machines, write the IAM information to Vault, and then re-run the cloud-init script on all the machines in the cluster (as when they first booted, the configuration hadn&amp;rsquo;t been written to Vault yet.</description></item><item><title>An NGINX and DNS based outage</title><link>https://andydote.co.uk/2022/04/23/nginx-dns/</link><pubDate>Sat, 23 Apr 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/04/23/nginx-dns/</guid><description>I recently encountered a behaviour in Nginx that I didn&amp;rsquo;t expect and caused a production outage in the process. While I would love to blame DNS for this, as it&amp;rsquo;s usually the cause of most network-related issues, in this case, the fault lies with Nginx.
-I was running a very simple Nginx proxy, relaying an internal service to the outside world. The internal service is behind an AWS ALB, and the Nginx configuration was proxying to the ALB&amp;rsquo;s FQDN:</description></item><item><title>Observability with Infrastructure as Code</title><link>https://andydote.co.uk/2021/03/01/observability-with-infrastructure-as-code/</link><pubDate>Mon, 01 Mar 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/03/01/observability-with-infrastructure-as-code/</guid><description>This article was originally published on the Pulumi blog.
+For example, I have a CLI, that creates a cluster of machines for a user; the machines use IAM Authentication with Vault so that they can request certificates on boot. The trouble with this application is that it is slow; it takes 175 seconds on average to provision the machines, write the IAM information to Vault, and then re-run the cloud-init script on all the machines in the cluster (as when they first booted, the configuration hadn&amp;rsquo;t been written to Vault yet.</description><content:encoded><![CDATA[<p>One of the reasons I prefer <a href="https://pulumi.com">Pulumi</a> over <a href="https://terraform.io">Terraform</a> is the additional control I have over my processes due to the fact that it&rsquo;s a programming language.</p>
+<p>For example, I have a CLI, that creates a cluster of machines for a user; the machines use IAM Authentication with <a href="https://www.vaultproject.io">Vault</a> so that they can request certificates on boot.  The trouble with this application is that it is slow; it takes 175 seconds on average to provision the machines, write the IAM information to Vault, and then re-run the cloud-init script on all the machines in the cluster (as when they first booted, the configuration hadn&rsquo;t been written to Vault yet.) so that they can request a certificate.  The process is roughly this:</p>
+<ul>
+<li>Create infrastructure</li>
+<li>Write configuration to Vault</li>
+<li>Wait for the machines to be ready</li>
+<li>Wait for SSH</li>
+<li>Re-run cloud-init</li>
+</ul>
+<p>The CLI can&rsquo;t write the configuration to Vault before the machines boot, as the configuration values are from the same infrastructure stack as the machines themselves.  You can see the process in the <a href="https://honeycomb.io">Honeycomb</a> trace UI (with more details about what infra is created thanks to my <a href="/2021/03/01/observability-with-infrastructure-as-code/">pulumi-honeycomb stream adaptor</a>):</p>
+<p><img loading="lazy" src="pulumi-infra-slow.png" alt="pulumi trace showing execution time of 175 seconds"  />
+</p>
+<p>I don&rsquo;t want to make two separate stacks for this, one containing IAM Roles and other configuration data, the other containing all the other infrastructure (load balancers, auto-scale groups, etc.)  But what if I could dynamically change what the stack does?</p>
+<p>By adding an <code>IsInit</code> property to the configuration of the stack, we can change the pulumi program to return early when the value of <code>IsInit</code> is <code>true</code>, meaning we only create the minimal amount of infrastructure for the configuration call to succeed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;display:grid;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">DefineInfrastructure</span>(<span style="color:#a6e22e">ctx</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">pulumi</span>.<span style="color:#a6e22e">Context</span>, <span style="color:#a6e22e">cfg</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">ClusterConfiguration</span>) <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">role</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">iam</span>.<span style="color:#a6e22e">NewRole</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">Name</span><span style="color:#f92672">+</span><span style="color:#e6db74">&#34;-iam-role&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">iam</span>.<span style="color:#a6e22e">RoleArgs</span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">NamePrefix</span>:       <span style="color:#a6e22e">pulumi</span>.<span style="color:#a6e22e">String</span>(<span style="color:#a6e22e">Name</span>),
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">AssumeRolePolicy</span>: <span style="color:#a6e22e">allowEc2Json</span>,
+</span></span><span style="display:flex;"><span>  })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> = <span style="color:#a6e22e">iam</span>.<span style="color:#a6e22e">NewRolePolicy</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">Name</span><span style="color:#f92672">+</span><span style="color:#e6db74">&#34;-iam-policy-cluster&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">iam</span>.<span style="color:#a6e22e">RolePolicyArgs</span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">NamePrefix</span>: <span style="color:#a6e22e">pulumi</span>.<span style="color:#a6e22e">String</span>(<span style="color:#a6e22e">Name</span>),
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">Role</span>:       <span style="color:#a6e22e">role</span>.<span style="color:#a6e22e">ID</span>(),
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">Policy</span>:     <span style="color:#a6e22e">findMachinesJson</span>,
+</span></span><span style="display:flex;"><span>  })
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Export</span>(<span style="color:#e6db74">&#34;role-arn&#34;</span>, <span style="color:#a6e22e">role</span>.<span style="color:#a6e22e">Arn</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">IsInit</span> {
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">asg</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">autoscaling</span>.<span style="color:#a6e22e">NewGroup</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">Name</span><span style="color:#f92672">+</span><span style="color:#e6db74">&#34;-asg&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">autoscaling</span>.<span style="color:#a6e22e">GroupArgs</span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">LaunchConfiguration</span>: <span style="color:#a6e22e">createLaunchConfiguration</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">cfg</span>, <span style="color:#a6e22e">role</span>),
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">VpcZoneIdentifiers</span>:  <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">ZoneIdentifiers</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">DesiredCapacity</span>:     <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">ClusterSize</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">MinSize</span>:             <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">ClusterSize</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">MaxSize</span>:             <span style="color:#a6e22e">cfg</span>.<span style="color:#a6e22e">ClusterSize</span>,
+</span></span><span style="display:flex;"><span>  })
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Export</span>(<span style="color:#e6db74">&#34;asg-name&#34;</span>, <span style="color:#a6e22e">asg</span>.<span style="color:#a6e22e">Name</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now that the stack can be run to create only partial infrastructure, the process changes to this:</p>
+<ul>
+<li>Create minimal infrastructure</li>
+<li>Write configuration to Vault</li>
+<li>Create remaining infrastructure</li>
+</ul>
+<p>But is the new process faster?  I had hoped it would be a little faster, as waiting for cloud-init and SSH can take a while, and thankfully, it is significantly faster.  It takes on average 98 seconds, so around 77 seconds faster.</p>
+<p><img loading="lazy" src="pulumi-infra-fast.png" alt="pulumi trace showing execution time of 98 seconds"  />
+</p>
+<p>Comparing the before and after traces, I can see that the additional pulumi call adds 20 seconds to the processes, but the <code>consul_configure</code> span drops from 100 seconds to 3.5, which is quite the speed increase.</p>
+<h2 id="what-about-terraform">What about Terraform?</h2>
+<p>This is still possible to do with a terraform stack, but not in a pleasant way; in pulumi I can return early from the infra function, but with terraform, I would have to add a <code>count = var.is_init ?  0 : 1</code> to every resource I didn&rsquo;t want to create up front, which quickly becomes unwieldy.</p>
+<p>There is also the downside of not being able to embed the Terraform inside a CLI tool like I can with Pulumi.</p>
+<p>Overall, I am happy with how this has turned out.  The diff for enabling this optimisation is 3 files changed, 15 insertions, 7 deletions, which included some explanatory comments!</p>
+]]></content:encoded></item><item><title>An NGINX and DNS based outage</title><link>https://andydote.co.uk/2022/04/23/nginx-dns/</link><pubDate>Sat, 23 Apr 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/04/23/nginx-dns/</guid><description>I recently encountered a behaviour in Nginx that I didn&amp;rsquo;t expect and caused a production outage in the process. While I would love to blame DNS for this, as it&amp;rsquo;s usually the cause of most network-related issues, in this case, the fault lies with Nginx.
+I was running a very simple Nginx proxy, relaying an internal service to the outside world. The internal service is behind an AWS ALB, and the Nginx configuration was proxying to the ALB&amp;rsquo;s FQDN:</description><content:encoded><![CDATA[<p>I recently encountered a behaviour in Nginx that I didn&rsquo;t expect and caused a production outage in the process.  While I would love to blame DNS for this, as it&rsquo;s usually the cause of most network-related issues, in this case, the fault lies with Nginx.</p>
+<p>I was running a very simple Nginx proxy, relaying an internal service to the outside world.  The internal service is behind an AWS ALB, and the Nginx configuration was proxying to the ALB&rsquo;s FQDN:</p>
+<pre tabindex="0"><code>http {
+  server {
+    listen              8000;
+    server_name         server.example.com;
+
+    location ~* ^/some/path {
+      proxy_pass              https://some.internal.alb.address.amazonaws.com;
+      proxy_set_header        Host $host;
+      proxy_read_timeout      120;
+      proxy_ignore_headers    Cache-Control;
+      proxy_ignore_headers    Expires;
+      proxy_ignore_headers    Set-Cookie;
+    }
+  }
+}
+</code></pre><p>The proxy was working fine for several weeks, until suddenly it wasn&rsquo;t.  To make matters more strange, when we checked the internal site directly, it showed as up and responding.  No deployments of any services had happened, and we had made no changes in any infrastructure either.  We restarted the Nginx service, and everything started working again.</p>
+<p>The first is that AWS&rsquo;s can, and does, change the IP addresses associated with load balancers.  This can happen for many unknown reasons as the underlying implementation of the AWS load balancers is a black box.  One known reason is the load balancer scaling to handle more or less traffic.  There is no API that we are aware of that allows you to see when these changes have happened; the only way we know is to run <code>dig</code> in a loop and send the results to our observability tool when they change.</p>
+<p>The second detail is how Nginx resolves DNS.  My initial expectation was that it worked like most DNS clients, and would query an address on the first request and then again after the TTL had elapsed.  It turns out my assumption was wrong, and that by default, Nginx queries addresses once on startup, <em>and never again</em>.</p>
+<p>So with these two facts, we can see why the proxy stopped working at some point; the target ALB had removed whichever IP address(es) Nginx had received from DNS at startup.  There are two different ways this can be fixed.</p>
+<p>The first way is to force Nginx to cache all IPs resolved for a fixed time window:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>http {
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+  resolver_timeout 30s;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex;"><span>  server {
+</span></span><span style="display:flex;"><span>    listen              8000;
+</span></span><span style="display:flex;"><span>    server_name         server.example.com;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    location ~* ^/some/path {
+</span></span></code></pre></div><p>The second fix is to cause Nginx to re-resolve the upstream when it&rsquo;s DNS record expires (based on the DNS TTL):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>http {
+</span></span><span style="display:flex;"><span>  server {
+</span></span><span style="display:flex;"><span>    listen              8000;
+</span></span><span style="display:flex;"><span>    server_name         server.example.com;
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+    set $upstream some.internal.alb.address.amazonaws.com;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex;"><span>    location ~* ^/some/path {
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-     proxy_pass              https://some.internal.alb.address.amazonaws.com;
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+     proxy_pass              https://$upstream;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>      proxy_set_header        Host $host;
+</span></span><span style="display:flex;"><span>      proxy_read_timeout      120;
+</span></span><span style="display:flex;"><span>      proxy_ignore_headers    Cache-Control;
+</span></span><span style="display:flex;"><span>      proxy_ignore_headers    Expires;
+</span></span><span style="display:flex;"><span>      proxy_ignore_headers    Set-Cookie;
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>While I am glad there are two easy ways to solve this issue, I still find the default &ldquo;only resolve once at startup&rdquo; behaviour odd, as it goes against the <a href="https://en.wikipedia.org/wiki/Principle_of_least_astonishment">Principle of least surprise</a>;  I expect Nginx to re-query based on the TTL of the DNS Record.  I suspect this behaviour exists for performance reasons, but I don&rsquo;t know for sure.</p>
+]]></content:encoded></item><item><title>Observability with Infrastructure as Code</title><link>https://andydote.co.uk/2021/03/01/observability-with-infrastructure-as-code/</link><pubDate>Mon, 01 Mar 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/03/01/observability-with-infrastructure-as-code/</guid><description>This article was originally published on the Pulumi blog.
 When using the Pulumi Automation API to create applications which can provision infrastructure, it is very handy to be able to use observability techniques to ensure the application functions correctly and to help see where performance bottlenecks are.
-One of the applications I work on creates a VPC and Bastion host and then stores the credentials into a Vault instance. The problem is that the “create infrastructure” part is an opaque blob, in that I can see it takes 129 seconds to create, but I can’t see what it’s doing, or why it takes this amount of time.</description></item><item><title>Testing Immutable Infrastructure</title><link>https://andydote.co.uk/2019/01/01/immutable-infra/</link><pubDate>Tue, 01 Jan 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/01/01/immutable-infra/</guid><description>In my previous post, I glossed over one of the most important and useful parts of Immutable Infrastructure: Testability. There are many kinds of tests we can write for our infrastructure, but they should all be focused on the machine/service and maybe it&amp;rsquo;s nearest dependencies, not the entire system.
-While this post focuses on testing a full machine (both locally in a VM, and remotely as an Amazon EC2 instance), it is also possible to do most of the same kind of tests against a Docker container.</description></item><item><title>Terraform, Kinesis Streams, Lambda and IAM problems</title><link>https://andydote.co.uk/2017/07/12/terraform-kinesis-lambda-iam/</link><pubDate>Wed, 12 Jul 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/07/12/terraform-kinesis-lambda-iam/</guid><description>I hit an problem the recently with Terraform, when I was trying to hook up a Lambda Trigger to a Kinesis stream. Both the lambda itself, and the stream creation succeeded within Terraform, but the trigger would just stay stuck on &amp;ldquo;creating&amp;hellip;&amp;rdquo; for at least 5 minutes, before I got bored of waiting and killed the process. Several attempts at doing this had the same issue.
-The code looked something along the lines of this:</description></item><item><title>S3 Multi-File upload with Terraform</title><link>https://andydote.co.uk/2017/04/23/s3-multi-file-upload-terraform/</link><pubDate>Sun, 23 Apr 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/04/23/s3-multi-file-upload-terraform/</guid><description>Hosting a static website with S3 is really easy, especially from terraform:
+One of the applications I work on creates a VPC and Bastion host and then stores the credentials into a Vault instance. The problem is that the “create infrastructure” part is an opaque blob, in that I can see it takes 129 seconds to create, but I can’t see what it’s doing, or why it takes this amount of time.</description><content:encoded><![CDATA[<blockquote>
+<p>This article was originally published on the <a href="https://www.pulumi.com/blog/observability-with-infrastructure-as-code/">Pulumi blog</a>.</p>
+</blockquote>
+<p>When using the <a href="https://www.pulumi.com/blog/tag/automation-api/">Pulumi Automation API</a> to create applications which can provision infrastructure, it is very handy to be able to use observability techniques to ensure the application functions correctly and to help see where performance bottlenecks are.</p>
+<p>One of the applications I work on creates a VPC and Bastion host and then stores the credentials into a Vault instance.  The problem is that the “create infrastructure” part is an opaque blob, in that I can see it takes 129 seconds to create, but I can’t see what it’s doing, or why it takes this amount of time.</p>
+<p><img loading="lazy" src="pulumi-observability-before.png" alt="honeycomb traces of one pulumi stack resource"  />
+</p>
+<p>So can I do better?</p>
+<h2 id="the-initial-application">The Initial Application</h2>
+<p>In this example I use <a href="https://honeycomb.io/">Honeycomb&rsquo;s</a> <a href="https://github.com/honeycombio/beeline-go/">Go Beeline</a> to capture all the data I care about; durations, errors, any context which is “interesting”:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">Init</span>(<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">Config</span>{
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">WriteKey</span>: <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Getenv</span>(<span style="color:#e6db74">&#34;HONEYCOMB_API_KEY&#34;</span>),
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">Dataset</span>:  <span style="color:#e6db74">&#34;pulumi-demo&#34;</span>,
+</span></span><span style="display:flex;"><span>	})
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">Close</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">span</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">StartSpan</span>(<span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Background</span>(), <span style="color:#e6db74">&#34;basic-vpc&#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">span</span>.<span style="color:#a6e22e">Send</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">name</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">auto</span>.<span style="color:#a6e22e">FullyQualifiedStackName</span>(<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Getenv</span>(<span style="color:#e6db74">&#34;PULUMI_USERNAME&#34;</span>), <span style="color:#e6db74">&#34;basic-vpc&#34;</span>, <span style="color:#e6db74">&#34;dev&#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">stack</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">auto</span>.<span style="color:#a6e22e">UpsertStackInlineSource</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">name</span>, <span style="color:#e6db74">&#34;basic-vpc&#34;</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">pc</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">pulumi</span>.<span style="color:#a6e22e">Context</span>) <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">azs</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">getAvailabilityZones</span>(<span style="color:#a6e22e">ctx</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">v</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">vpc</span>.<span style="color:#a6e22e">NewVpc</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">pc</span>, <span style="color:#e6db74">&#34;dev&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">vpc</span>.<span style="color:#a6e22e">VpcArgs</span>{
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">Description</span>:           <span style="color:#e6db74">&#34;dev&#34;</span>,
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">BaseCidr</span>:              <span style="color:#e6db74">&#34;192.168.0.0/16&#34;</span>,
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">AvailabilityZoneNames</span>: <span style="color:#a6e22e">azs</span>,
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">S3Endpoint</span>:            <span style="color:#66d9ef">true</span>,
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">DynamoEndpoint</span>:        <span style="color:#66d9ef">true</span>,
+</span></span><span style="display:flex;"><span>		})
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">SetConfig</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;aws:region&#34;</span>, <span style="color:#a6e22e">auto</span>.<span style="color:#a6e22e">ConfigValue</span>{<span style="color:#a6e22e">Value</span>: <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Getenv</span>(<span style="color:#e6db74">&#34;PULUMI_REGION&#34;</span>)}); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">ws</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">Workspace</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">ws</span>.<span style="color:#a6e22e">InstallPlugin</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;aws&#34;</span>, <span style="color:#e6db74">&#34;v3.23.0&#34;</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">Refresh</span>(<span style="color:#a6e22e">ctx</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">stream</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">optup</span>.<span style="color:#a6e22e">ProgressStreams</span>(<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Stdout</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">Up</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">stream</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//vault code
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="adding-infrastructure-observability">Adding Infrastructure Observability</h2>
+<p>To get a handle on what is happening when <code>stack.Up()</code> runs, I have mplemented a custom <code>io.Writer</code>, which will be passed into the <code>ProgressStream</code> constructor.</p>
+<p>The custom progress stream&rsquo;s <code>Write</code> method is called once for each line emitted,  which allows us to start new spans when a resource starts being constructed, and send them when construction completes.  Currently, this is achieved by parsing the console output text, but I gather in the future, it will be possible to get streamed json blobs which can be unmarshaled into go structs.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">pulumiBeeline</span> <span style="color:#66d9ef">struct</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">ctx</span>      <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Context</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">contexts</span> <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">func</span>()
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">NewPulumiBeeline</span>(<span style="color:#a6e22e">ctx</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Context</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">pulumiBeeline</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">pulumiBeeline</span>{
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">ctx</span>:  	<span style="color:#a6e22e">ctx</span>,
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">contexts</span>: <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">func</span>(){},
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">cw</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">pulumiBeeline</span>) <span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">p</span> []<span style="color:#66d9ef">byte</span>) (<span style="color:#a6e22e">n</span> <span style="color:#66d9ef">int</span>, <span style="color:#a6e22e">err</span> <span style="color:#66d9ef">error</span>) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// todo: make more robust, support modifications, deletions etc.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#a6e22e">line</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">TrimSpace</span>(string(<span style="color:#a6e22e">p</span>))
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">parts</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">Split</span>(<span style="color:#a6e22e">line</span>, <span style="color:#e6db74">&#34; &#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> len(<span style="color:#a6e22e">parts</span>) &lt; <span style="color:#ae81ff">5</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> len(<span style="color:#a6e22e">p</span>), <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//+  aws-vpc dev creating
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#75715e">//+  &lt;type&gt; &lt;name&gt; &lt;action&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#a6e22e">resourceType</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">parts</span>[<span style="color:#ae81ff">2</span>]
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">resourceName</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">parts</span>[<span style="color:#ae81ff">3</span>]
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">resourceAction</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">parts</span>[<span style="color:#ae81ff">4</span>]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">resourceAction</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;creating&#34;</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">c</span>, <span style="color:#a6e22e">s</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">StartSpan</span>(<span style="color:#a6e22e">cw</span>.<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">resourceName</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">c</span>, <span style="color:#e6db74">&#34;type&#34;</span>, <span style="color:#a6e22e">resourceType</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">// add other things here
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">cw</span>.<span style="color:#a6e22e">contexts</span>[<span style="color:#a6e22e">resourceName</span>] = <span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">Send</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">resourceAction</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;created&#34;</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">cw</span>.<span style="color:#a6e22e">contexts</span>[<span style="color:#a6e22e">resourceName</span>]()
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> len(<span style="color:#a6e22e">p</span>), <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Modifying the <code>optup.ProgressStreams</code> is the only change needed to the original application:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#a6e22e">stream</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">optup</span>.<span style="color:#a6e22e">ProgressStreams</span>(<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Stdout</span>, <span style="color:#a6e22e">NewPulumiBeeline</span>(<span style="color:#a6e22e">ctx</span>))
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">stack</span>.<span style="color:#a6e22e">Up</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">stream</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">beeline</span>.<span style="color:#a6e22e">AddField</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;err&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now when I run this program again, I can see a lot more information in my Honeycomb traces, which not only shows me that Pulumi is <em>highly</em> parallelised, but also gives me a better idea of where the time is taken when creating infrastructure; in this example, it’s the NAT Gateways:</p>
+<p><img loading="lazy" src="pulumi-observability-after.png" alt="honeycomb traces of all infrastructure resources in the pulumi stack"  />
+</p>
+<p>In the future, I want to expand this to cover far more details, such as including the reasons resources were created/modified/destroyed and including as much information as possible about what caused a resource to fail.</p>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>In the end, this turned out to be much easier to achieve than I had hoped.  Being able to use Pulumi progmatically, rather than running <code>os.Exec</code> directly myself was a huge productivity boost.</p>
+<p>I am looking forward to all the new kinds of tooling I can build to solve my user&rsquo;s problems continuing to utilise Honeycomb for my observability and Pulumi for my infrastructure.</p>
+]]></content:encoded></item><item><title>Testing Immutable Infrastructure</title><link>https://andydote.co.uk/2019/01/01/immutable-infra/</link><pubDate>Tue, 01 Jan 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/01/01/immutable-infra/</guid><description>In my previous post, I glossed over one of the most important and useful parts of Immutable Infrastructure: Testability. There are many kinds of tests we can write for our infrastructure, but they should all be focused on the machine/service and maybe it&amp;rsquo;s nearest dependencies, not the entire system.
+While this post focuses on testing a full machine (both locally in a VM, and remotely as an Amazon EC2 instance), it is also possible to do most of the same kind of tests against a Docker container.</description><content:encoded><![CDATA[<p>In my <a href="/2018/12/22/serilog-elk-jaeger/">previous post</a>, I glossed over one of the most important and useful parts of Immutable Infrastructure: Testability.  There are many kinds of tests we can write for our infrastructure, but they should all be focused on the machine/service and <em>maybe</em> it&rsquo;s nearest dependencies, <a href="https://medium.com/@copyconstruct/testing-microservices-the-sane-way-9bb31d158c16">not the entire system</a>.</p>
+<p>While this post focuses on testing a full machine (both locally in a VM, and remotely as an Amazon EC2 instance), it is also possible to do most of the same kind of tests against a Docker container.  In fact, one of the tools used in this post supports building Docker containers as an output in parallel to the AMIs, so this can also assist in providing a migration path to/from Docker.</p>
+<p>As an example, I will show how I built and tested a LogStash machine, including how to verify that the script to create the production machine is valid, that the machine itself has been provisioned correctly, and that the services inside work as expected.</p>
+<p>I have <a href="https://github.com/Pondidum/immutable-infra-testing-demo">published all the source code</a> to GitHub.  The examples in this post are all taken from the repository but might have a few bits removed just for readability.  Check the full source out if you are interested!</p>
+<h2 id="repository-structure-and-tools">Repository Structure and Tools</h2>
+<p>When it comes to building anything that you will have lots of, consistency is key to making it manageable.  To that end, I have a small selection of tools that I use, and a repository structure I try and stick to.  They are the following:</p>
+<p><strong><a href="https://www.vagrantup.com/">Vagrant</a></strong> - This is a tool for building and managing virtual machines.  It can be backed by many different <a href="https://www.vagrantup.com/docs/providers/">providers</a> such as Docker, HyperV and VirtualBox.  We&rsquo;ll use this to build a local Linux machine to develop and test LogStash in.  I use the HyperV provisioner, as that is what Docker For Windows also uses, and HyperV disables other virtualisation tools.</p>
+<p><strong><a href="https://packer.io/">Packer</a></strong> - This tool provides a way to build machine images.  Where Vagrant builds running machines, Packer builds the base images for you to boot, and can build multiple different ones (in parallel) from one configuration.  We&rsquo;ll use this to create our AMIs (Amazon Machine Images.)</p>
+<p><strong><a href="http://jestjs.io/">Jest</a></strong> - This is a testing framework written in (and for) NodeJS applications.  Whatever testing tool works best for your environment is what you should be using, but I use Jest as it introduces minimal dependencies, is cross-platform, and has some useful libraries for doing things like diffing json.</p>
+<p>The repository structure is pretty simple:</p>
+<ul>
+<li>scripts/</li>
+<li>src/</li>
+<li>test/</li>
+<li>build.sh</li>
+<li>logstash.json</li>
+<li>package.json</li>
+<li>vagrantfile</li>
+</ul>
+<p>The <code>src</code> directory is where our application code will live.  If the application is compiled, the output goes to the <code>build</code> directory (which is not tracked in source-control.)  The <code>test</code> directory will contain all of our tests, and the <code>scripts</code> directory will contain everything needed for provisioning our machines.</p>
+<p>We&rsquo;ll describe what the use of each of these files is as we go through the next section.</p>
+<h2 id="local-development">Local Development</h2>
+<p>To create our virtual machine locally, we will use <a href="https://www.vagrantup.com">Vagrant</a>.  To tell Vagrant how to build our machine, we need to create a <code>vagrantfile</code> in our repository, which will contain the machine details and provisioning steps.</p>
+<p>The machine itself has a name, CPU count, and memory specified.  There is also a setting for Hyper-V which allows us to use a differencing disk, which reduces the startup time for the VM, and how much disk space it uses on the host machine.</p>
+<p>For provisioning, we specify to run the relevant two files from the <code>scripts</code> directory.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;bento/ubuntu-16.04&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provider <span style="color:#e6db74">&#34;hyperv&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>hv<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>vmname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;LogStash&#34;</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>cpus <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>memory <span style="color:#f92672">=</span> <span style="color:#ae81ff">2048</span>
+</span></span><span style="display:flex;"><span>        hv<span style="color:#f92672">.</span>linked_clone <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./scripts/provision.sh&#34;</span>
+</span></span><span style="display:flex;"><span>    config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./scripts/vagrant.sh&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>To keep things as similar as possible between our development machine and our output AMI, I keep as much of the setup script in one file: <code>scripts/provision.sh</code>.  In the case of our LogStash setup, this means installing Java, LogStash, some LogStash plugins, and enabling the service on reboots:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># add elastic&#39;s package repository</span>
+</span></span><span style="display:flex;"><span>wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;deb https://artifacts.elastic.co/packages/6.x/apt stable main&#34;</span> | sudo tee -a /etc/apt/sources.list.d/elastic-6.x.list
+</span></span><span style="display:flex;"><span>sudo apt-get update
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># install openjdk and set environment variable</span>
+</span></span><span style="display:flex;"><span>sudo apt-get install openjdk-8-jre -y
+</span></span><span style="display:flex;"><span>JAVA<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>readlink -f <span style="color:#66d9ef">$(</span>which java<span style="color:#66d9ef">)</span> | sed <span style="color:#e6db74">&#34;s:bin/java::&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;JAVA_HOME=</span>$JAVA<span style="color:#e6db74">&#34;</span> | sudo tee --append /etc/environment
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#install logstash and plugins</span>
+</span></span><span style="display:flex;"><span>sudo apt-get install logstash -y
+</span></span><span style="display:flex;"><span>/usr/share/logstash/bin/logstash-plugin install logstash-filter-uuid
+</span></span><span style="display:flex;"><span>/usr/share/logstash/bin/logstash-plugin install logstash-filter-prune
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl enable logstash.service
+</span></span></code></pre></div><p>Vagrant will automatically mount it&rsquo;s working directory into the VM under the path <code>/vagrant</code>.  This means we can add a second provisioning script (<code>scripts/vagrant.sh</code>) to link the <code>/vagrant/src</code> directory to the LogStash configuration directory (<code>/etc/logstash/conf.d</code>), meaning we can edit the files on the host machine, and then restart LogStash to pick up the changes.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>sudo rm -rf /etc/logstash/conf.d
+</span></span><span style="display:flex;"><span>sudo ln -s /vagrant/src /etc/logstash/conf.d
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl start logstash.service
+</span></span></code></pre></div><p>Now that we have a <code>vagrantfile</code>, we can start the virtual machine with a single command.  Note, Hyper-V requires administrator privileges, so you need to run this command in an admin terminal:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant up
+</span></span></code></pre></div><p>After a while, your new LogStash machine will be up and running.  If you want to log into the machine and check files an processes etc., you can run the following command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant ssh
+</span></span></code></pre></div><p>An argument can also be provided to the <code>ssh</code> command to be executed inside the VM, which is how I usually trigger LogStash restarts (as it doesn&rsquo;t seem to detect when I save the config files in the <code>src</code> directory):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant ssh -c <span style="color:#e6db74">&#39;sudo systemctl restart logstash&#39;</span>
+</span></span></code></pre></div><h2 id="deployment">Deployment</h2>
+<p>To create the deployable machine image, I use Packer.  The process is very similar to how Vagrant is used: select a base AMI, create a new EC2 machine, provision it, and save the result as a new AMI.</p>
+<p>Packer is configured with a single json file, in this case, named <code>logstash.json</code>.  The file is split into four parts: <code>variables</code>, <code>builders</code>, <code>provisioners</code>, and <code>outputs</code>.  I won&rsquo;t include the <code>outputs</code> section as it&rsquo;s not needed when building AMIs.</p>
+<h3 id="variables">Variables</h3>
+<p>The <code>variables</code> property is for all configuration that you can pass to Packer.  Their values can come from Environment Variables, CLI parameters, Consul, Vault, <a href="https://www.packer.io/docs/templates/user-variables.html">and others</a>.  In the LogStash example, there are three variables:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;variables&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;aws_access_key&#34;</span>: <span style="color:#e6db74">&#34;&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;aws_secret_key&#34;</span>: <span style="color:#e6db74">&#34;&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;ami_users&#34;</span>: <span style="color:#e6db74">&#34;{{env `AMI_ACCOUNTS`}}&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>aws_access_key</code> and <code>aws_secret_key</code> are known names - unless we specify some value, they will automatically be read from your AWS config (in <code>~/.aws/</code>), or if running on EC2, from the EC2 machine profile.</p>
+<p>The <code>ami_users</code> is a custom variable which will read the <code>AMI_ACCOUNTS</code> environment variable by default.  This particular one is used so that I can grant access to the resulting AMI to multiple AWS accounts, which is useful if you&rsquo;re running in an Organisation with multiple Accounts.  For example, if the AMI is built in a <code>common</code> account, and will be deployed into <code>dev</code>, <code>qa</code> and <code>prod</code> accounts, then you would populate the <code>AMI_ACCOUNTS</code> as a CSV of account IDs.</p>
+<h3 id="builders">Builders</h3>
+<p>Packer can build <a href="https://www.packer.io/docs/builders/index.html">many different kinds</a> of machine image, but for this, we only need one: <code>amazon-ebs</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;builders&#34;</span>: [
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;amazon-ebs&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;access_key&#34;</span>: <span style="color:#e6db74">&#34;{{user `aws_access_key`}}&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;secret_key&#34;</span>: <span style="color:#e6db74">&#34;{{user `aws_secret_key`}}&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;region&#34;</span>: <span style="color:#e6db74">&#34;eu-west-1&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;instance_type&#34;</span>: <span style="color:#e6db74">&#34;t2.micro&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;source_ami_filter&#34;</span>: {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;filters&#34;</span>: {
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;virtualization-type&#34;</span>: <span style="color:#e6db74">&#34;hvm&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;ubuntu/images/*ubuntu-xenial-16.04-amd64-server-*&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;root-device-type&#34;</span>: <span style="color:#e6db74">&#34;ebs&#34;</span>
+</span></span><span style="display:flex;"><span>        },
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;owners&#34;</span>: [<span style="color:#e6db74">&#34;099720109477&#34;</span>],
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;most_recent&#34;</span>: <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>      },
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;ssh_username&#34;</span>: <span style="color:#e6db74">&#34;ubuntu&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;ami_name&#34;</span>: <span style="color:#e6db74">&#34;logstash {{timestamp}}&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;ami_users&#34;</span>: <span style="color:#e6db74">&#34;{{user `ami_users`}}&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The two most interesting properties of this are <code>source_ami_filter</code> and <code>ami_users</code>.  The <code>source_ami_filter</code> works in a very similar manner to the AWS CLI&rsquo;s <code>describe-images</code> <code>--filters</code> parameter, albeit in a more readable format.  In this case, I am specifying that I want an <code>ubuntu-xenial</code> base, and I want it to be an official Canonical image, so specify their Account ID as the <code>owner</code>.  I also specify the <code>most_recent</code> property, as this filter will return all versions of this AMI which Canonical publish.</p>
+<p>The <code>ami_users</code> is what lets me grant access to the AMI from other accounts (rather than just making it public).  The property&rsquo;s value should be an array, but Packer is smart enough to expand the CSV in the user variable into an array for us.</p>
+<h3 id="provisioners">Provisioners</h3>
+<p>The <code>provisioners</code> array items are executed in the order they are specified.  To set up the machine, I use the <code>shell</code> provisioner to create a temporary directory, then the <code>file</code> provisioner to upload the files in the <code>src</code> directory to that temporary directory.  Finally a second <code>shell</code> provisioner uploads and runs the <code>scripts/provision.sh</code> and <code>scripts/aws.sh</code> files.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;provisioners&#34;</span>: [
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;shell&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;inline&#34;</span>: <span style="color:#e6db74">&#34;mkdir -p /tmp/src&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;file&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;source&#34;</span>: <span style="color:#e6db74">&#34;./src/&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;destination&#34;</span>: <span style="color:#e6db74">&#34;/tmp/src&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;shell&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;scripts&#34;</span>: [<span style="color:#e6db74">&#34;./scripts/provision.sh&#34;</span>, <span style="color:#e6db74">&#34;./scripts/aws.sh&#34;</span>]
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>aws.sh</code> file is very small and does roughly the same thing as the <code>vagrant.sh</code> script, but rather than symlinking the <code>/vagrant</code> directory, it moves the uploaded <code>src</code> directory into the right location for LogStash:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>sudo rm /etc/logstash/conf.d/*
+</span></span><span style="display:flex;"><span>sudo cp -r /tmp/src/* /etc/logstash/conf.d
+</span></span></code></pre></div><p>Note that this doesn&rsquo;t start the LogStash service - this gets done by the UserData when we launch a new instance, as often we need to pass in additional configuration parameters, and don&rsquo;t want the service running until that has been done.</p>
+<h3 id="running">Running</h3>
+<p>To create the AMI, we need to invoke packer.  If I am running packer on a remote machine via SSH, I run it inside <code>tmux</code>, so that disconnects don&rsquo;t fail the process:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>packer build -var <span style="color:#e6db74">&#34;ami_users=111,222,333&#34;</span> logstash.json
+</span></span></code></pre></div><p>After a while, Packer will finish, leaving you with an output which will include the new AMI ID:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#f92672">==</span>&gt; Builds finished. The artifacts of successful builds are:
+</span></span><span style="display:flex;"><span>--&gt; amazon-ebs: AMIs were created:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>eu-west-1: ami-123123123
+</span></span></code></pre></div><p>We&rsquo;ll get back to this output later when we create a build script that will also run our tests.  Before we get to that, however, let&rsquo;s look at how we can write tests which target both the local Vagrant machine and the AMI too.</p>
+<h2 id="testing">Testing</h2>
+<p>To test the machines, I am using <a href="https://jestjs.io">Jest</a>.  There isn&rsquo;t anything particularly interesting going on in the <code>package.json</code>, other than a few babel packages being installed so that I can use ES6 syntax:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;scripts&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;watch&#34;</span>: <span style="color:#e6db74">&#34;jest --watch&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;test&#34;</span>: <span style="color:#e6db74">&#34;jest &#34;</span>
+</span></span><span style="display:flex;"><span>  },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;devDependencies&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;babel-core&#34;</span>: <span style="color:#e6db74">&#34;^6.26.3&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;babel-jest&#34;</span>: <span style="color:#e6db74">&#34;^23.6.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;babel-preset-env&#34;</span>: <span style="color:#e6db74">&#34;^1.7.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;jest&#34;</span>: <span style="color:#e6db74">&#34;^23.6.0&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;regenerator-runtime&#34;</span>: <span style="color:#e6db74">&#34;^0.13.1&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="packer-configuration-testing">Packer Configuration Testing</h3>
+<p>There are a number of tests we can do to make sure our Packer configuration is valid before running it.  This includes things like checking the base AMI is from a whitelisted source (such as our accounts, Amazon and Canonical).  The test has to handle the possibility of multiple builders, and that some builders might not have a <code>source_ami_filter</code>.  It also handles if no owner has been specified at all, which we also consider a &ldquo;bad thing&rdquo;:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">ourAccounts</span> <span style="color:#f92672">=</span> [ <span style="color:#e6db74">&#34;111111&#34;</span>, <span style="color:#e6db74">&#34;222222&#34;</span>, <span style="color:#e6db74">&#34;333333&#34;</span>, <span style="color:#e6db74">&#34;444444&#34;</span> ];
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">otherOwners</span> <span style="color:#f92672">=</span> [ <span style="color:#e6db74">&#34;amazon&#34;</span>, <span style="color:#e6db74">&#34;099720109477&#34;</span> <span style="color:#75715e">/*canonical*/</span> ];
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;ami builder&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should be based on a whitelisted owner&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">allOwners</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">ourAccounts</span>.<span style="color:#a6e22e">concat</span>(<span style="color:#a6e22e">otherOwners</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">invalidOwners</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">owners</span> =&gt; <span style="color:#a6e22e">owners</span>.<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">owner</span> =&gt; <span style="color:#f92672">!</span><span style="color:#a6e22e">allOwners</span>.<span style="color:#a6e22e">includes</span>(<span style="color:#a6e22e">owner</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">amisWithInvalidOwners</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">builders</span>
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">builder</span> =&gt; <span style="color:#a6e22e">builder</span>.<span style="color:#a6e22e">source_ami_filter</span>)
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">map</span>(<span style="color:#a6e22e">builder</span> =&gt; ({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">name</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">builderName</span>(<span style="color:#a6e22e">builder</span>),
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">invalidOwners</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">invalidOwners</span>(<span style="color:#a6e22e">builder</span>.<span style="color:#a6e22e">source_ami_filter</span>.<span style="color:#a6e22e">owners</span> <span style="color:#f92672">||</span> [ <span style="color:#e6db74">&#34;NO OWNER SPECIFIED&#34;</span> ])
+</span></span><span style="display:flex;"><span>      }))
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">builders</span> =&gt; <span style="color:#a6e22e">builders</span>.<span style="color:#a6e22e">invalidOwners</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">amisWithInvalidOwners</span>).<span style="color:#a6e22e">toEqual</span>([]);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>I also test that certain variables (<code>ami_users</code>) have been defined, and have been used in the right place:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;variables&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should have a variable for who can use the ami&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">variables</span>).<span style="color:#a6e22e">toHaveProperty</span>(<span style="color:#e6db74">&#34;ami_users&#34;</span>);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should read ami_users from AMI_ACCOUNTS&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">variables</span>.<span style="color:#a6e22e">ami_users</span>).<span style="color:#a6e22e">toMatch</span>(
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">/{{\s*env\s*`AMI_ACCOUNTS`\s*}}/</span>
+</span></span><span style="display:flex;"><span>    );
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;ami builder&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should set the ami_user&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">invalidUsers</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">packer</span>.<span style="color:#a6e22e">builders</span>
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">map</span>(<span style="color:#a6e22e">builder</span> =&gt; ({
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">name</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">builderName</span>(<span style="color:#a6e22e">builder</span>),
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">users</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">builder</span>.<span style="color:#a6e22e">ami_users</span> <span style="color:#f92672">||</span> <span style="color:#e6db74">&#34;NO USERS SPECIFIED&#34;</span>
+</span></span><span style="display:flex;"><span>      }))
+</span></span><span style="display:flex;"><span>      .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">ami</span> =&gt; <span style="color:#f92672">!</span><span style="color:#a6e22e">ami</span>.<span style="color:#a6e22e">users</span>.<span style="color:#a6e22e">match</span>(<span style="color:#e6db74">/{{\s*user\s*`ami_users`\s*}}/</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">invalidUsers</span>).<span style="color:#a6e22e">toEqual</span>([]);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre></div><p>Other tests you might want to add are that the base AMI is under a certain age, or that your AMI has certain tags included, or that it is named in a specific manner.</p>
+<h3 id="machine-testing">Machine Testing</h3>
+<p>Machine testing is for checking that our provisioning worked successfully.  This is very useful, as subtle bugs can creep in when you don&rsquo;t verify what happens.</p>
+<p>For example, a machine I built copied configuration directory to a target location but was missing the <code>-r</code> flag, so when I later added a subdirectory, the machine failed as the referenced files didn&rsquo;t exist.</p>
+<p>So that the tests work with both the Vagrant and Packer built versions, we take in their address and key paths from the environment:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">import</span> { <span style="color:#a6e22e">spawnSync</span> } <span style="color:#a6e22e">from</span> <span style="color:#e6db74">&#34;child_process&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> { <span style="color:#a6e22e">createConnection</span> } <span style="color:#a6e22e">from</span> <span style="color:#e6db74">&#34;net&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// figure out where to look these up
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">host</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">process</span>.<span style="color:#a6e22e">env</span>.<span style="color:#a6e22e">LOGSTASH_ADDRESS</span>; <span style="color:#75715e">// e.g. &#34;172.27.48.28&#34;;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">keyPath</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">process</span>.<span style="color:#a6e22e">env</span>.<span style="color:#a6e22e">LOGSTASH_KEYPATH</span>; <span style="color:#75715e">// &#34;.vagrant/machines/default/hyperv/private_key&#34;;
+</span></span></span></code></pre></div><p>We also define two helper methods: one to check if a TCP port is open, and one which uses SSH to execute a command and read the response in the machine:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">execute</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">command</span> =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">args</span> <span style="color:#f92672">=</span> [<span style="color:#e6db74">`vagrant@</span><span style="color:#e6db74">${</span><span style="color:#a6e22e">host</span><span style="color:#e6db74">}</span><span style="color:#e6db74">`</span>, <span style="color:#e6db74">`-i`</span>, <span style="color:#a6e22e">keyPath</span>, <span style="color:#a6e22e">command</span>];
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">ssh</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">spawnSync</span>(<span style="color:#e6db74">&#34;ssh&#34;</span>, <span style="color:#a6e22e">args</span>, { <span style="color:#a6e22e">encoding</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#34;utf8&#34;</span> });
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">lines</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">ssh</span>.<span style="color:#a6e22e">stdout</span>.<span style="color:#a6e22e">split</span>(<span style="color:#e6db74">&#34;\n&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">lines</span>[<span style="color:#a6e22e">lines</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>] <span style="color:#f92672">===</span> <span style="color:#e6db74">&#34;&#34;</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">lines</span>.<span style="color:#a6e22e">slice</span>(<span style="color:#ae81ff">0</span>, <span style="color:#a6e22e">lines</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">lines</span>;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">testPort</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">port</span> =&gt; <span style="color:#66d9ef">new</span> Promise((<span style="color:#a6e22e">resolve</span>, <span style="color:#a6e22e">reject</span>) =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">client</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">createConnection</span>({ <span style="color:#a6e22e">host</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">host</span>, <span style="color:#a6e22e">port</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">port</span> });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">on</span>(<span style="color:#e6db74">&#34;error&#34;</span>, <span style="color:#a6e22e">err</span> =&gt; <span style="color:#a6e22e">reject</span>(<span style="color:#a6e22e">err</span>));
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">on</span>(<span style="color:#e6db74">&#34;connect&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">end</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">resolve</span>();
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>We can then add some tests which check the files were written to the right place, that port <code>5044</code> is open, and port <code>9600</code> is closed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;the machine&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should have the correct configuration&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">files</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">execute</span>(<span style="color:#e6db74">&#34;find /etc/logstash/conf.d/* -type f&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">files</span>).<span style="color:#a6e22e">toEqual</span>([
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">&#34;/etc/logstash/conf.d/beats.conf&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">&#34;/etc/logstash/conf.d/patterns/custom.txt&#34;</span>
+</span></span><span style="display:flex;"><span>    ]);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should be listening on 5044 for beats&#34;</span>, () =&gt; <span style="color:#a6e22e">testPort</span>(<span style="color:#ae81ff">5044</span>));
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">it</span>(<span style="color:#e6db74">&#34;should not be listening on 9600&#34;</span>, () =&gt; <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">testPort</span>(<span style="color:#ae81ff">9600</span>)).<span style="color:#a6e22e">rejects</span>.<span style="color:#a6e22e">toThrow</span>(<span style="color:#e6db74">&#34;ECONNREFUSED&#34;</span>));
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Of course, as we can execute any command inside the machine, we can check pretty much anything:</p>
+<ul>
+<li><code>tail</code> the LogStash log and see if it&rsquo;s got the right contents</li>
+<li>check if the service is started</li>
+<li>check the service is enabled on boot</li>
+<li>check the environment variables been written to the right files</li>
+</ul>
+<h3 id="application-testing">Application Testing</h3>
+<p>There are two styles of Application Testing: white-box and black-box.  White-box will be tests run on the application inside the machine, using minimal external dependencies (preferably none at all), and Black-box will be run on the application from outside the machine, either using direct dependencies, or fakes.</p>
+<p>It&rsquo;s worth noting that both white-box and black-box tests are <strong>slow</strong>, mostly down to how slow LogStash is at starting up, although only giving it 1 CPU and 2Gb of RAM probably doesn&rsquo;t help.</p>
+<h4 id="whitebox-testing-logstash">Whitebox Testing LogStash</h4>
+<p>To white-box test LogStash, I use a technique partially based on the <a href="https://github.com/agolo/logstash-test-runner">Agolo LogStash Test Runner</a>.  The process for the tests is to run LogStash interactively (rather than as a service), send it a single event, record the output events, and compare them to an expected output.</p>
+<p>The test cases are kept in separate folders, with two files.  First is the input file, imaginatively called <code>input.log</code>, which will contain one json encoded event per line.  The format needs to match what the result of FileBeat sending an event to LogStash would be.  In this case, it means a few extra fields, and a <code>message</code> property containing a string of json.  Formatted for readability, the object looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;@timestamp&#34;</span>: <span style="color:#e6db74">&#34;2018-12-27T14:08:24.753Z&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;beat&#34;</span>: { <span style="color:#f92672">&#34;hostname&#34;</span>: <span style="color:#e6db74">&#34;Spectre&#34;</span>, <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;Spectre&#34;</span>, <span style="color:#f92672">&#34;version&#34;</span>: <span style="color:#e6db74">&#34;5.3.0&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;fields&#34;</span>: { <span style="color:#f92672">&#34;environment&#34;</span>: <span style="color:#e6db74">&#34;local&#34;</span>, <span style="color:#f92672">&#34;log_type&#34;</span>: <span style="color:#e6db74">&#34;application&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;input_type&#34;</span>: <span style="color:#e6db74">&#34;log&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;message&#34;</span>: <span style="color:#e6db74">&#34;{\&#34;Timestamp\&#34;: \&#34;2018-12-18T17:06:27.7112297+02:00\&#34;,\&#34;Level\&#34;: \&#34;Information\&#34;,\&#34;MessageTemplate\&#34;: \&#34;This is the {count} message\&#34;,\&#34;Properties\&#34;: {\&#34;count\&#34;: 4,\&#34;SourceContext\&#34;: \&#34;LogLines.GetOpenPurchasesHandler\&#34;,\&#34;ApplicationName\&#34;: \&#34;FileBeatTest\&#34;,\&#34;CorrelationId\&#34;: \&#34;8f341e8e-6b9c-4ebf-816d-d89c014bad90\&#34;,\&#34;TimedOperationElapsedInMs\&#34;: 1000}}&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;offset&#34;</span>: <span style="color:#ae81ff">318</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;source&#34;</span>: <span style="color:#e6db74">&#34;D:\\tmp\\logs\\single.log&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;applicationlog&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>I also define an <code>output.log</code>, which contains the expected result(s), again one json encoded event per line.  The example pipeline in the repository will emit two events for a given input, so this file contains two lines of json (again, newlines added for readability here):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;source&#34;</span>: <span style="color:#e6db74">&#34;D:\\tmp\\logs\\single.log&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;@version&#34;</span>: <span style="color:#e6db74">&#34;1&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;fields&#34;</span>: { <span style="color:#f92672">&#34;log_type&#34;</span>: <span style="color:#e6db74">&#34;application&#34;</span>, <span style="color:#f92672">&#34;environment&#34;</span>: <span style="color:#e6db74">&#34;local&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;@timestamp&#34;</span>: <span style="color:#e6db74">&#34;2018-12-18T15:06:27.711Z&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;offset&#34;</span>: <span style="color:#ae81ff">318</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;ApplicationName&#34;</span>: <span style="color:#e6db74">&#34;FileBeatTest&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;host&#34;</span>: <span style="color:#e6db74">&#34;ubuntu-16&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;applicationlog&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;CorrelationId&#34;</span>: <span style="color:#e6db74">&#34;8f341e8e-6b9c-4ebf-816d-d89c014bad90&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;MessageTemplate&#34;</span>: <span style="color:#e6db74">&#34;This is the {count} message&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Level&#34;</span>: <span style="color:#e6db74">&#34;Information&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Context&#34;</span>: <span style="color:#e6db74">&#34;LogLines.GetOpenPurchasesHandler&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;TimeElapsed&#34;</span>: <span style="color:#ae81ff">1000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Properties&#34;</span>: { <span style="color:#f92672">&#34;count&#34;</span>: <span style="color:#ae81ff">4</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;duration&#34;</span>: <span style="color:#ae81ff">1000000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;timestamp&#34;</span>: <span style="color:#ae81ff">1545145586711000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;id&#34;</span>: <span style="color:#e6db74">&#34;&lt;generated&gt;&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;traceid&#34;</span>: <span style="color:#e6db74">&#34;8f341e8e6b9c4ebf816dd89c014bad90&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;LogLines.GetOpenPurchasesHandler&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;localEndpoint&#34;</span>: { <span style="color:#f92672">&#34;serviceName&#34;</span>: <span style="color:#e6db74">&#34;FileBeatTest&#34;</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To enable sending the lines directly to LogStash (rather than needing to use FileBeat), we define an <code>input.conf</code> file, which configures LogStash to read json from stdin:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>input {
+</span></span><span style="display:flex;"><span>  stdin { codec <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;json_lines&#34;</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And an <code>ouput.conf</code> file which configures LogStash to write the output as json lines a known file path:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>output {
+</span></span><span style="display:flex;"><span>  file {
+</span></span><span style="display:flex;"><span>    path <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;/tmp/test/output.log&#34;</span>
+</span></span><span style="display:flex;"><span>    codec <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;json_lines&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The tests need to be run inside the machine itself, so I created a script in the <code>./scripts</code> directory which will do all the work, and can be run by the <code>execute</code> method in a Jest test.  The script stops the LogStash service, copies the current configuration from the <code>./src</code> directory and the replacement <code>input.conf</code> and <code>output.conf</code> files to a temporary location, and then runs LogStash once per test case, copying the result file to the test case&rsquo;s directory.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>sudo systemctl stop logstash
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>temp_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/tmp/test&#34;</span>
+</span></span><span style="display:flex;"><span>test_source<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/vagrant/test/acceptance&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo rm -rf <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">/*&#34;</span>
+</span></span><span style="display:flex;"><span>sudo mkdir -p $temp_path
+</span></span><span style="display:flex;"><span>sudo cp -r /vagrant/src/* $temp_path
+</span></span><span style="display:flex;"><span>sudo cp $test_source/*.conf $temp_path
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>find $test_source/* -type d | <span style="color:#66d9ef">while</span> read test_path; <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;Running </span><span style="color:#66d9ef">$(</span>basename $test_path<span style="color:#66d9ef">)</span><span style="color:#e6db74"> tests...&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    sudo /usr/share/logstash/bin/logstash <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>        <span style="color:#e6db74">&#34;--path.settings&#34;</span> <span style="color:#e6db74">&#34;/etc/logstash&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>        <span style="color:#e6db74">&#34;--path.config&#34;</span> <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>        &lt; <span style="color:#e6db74">&#34;</span>$test_path<span style="color:#e6db74">/input.log&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    sudo touch <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">/output.log&#34;</span>   <span style="color:#75715e"># create it if it doesn&#39;t exist (dropped logs etc.)</span>
+</span></span><span style="display:flex;"><span>    sudo rm -f <span style="color:#e6db74">&#34;</span>$test_path<span style="color:#e6db74">/result.log&#34;</span>
+</span></span><span style="display:flex;"><span>    sudo mv <span style="color:#e6db74">&#34;</span>$temp_path<span style="color:#e6db74">/output.log&#34;</span> <span style="color:#e6db74">&#34;</span>$test_path<span style="color:#e6db74">/result.log&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>basename $test_path<span style="color:#66d9ef">)</span><span style="color:#e6db74"> tests done&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">done</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl start logstash
+</span></span></code></pre></div><p>To execute this, we use the <code>beforeAll</code> function to run it once - we also pass in <code>Number.MAX_SAFE_INTEGER</code> as by default <code>beforeAll</code> will time out after 5 seconds, and the <code>test.sh</code> is <strong>slow as hell</strong> (as LogStash takes ages to start up).</p>
+<p>Once the <code>test.sh</code> script has finished running, we load each test&rsquo;s <code>output.log</code> and <code>result.log</code> files, parse each line as json, compare the objects, and print out the delta if the objects are not considered equal:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">source</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;./test/acceptance&#34;</span>;
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">isDirectory</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">p</span> =&gt; <span style="color:#a6e22e">fs</span>.<span style="color:#a6e22e">lstatSync</span>(<span style="color:#a6e22e">p</span>).<span style="color:#a6e22e">isDirectory</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">cases</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">fs</span>
+</span></span><span style="display:flex;"><span>  .<span style="color:#a6e22e">readdirSync</span>(<span style="color:#a6e22e">source</span>)
+</span></span><span style="display:flex;"><span>  .<span style="color:#a6e22e">map</span>(<span style="color:#a6e22e">name</span> =&gt; <span style="color:#a6e22e">path</span>.<span style="color:#a6e22e">join</span>(<span style="color:#a6e22e">source</span>, <span style="color:#a6e22e">name</span>))
+</span></span><span style="display:flex;"><span>  .<span style="color:#a6e22e">filter</span>(<span style="color:#a6e22e">isDirectory</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">describe</span>(<span style="color:#e6db74">&#34;logstash&#34;</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">beforeAll</span>(
+</span></span><span style="display:flex;"><span>    () =&gt; <span style="color:#a6e22e">execute</span>(<span style="color:#e6db74">&#34;/vagrant/scripts/test.sh&#34;</span>),
+</span></span><span style="display:flex;"><span>    Number.<span style="color:#a6e22e">MAX_SAFE_INTEGER</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">each</span>(<span style="color:#a6e22e">cases</span>)(<span style="color:#e6db74">&#34;%s&#34;</span>, <span style="color:#a6e22e">directoryPath</span> =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">expected</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">readFile</span>(<span style="color:#a6e22e">path</span>.<span style="color:#a6e22e">join</span>(<span style="color:#a6e22e">directoryPath</span>, <span style="color:#e6db74">&#34;output.log&#34;</span>));
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">actual</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">readFile</span>(<span style="color:#a6e22e">path</span>.<span style="color:#a6e22e">join</span>(<span style="color:#a6e22e">directoryPath</span>, <span style="color:#e6db74">&#34;result.log&#34;</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">diffpatch</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">DiffPatcher</span>({
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">propertyFilter</span><span style="color:#f92672">:</span> (<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">context</span>) =&gt; {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">name</span> <span style="color:#f92672">!==</span> <span style="color:#e6db74">&#34;id&#34;</span>) {
+</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">true</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">left</span>.<span style="color:#a6e22e">id</span> <span style="color:#f92672">!==</span> <span style="color:#e6db74">&#34;&lt;generated&gt;&#34;</span>;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">delta</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">diffpatch</span>.<span style="color:#a6e22e">diff</span>(<span style="color:#a6e22e">expected</span>, <span style="color:#a6e22e">actual</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">output</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">formatters</span>.<span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">format</span>(<span style="color:#a6e22e">delta</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">length</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">log</span>(<span style="color:#a6e22e">output</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">expect</span>(<span style="color:#a6e22e">output</span>.<span style="color:#a6e22e">length</span>).<span style="color:#a6e22e">toBe</span>(<span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><h4 id="blackbox-testing-logstash">Blackbox Testing LogStash</h4>
+<p>As the machine has ports open for FileBeat and will send it&rsquo;s output to ElasticSearch, we can set up a fake HTTP server, send some log events via FileBeat to the VM and check we receive the right HTTP calls to our fake server.</p>
+<p>While looking on how to do this, I came across the <a href="https://www.npmjs.com/package/lumberjack-protocol">lumberjack-protocol</a> package on NPM, but unfortunately, it only supports lumberjack v1, and FileBeat and LogStash are now using v2, so you would have to use a local copy of filebeat to do the sending.</p>
+<p>Due to the complexity of implementing this, and the diminished return on investment (the other tests should be sufficient), I have skipped creating the Blackbox tests for the time being.</p>
+<h2 id="ami-testing">AMI Testing</h2>
+<p>The final phase!  Now that we are reasonably sure everything works locally, we need to build our AMI and test that everything works there too, as it would be a shame to update an Auto Scale Group with the new image which doesn&rsquo;t work!</p>
+<p>All that needs to happen to run the tests against an EC2 instance is to set the three environment variables we used with Vagrant, to values for communicating with the EC2 instance. To do this, we&rsquo;ll need the EC2 IP Address, the username for SSH, and the private key for SSH authentication.</p>
+<p>The first thing our build script needs to do is create the AMI.  This is done in the same way as <a href="#running">mentioned earlier</a>, but with the slight difference of also piping the output to <code>tee</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>packer_log<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>packer build logstash.json | tee /dev/tty<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>ami_id<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$packer_log<span style="color:#e6db74">&#34;</span> | tail -n <span style="color:#ae81ff">1</span> | sed <span style="color:#e6db74">&#39;s/.*\(ami.*\)/\1/&#39;</span><span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>By using <code>tee</code>, we can pipe the build log from Packer to both the real terminal (<code>/dev/tty</code>), and to a variable called <code>packer_log</code>.  The script then takes the last line and uses some regex to grab the AMI ID.</p>
+<p>Next up, the script uses the AWS CLI to launch an EC2 instance based on the AMI, and store it&rsquo;s IP Address and Instance ID:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>json<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>aws ec2 run-instances <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --image-id <span style="color:#e6db74">&#34;</span>$ami_id<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --instance-type t2.small <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --key-name <span style="color:#e6db74">&#34;</span>$keypair_name<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --region eu-west-1 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --subnet-id <span style="color:#e6db74">&#34;</span>$subnet_id<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --security-group-ids <span style="color:#e6db74">&#34;</span>$security_group_id<span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --tag-specifications <span style="color:#e6db74">&#39;ResourceType=instance,Tags=[{Key=Name,Value=logstash-verification}]&#39;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --user-data <span style="color:#e6db74">&#34;</span>$userdata<span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>instance_id<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$json<span style="color:#e6db74">&#34;</span> | jq -r .Instances<span style="color:#f92672">[</span>0<span style="color:#f92672">]</span>.InstanceId<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>private_ip<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$json<span style="color:#e6db74">&#34;</span> | jq -r .Instances<span style="color:#f92672">[</span>0<span style="color:#f92672">]</span>.PrivateIpAddress<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>The IP Address is then used to set up the environment variables which the node test scripts use to locate the machine:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>LOGSTASH_ADDRESS<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$private_ip<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>LOGSTASH_SSH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;ubuntu&#34;</span>
+</span></span><span style="display:flex;"><span>LOGSTASH_KEYPATH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;~/.ssh/id_rsa&#34;</span> build ou
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>npm run test
+</span></span></code></pre></div><p>Finally, the script uses the Instance ID to terminate the instance:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>aws ec2 terminate-instances <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --instance-ids <span style="color:#e6db74">&#34;</span>$instance_id<span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><h2 id="wrapping-up">Wrapping Up</h2>
+<p>Hopefully, this (rather long) post is a useful introduction (!) to how I tackle testing Immutable Infrastructure.  All of these techniques for testing the machine and application can be used for testing things like Docker containers too (and handily, Packer can be used to create Docker containers also).</p>
+<p>As mentioned earlier <a href="https://github.com/Pondidum/immutable-infra-testing-demo">The Repository is available here</a>.</p>
+]]></content:encoded></item><item><title>Terraform, Kinesis Streams, Lambda and IAM problems</title><link>https://andydote.co.uk/2017/07/12/terraform-kinesis-lambda-iam/</link><pubDate>Wed, 12 Jul 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/07/12/terraform-kinesis-lambda-iam/</guid><description>I hit an problem the recently with Terraform, when I was trying to hook up a Lambda Trigger to a Kinesis stream. Both the lambda itself, and the stream creation succeeded within Terraform, but the trigger would just stay stuck on &amp;ldquo;creating&amp;hellip;&amp;rdquo; for at least 5 minutes, before I got bored of waiting and killed the process. Several attempts at doing this had the same issue.
+The code looked something along the lines of this:</description><content:encoded><![CDATA[<p>I hit an problem the recently with Terraform, when I was trying to hook up a Lambda Trigger to a Kinesis stream.  Both the lambda itself, and the stream creation succeeded within Terraform, but the trigger would just stay stuck on &ldquo;creating&hellip;&rdquo; for at least 5 minutes, before I got bored of waiting and killed the process.  Several attempts at doing this had the same issue.</p>
+<p>The code looked something along the lines of this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>data <span style="color:#e6db74">&#34;archive_file&#34;</span> <span style="color:#e6db74">&#34;consumer_lambda&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;zip&#34;</span>
+</span></span><span style="display:flex;"><span>  source_dir <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;./js/consumer&#34;</span>
+</span></span><span style="display:flex;"><span>  output_path <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;./build/consumer.zip&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>resource <span style="color:#e6db74">&#34;aws_lambda_function&#34;</span> <span style="color:#e6db74">&#34;kinesis_consumer&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  filename <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>data.archive_file.consumer_lambda.output_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  function_name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;kinesis_consumer&#34;</span>
+</span></span><span style="display:flex;"><span>  role <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>aws_iam_role.consumer_role.arn<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  handler <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;index.handler&#34;</span>
+</span></span><span style="display:flex;"><span>  runtime <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;nodejs6.10&#34;</span>
+</span></span><span style="display:flex;"><span>  source_code_hash <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>base64sha256(file(<span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>data.archive_file.consumer_lambda.output_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>))<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  timeout <span style="color:#f92672">=</span> <span style="color:#ae81ff">300</span> <span style="color:#75715e"># 5 mins</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>resource <span style="color:#e6db74">&#34;aws_kinesis_stream&#34;</span> <span style="color:#e6db74">&#34;replay_stream&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;replay_stream&#34;</span>
+</span></span><span style="display:flex;"><span>  shard_count <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>resource <span style="color:#e6db74">&#34;aws_lambda_event_source_mapping&#34;</span> <span style="color:#e6db74">&#34;kinesis_replay_lambda&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  event_source_arn <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>aws_kinesis_stream.replay_stream.arn<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  function_name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>aws_lambda_function.kinesis_consumer.arn<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  starting_position <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;TRIM_HORIZON&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>resource <span style="color:#e6db74">&#34;aws_iam_role&#34;</span> <span style="color:#e6db74">&#34;consumer_role&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;consumer_role&#34;</span>
+</span></span><span style="display:flex;"><span>  assume_role_policy <span style="color:#f92672">=</span> <span style="color:#e6db74">&lt;&lt;EOF
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">{
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  &#34;Version&#34;: &#34;2012-10-17&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  &#34;Statement&#34;: [
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Action&#34;: &#34;sts:AssumeRole&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Principal&#34;: {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        &#34;Service&#34;: [&#34;lambda.amazonaws.com&#34;]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      },
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Effect&#34;: &#34;Allow&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    }
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  ]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>resource <span style="color:#e6db74">&#34;aws_iam_role_policy&#34;</span> <span style="color:#e6db74">&#34;consumer_role_policy&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;consumer_role_policy&#34;</span>
+</span></span><span style="display:flex;"><span>  role <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>aws_iam_role.consumer_role.id<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  policy <span style="color:#f92672">=</span> <span style="color:#e6db74">&lt;&lt;EOF
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">{
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  &#34;Version&#34;: &#34;2012-10-17&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  &#34;Statement&#34;: [
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Sid&#34;: &#34;Stmt1493060054000&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Effect&#34;: &#34;Allow&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Action&#34;: [&#34;lambda:InvokeAsync&#34;, &#34;lambda:InvokeFunction&#34;],
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Resource&#34;: [&#34;arn:aws:lambda:*:*:*&#34;]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    },
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Effect&#34;: &#34;Allow&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Action&#34;: [&#34;s3:GetObject*&#34;, &#34;s3:PutObject*&#34;],
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">      &#34;Resource&#34;: [&#34;arn:aws:s3:::*&#34;]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    }
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>I decided to try creating the trigger manually in AWS, which gave me the following error:</p>
+<blockquote>
+<p>There was an error creating the trigger: Cannot access stream arn:aws:kinesis:eu-west-1:586732038447:stream/test. Please ensure the role can perform the <strong>GetRecords</strong>, <strong>GetShardIterator</strong>, <strong>DescribeStream</strong>, and <strong>ListStreams</strong> Actions on your stream in IAM.</p>
+</blockquote>
+<p>All I had to do to fix this was to change my <code>consumer_role_policy</code> to include the relevant permissions:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;Effect&#34;</span>: <span style="color:#e6db74">&#34;Allow&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;Action&#34;</span>: [
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;kinesis:DescribeStream&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;kinesis:GetShardIterator&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;kinesis:GetRecords&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;kinesis:ListStreams&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;kinesis:PutRecords&#34;</span>
+</span></span><span style="display:flex;"><span>    ],
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;Resource&#34;</span>: <span style="color:#e6db74">&#34;arn:aws:kinesis:*:*:*&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="takeaways">Takeaways</h2>
+<ul>
+<li><strong>Terraform could do with better errors</strong> - preferably in nice red text telling me I am doing things wrong!</li>
+<li><strong>AWS told me exactly what was needed</strong> - Good error messages in AWS, so no need to spend hours googling which permissions would be needed.</li>
+</ul>
+]]></content:encoded></item><item><title>S3 Multi-File upload with Terraform</title><link>https://andydote.co.uk/2017/04/23/s3-multi-file-upload-terraform/</link><pubDate>Sun, 23 Apr 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/04/23/s3-multi-file-upload-terraform/</guid><description>Hosting a static website with S3 is really easy, especially from terraform:
 First off, we want a public readable S3 bucket policy, but we want to apply this only to one specific bucket. To achive that we can use Terraform&amp;rsquo;s template_file data block to merge in a value:
-{ &amp;#34;Version&amp;#34;: &amp;#34;2012-10-17&amp;#34;, &amp;#34;Statement&amp;#34;: [ { &amp;#34;Sid&amp;#34;: &amp;#34;PublicReadGetObject&amp;#34;, &amp;#34;Effect&amp;#34;: &amp;#34;Allow&amp;#34;, &amp;#34;Principal&amp;#34;: &amp;#34;*&amp;#34;, &amp;#34;Action&amp;#34;: [ &amp;#34;s3:GetObject&amp;#34; ], &amp;#34;Resource&amp;#34;: [ &amp;#34;arn:aws:s3:::${bucket_name}/*&amp;#34; ] } ] } As you can see the interpolation syntax is pretty much the same as how you use variables in terraform itself.</description></item><item><title>Using Terraform to setup AWS API-Gateway and Lambda</title><link>https://andydote.co.uk/2017/03/17/terraform-aws-lambda-api-gateway/</link><pubDate>Fri, 17 Mar 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/03/17/terraform-aws-lambda-api-gateway/</guid><description>I have been writing simple webhook type applications using Claudiajs, which in behind the scenes is using Aws&amp;rsquo;s Lambda and Api Gateway to make things happen, but I really wanted to understand what exactly it was doing for me, and how I could achieve the same results using Terraform.
+{ &amp;#34;Version&amp;#34;: &amp;#34;2012-10-17&amp;#34;, &amp;#34;Statement&amp;#34;: [ { &amp;#34;Sid&amp;#34;: &amp;#34;PublicReadGetObject&amp;#34;, &amp;#34;Effect&amp;#34;: &amp;#34;Allow&amp;#34;, &amp;#34;Principal&amp;#34;: &amp;#34;*&amp;#34;, &amp;#34;Action&amp;#34;: [ &amp;#34;s3:GetObject&amp;#34; ], &amp;#34;Resource&amp;#34;: [ &amp;#34;arn:aws:s3:::${bucket_name}/*&amp;#34; ] } ] } As you can see the interpolation syntax is pretty much the same as how you use variables in terraform itself.</description><content:encoded><![CDATA[<p>Hosting a static website with S3 is really easy, especially from terraform:</p>
+<p>First off, we want a public readable S3 bucket policy, but we want to apply this only to one specific bucket.  To achive that we can use Terraform&rsquo;s <code>template_file</code> data block to merge in a value:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Version&#34;</span>: <span style="color:#e6db74">&#34;2012-10-17&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Statement&#34;</span>: [
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;Sid&#34;</span>: <span style="color:#e6db74">&#34;PublicReadGetObject&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;Effect&#34;</span>: <span style="color:#e6db74">&#34;Allow&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;Principal&#34;</span>: <span style="color:#e6db74">&#34;*&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;Action&#34;</span>: [
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;s3:GetObject&#34;</span>
+</span></span><span style="display:flex;"><span>      ],
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;Resource&#34;</span>: [
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;arn:aws:s3:::${bucket_name}/*&#34;</span>
+</span></span><span style="display:flex;"><span>      ]
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As you can see the interpolation syntax is pretty much the same as how you use variables in terraform itself.  Next we define a <code>template_file</code> to do the transformation.  As the bucket name is going to be used many times, we extract that into a <code>variable</code> block also:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">variable</span> <span style="color:#960050;background-color:#1e0010">&#34;bucket&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">default</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;examplebucket&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">data</span> <span style="color:#960050;background-color:#1e0010">&#34;template_file&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;s3_public_policy&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">template</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${</span>file(<span style="color:#e6db74">&#34;policies/s3-public.json&#34;</span>)<span style="color:#960050;background-color:#1e0010">}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">vars</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">bucket_name</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${var.bucket}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><p>Next we want to create the S3 bucket and set it to be a static website, which we can do using the <code>website</code> sub block.  For added usefulness, we will also define an <code>output</code> to show the website url on the command line:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_s3_bucket&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;static_site&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">bucket</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${var.bucket}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">acl</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;public-read&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">policy</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${data.template_file.s3_public_policy.rendered}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">website</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">index_document</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;index.html&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">output</span> <span style="color:#960050;background-color:#1e0010">&#34;url&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">value</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_s3_bucket.static_site.bucket}.s3-website-${var.region}.amazonaws.com&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><h2 id="single-file-upload">Single File Upload</h2>
+<p>If you just want one file in the website (say the <code>index.html</code> file), then you can add the following block.  Just make sure the <code>key</code> property matches the <code>index_document</code> name in the <code>aws_s3_bucket</code> block.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_s3_bucket_object&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;index&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">bucket</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_s3_bucket.static_site.bucket}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">key</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;index.html&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">source</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;src/index.html&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">content_type</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;text/html&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">etag</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${</span>md5(<span style="color:#e6db74">file(</span><span style="color:#e6db74">&#34;src/index.html&#34;</span>)<span style="color:#960050;background-color:#1e0010">)}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><h2 id="multi-file-upload">Multi File Upload</h2>
+<p>Most websites need more than one file to be useful, and while we could write out an <code>aws_s3_bucket_object</code> block for every file, that seems like a lot of effort.  Other options include manually uploading the files to S3, or using the aws cli to do it.  While both methods work, they&rsquo;re error prone - you need to specify the <code>content_type</code> for each file for them to load properly, and you can&rsquo;t change this property once a file is uploaded.</p>
+<p>To get around this, I add one more variable to my main terraform file, and generate a second file with all the <code>aws_s3_bucket_object</code> blocks in I need.</p>
+<p>The added <code>variable</code> is a lookup for mime types:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">variable</span> <span style="color:#960050;background-color:#1e0010">&#34;mime_types&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">default</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">htm</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;text/html&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">html</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;text/html&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">css</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;text/css&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">js</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;application/javascript&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">map</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;application/javascript&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">json</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;application/json&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><p>I then create a shell script which will write a new file containing a <code>aws_s3_bucket_object</code> block for each file in the <code>src</code> directory:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>SRC<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;src/&#34;</span>
+</span></span><span style="display:flex;"><span>TF_FILE<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;files.tf&#34;</span>
+</span></span><span style="display:flex;"><span>COUNT<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>cat &gt; $TF_FILE <span style="color:#e6db74">&#39;&#39;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>find $SRC -iname <span style="color:#e6db74">&#39;*.*&#39;</span> | <span style="color:#66d9ef">while</span> read path; <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    cat &gt;&gt; $TF_FILE <span style="color:#e6db74">&lt;&lt; EOM
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">resource &#34;aws_s3_bucket_object&#34; &#34;file_$COUNT&#34; {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  bucket = &#34;\${aws_s3_bucket.static_site.bucket}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  key = &#34;${path#$SRC}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  source = &#34;$path&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  content_type = &#34;\${lookup(var.mime_types, &#34;${path##*.}&#34;)}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  etag = &#34;\${md5(file(&#34;$path&#34;))}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOM</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    COUNT<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>expr $COUNT + 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">done</span>
+</span></span></code></pre></div><p>Now when I want to publish a static site, I just have to make sure I run <code>./files.sh</code> once before my <code>terraform plan</code> and <code>terraform apply</code> calls.</p>
+<h2 id="caveats">Caveats</h2>
+<p>This technique has one major drawback: it doesn&rsquo;t work well with updating an existing S3 bucket.  It won&rsquo;t remove files which are no longer in the terraform files, and can&rsquo;t detect file moves.</p>
+<p>However, if you&rsquo;re happy with a call to <code>terraform destroy</code> before applying, this will work fine.  I use it for a number of test sites which I don&rsquo;t tend to leave online very long, and for scripted aws infrastructure that I give out to other people so they can run their own copy.</p>
+]]></content:encoded></item><item><title>Using Terraform to setup AWS API-Gateway and Lambda</title><link>https://andydote.co.uk/2017/03/17/terraform-aws-lambda-api-gateway/</link><pubDate>Fri, 17 Mar 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/03/17/terraform-aws-lambda-api-gateway/</guid><description>I have been writing simple webhook type applications using Claudiajs, which in behind the scenes is using Aws&amp;rsquo;s Lambda and Api Gateway to make things happen, but I really wanted to understand what exactly it was doing for me, and how I could achieve the same results using Terraform.
 The Lambda Function I started off with a simple NodeJS function, in a file called index.js
-exports.handler = function(event, context, callback) { callback(null, { statusCode: &amp;#39;200&amp;#39;, body: JSON.</description></item></channel></rss>
+exports.handler = function(event, context, callback) { callback(null, { statusCode: &amp;#39;200&amp;#39;, body: JSON.</description><content:encoded><![CDATA[<p>I have been writing simple webhook type applications using <a href="https://claudiajs.com/">Claudiajs</a>, which in behind the scenes is using Aws&rsquo;s Lambda and Api Gateway to make things happen, but I really wanted to understand what exactly it was doing for me, and how I could achieve the same results using <a href="https://terraform.io">Terraform</a>.</p>
+<h3 id="the-lambda-function">The Lambda Function</h3>
+<p>I started off with a simple NodeJS function, in a file called <code>index.js</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#a6e22e">exports</span>.<span style="color:#a6e22e">handler</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(<span style="color:#a6e22e">event</span>, <span style="color:#a6e22e">context</span>, <span style="color:#a6e22e">callback</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">callback</span>(<span style="color:#66d9ef">null</span>, {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">statusCode</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#39;200&#39;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">body</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">JSON</span>.<span style="color:#a6e22e">stringify</span>({ <span style="color:#e6db74">&#39;message&#39;</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#39;hello world&#39;</span> }),
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">headers</span><span style="color:#f92672">:</span> {
+</span></span><span style="display:flex;"><span>      <span style="color:#e6db74">&#39;Content-Type&#39;</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#39;application/json&#39;</span>,
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>  });
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>First thing to note about this function is the 2nd argument passed to <code>callback</code>: <strong>this maps to the whole response object not just the body</strong>.  If you try and just run <code>callback(null, { message: 'hello world' })</code>, when called from the API Gateway, you will get the following error in your CloudWatch logs, and not a lot of help on Google:</p>
+<blockquote>
+<p>Execution failed due to configuration error: &ldquo;Malformed Lambda proxy response&rdquo;</p>
+</blockquote>
+<h2 id="terraform">Terraform</h2>
+<p>We want to upload a zip file containing all our lambda&rsquo;s code, which in this case is just the <code>index.js</code> file.  While this could be done by generating the zip file with a gulp script or manually, we can just get terraform to do this for us, by using the <a href="https://www.terraform.io/docs/providers/archive/d/archive_file.html">archive_file data source</a>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">data</span> <span style="color:#960050;background-color:#1e0010">&#34;archive_file&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;lambda&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">type</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;zip&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">source_file</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;index.js&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">output_path</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;lambda.zip&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_lambda_function&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;example_test_function&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">filename</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${data.archive_file.lambda.output_path}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">function_name</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;example_test_function&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">role</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_iam_role.example_api_role.arn}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">handler</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;index.handler&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">runtime</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;nodejs4.3&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">source_code_hash</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${</span>base64sha256(<span style="color:#e6db74">file(</span><span style="color:#e6db74">&#34;${data.archive_file.lambda.output_path}&#34;</span>)<span style="color:#960050;background-color:#1e0010">)}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">publish</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">true
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><p>By using the <code>source_code_hash</code> property, Terraform can detect when the zip file has changed, and thus know whether to re-upload the function when you call <code>terraform apply</code>.</p>
+<p>We also need an IAM role for the function to run under.  While the policy could be written inline, but I have found it more expressive to have a separate file for the role policy:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_iam_role&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;example_api_role&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">name</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;example_api_role&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">assume_role_policy</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${</span>file(<span style="color:#e6db74">&#34;policies/lambda-role.json&#34;</span>)<span style="color:#960050;background-color:#1e0010">}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Version&#34;</span>: <span style="color:#e6db74">&#34;2012-10-17&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;Statement&#34;</span>: [
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;Action&#34;</span>: <span style="color:#e6db74">&#34;sts:AssumeRole&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;Principal&#34;</span>: {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;Service&#34;</span>: [
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;lambda.amazonaws.com&#34;</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#e6db74">&#34;apigateway.amazonaws.com&#34;</span>
+</span></span><span style="display:flex;"><span>        ]
+</span></span><span style="display:flex;"><span>      },
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;Effect&#34;</span>: <span style="color:#e6db74">&#34;Allow&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;Sid&#34;</span>: <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>That&rsquo;s the lambda done - you can login to the AWS Console, setup a test event and execute it if you want :)</p>
+<h3 id="creating-the-api-gateway">Creating the Api Gateway</h3>
+<p>We are going to create a simple api, with one endpoint (or resource, in AWS terminology).</p>
+<p>First we need to define an api root:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_rest_api&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;example_api&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">name</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;ExampleAPI&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">description</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;Example</span> <span style="color:#960050;background-color:#1e0010">Rest</span> <span style="color:#960050;background-color:#1e0010">Api&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><p>And then a resource to represent the <code>/messages</code> endpoint, and a method to handle <code>POST</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_resource&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;example_api_resource&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">rest_api_id</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_api_gateway_rest_api.example_api.id}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">parent_id</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_api_gateway_rest_api.example_api.root_resource_id}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">path_part</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;messages&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_method&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;example_api_method&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">rest_api_id</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_api_gateway_rest_api.example_api.id}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">resource_id</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_api_gateway_resource.example_api_resource.id}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">http_method</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;POST&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">authorization</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;NONE&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><p>The <code>aws_api_gateway_resource</code> can be attached to other <code>aws_api_gateway_resource</code>s rather than to the api root too, allowing for multi level routes.  You can do this by changing the <code>parent_id</code> property to point to another <code>aws_api_gateway_resource.id</code>.</p>
+<p>Now we need add an integration between the api and lambda:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_integration&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;example_api_method-integration&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">rest_api_id</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_api_gateway_rest_api.example_api.id}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">resource_id</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_api_gateway_resource.example_api_resource.id}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">http_method</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_api_gateway_method.example_api_method.http_method}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">type</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;AWS_PROXY&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">uri</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${var.region}:${var.account_id}:function:${aws_lambda_function.example_test_function.function_name}/invocations&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">integration_http_method</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;POST&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><p>Finally a couple of deployment stages, and an output variable for each to let you know the api&rsquo;s urls:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_deployment&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;example_deployment_dev&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">depends_on</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">[
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_method.example_api_method&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_integration.example_api_method-integration&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">]
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">rest_api_id</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_api_gateway_rest_api.example_api.id}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">stage_name</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;dev&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_deployment&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;example_deployment_prod&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">depends_on</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">[
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_method.example_api_method&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>    <span style="color:#960050;background-color:#1e0010">&#34;aws_api_gateway_integration.example_api_method-integration&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">]
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">rest_api_id</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_api_gateway_rest_api.example_api.id}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">stage_name</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;api&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">output</span> <span style="color:#960050;background-color:#1e0010">&#34;dev_url&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">value</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;https://${aws_api_gateway_deployment.example_deployment_dev.rest_api_id}.execute-api.${var.region}.amazonaws.com/${aws_api_gateway_deployment.example_deployment_dev.stage_name}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">output</span> <span style="color:#960050;background-color:#1e0010">&#34;prod_url&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">value</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;https://${aws_api_gateway_deployment.example_deployment_prod.rest_api_id}.execute-api.${var.region}.amazonaws.com/${aws_api_gateway_deployment.example_deployment_prod.stage_name}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><p>The two output variables will cause terraform to output the paths when you call <code>terraform apply</code>, or afterwards when you call <code>terraform output dev_url</code>.  Great for scripts which need to know the urls!</p>
+<h3 id="run-it">Run it!</h3>
+<p>You can now call your url and see a friendly hello world message:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>curl -X POST -H <span style="color:#e6db74">&#34;Content-Type: application/json&#34;</span> <span style="color:#e6db74">&#34;YOUR_DEV_OR_PROD_URL&#34;</span>
+</span></span></code></pre></div><h2 id="switching-to-c">Switching to C#</h2>
+<p>Switching to a C#/dotnetcore lambda is very straight forward from here.  We just need to change the <code>aws_lambda_function</code>&rsquo;s runtime and handler properties, and change the <code>archive_file</code> to use <code>source_dir</code> rather than <code>source_file</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cmake" data-lang="cmake"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">data</span> <span style="color:#960050;background-color:#1e0010">&#34;archive_file&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;lambda&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">type</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;zip&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">source_dir</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;./src/published&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">output_path</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;lambda.zip&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">resource</span> <span style="color:#960050;background-color:#1e0010">&#34;aws_lambda_function&#34;</span> <span style="color:#960050;background-color:#1e0010">&#34;example_test_function&#34;</span> <span style="color:#960050;background-color:#1e0010">{
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">filename</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${data.archive_file.lambda.output_path}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">function_name</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;example_test_function&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">role</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${aws_iam_role.example_api_role.arn}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">handler</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;ExampleLambdaApi::ExampleLambdaApi.Handler::Handle&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">runtime</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;dotnetcore1.0&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">source_code_hash</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">&#34;${</span>base64sha256(<span style="color:#e6db74">file(</span><span style="color:#e6db74">&#34;${data.archive_file.lambda.output_path}&#34;</span>)<span style="color:#960050;background-color:#1e0010">)}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span>  <span style="color:#960050;background-color:#1e0010">publish</span> <span style="color:#960050;background-color:#1e0010">=</span> <span style="color:#960050;background-color:#1e0010">true
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">}
+</span></span></span></code></pre></div><p>Note the <code>handler</code> property is in the form <code>AssemblyName::FullyQualifiedTypeName::MethodName</code>.</p>
+<p>For our C# project, we need the following two nugets:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>Amazon.Lambda.APIGatewayEvents
+</span></span><span style="display:flex;"><span>Amazon.Lambda.Serialization.Json
+</span></span></code></pre></div><p>And the only file in our project looks like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">namespace</span> ExampleLambdaApi
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Handler</span>
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [LambdaSerializer(typeof(JsonSerializer))]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> APIGatewayProxyResponse Handle(APIGatewayProxyRequest apigProxyEvent)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> APIGatewayProxyResponse
+</span></span><span style="display:flex;"><span>      {
+</span></span><span style="display:flex;"><span>        Body = apigProxyEvent.Body,
+</span></span><span style="display:flex;"><span>        StatusCode = <span style="color:#ae81ff">200</span>,
+</span></span><span style="display:flex;"><span>      };
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>One thing worth noting is that the first time a C# function is called it takes a long time - in the region of 5-6 seconds.  Subsequent invocations are in the 200ms region.</p>
+<p>All the code for this demo can be found on my <a href="https://github.com/pondidum/">GitHub</a>, in the <a href="https://github.com/Pondidum/Terraform-Demos/tree/master/api-lambda">terraform-demos repository</a>.</p>
+]]></content:encoded></item></channel></rss>

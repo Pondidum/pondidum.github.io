@@ -1,10 +1,223 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>productivity on Andy Dote</title><link>https://andydote.co.uk/tags/productivity/</link><description>Recent content in productivity on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 10 Nov 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/productivity/rss.xml" rel="self" type="application/rss+xml"/><item><title>QA and Continuous Delivery</title><link>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</link><pubDate>Thu, 10 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</guid><description>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.
-While doing continuous delivery does change the QA process, when done well, it improves everyone&amp;rsquo;s lives and makes the software better quality. Are silver bullets incoming? Not quite, but we don&amp;rsquo;t have to make someone&amp;rsquo;s life worse to improve other people&amp;rsquo;s lives.</description></item><item><title>Branching and Red Builds</title><link>https://andydote.co.uk/2018/08/10/red-builds/</link><pubDate>Fri, 10 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/10/red-builds/</guid><description>So this is a bit of a rant&amp;hellip;but hopefully with some solutions and workarounds too. So let&amp;rsquo;s kick things off with a nice statement:
+While doing continuous delivery does change the QA process, when done well, it improves everyone&amp;rsquo;s lives and makes the software better quality. Are silver bullets incoming? Not quite, but we don&amp;rsquo;t have to make someone&amp;rsquo;s life worse to improve other people&amp;rsquo;s lives.</description><content:encoded><![CDATA[<p>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.</p>
+<p>While doing continuous delivery does change the QA process, when done well, it improves everyone&rsquo;s lives and makes the software <em>better</em> quality.  Are silver bullets incoming?  Not quite, but we don&rsquo;t have to make someone&rsquo;s life worse to improve other people&rsquo;s lives.</p>
+<p>This article is going to rely heavily on <a href="/tags/feature-flags/">Feature Flags</a>, so a passing familiarity is useful.  In summary, feature flags are the ability to switch features on and off at runtime of the application without requiring re-deployment.  Feature flags can also be used to switch on features for specific users or groups of users.</p>
+<blockquote>
+<p>Aside; this post is a bit different from my usual style.  This time I have written a story about a fictional dev team and QA team and how they move towards continuous delivery together.</p>
+</blockquote>
+<h2 id="tldr">TLDR</h2>
+<p>Move your QA Engineers inside the dev teams; DevOps is a way of working in a cross-functional team; this should include everyone who can contribute.</p>
+<p>Test things early.  Involve QA with features hidden behind flags.  De-couple your deployments from your releases.</p>
+<h2 id="setting-the-scene">Setting The Scene</h2>
+<p>A team has gotten to the point where they want to switch from deploying at the end of each sprint to deployments happening as often as needed, be that 5 minutes for a text change or a few days for a bigger feature.</p>
+<p>When they happily announce this to the rest of their organisation, the QA Team reacts with dismay; how are they going to manage to do full testing before every deployment if the team is constantly deploying?  They object; this is ludicrous.</p>
+<p>Being level-headed people, everyone decides to sit down and talk through their concerns and what to do next.  The key points are written down:</p>
+<ul>
+<li>The development team wants to ship faster</li>
+<li>The QA team wants to test everything before it is deployed</li>
+<li>The management team doesn&rsquo;t want to hire 10 more QAs to try and keep up</li>
+</ul>
+<p>So what to do?</p>
+<h2 id="the-first-step">The first step</h2>
+<p>It is important to realise that while we want quality, not all changes are created equal; some need much closer scrutiny than others.  For example, fixing some spelling mistakes probably needs no one else&rsquo;s input (other than a spell-checking tool, perhaps) other than the person doing it.</p>
+<p>The teams agree on this; after some discussion, they write down the following:</p>
+<ul>
+<li>Small fixes can be released without a QA approval</li>
+</ul>
+<p>This raises a few further questions however:</p>
+<ol>
+<li>How big is small?</li>
+<li>If a small fix can be deployed without QA, what about a small feature?</li>
+<li>Why is QA the final authority on what can be released?</li>
+</ol>
+<h2 id="changing-perspective">Changing Perspective</h2>
+<p>While we could try and answer these questions (and spend countless hours deciding how many lines of code &ldquo;small&rdquo; is.  Does it depend on line length too?), a better tactic is to investigate why the QA process is happening <em>so late in the process</em>.</p>
+<p>We agree that features need QA testing, but what happens if features can be hidden?  What happens if we can move the testing from &ldquo;before deployment&rdquo; to &ldquo;before release&rdquo;?  Because as I have written before <a href="deploy-not-release"><code>deploy doesn't mean release</code></a>.</p>
+<p>The team realises that they have a Feature Flagging tool available.  Currently, they are not really using it, but they have been meaning to for a while.  What if new features were developed behind flags?  It could be deployed to production without affecting anyone, and QA could test at their leisure by enabling the flag for just one tester or for the whole team.</p>
+<p>The QA team thinks this could work in principle, but how do they know a change is <em>really</em> isolated behind a flag?  What happens if it escapes?</p>
+<p>Let&rsquo;s look at the process they came up with, with an example.</p>
+<h2 id="the-new-feature">The New Feature</h2>
+<p>The current web application has a notification system.  It&rsquo;s nothing glamorous; it&rsquo;s an icon in the app which gets a small dot when there is a new notification.  Currently, only notifications from the system itself are supported, but there has been a request to have other parts of the system send notifications there too, along with feature requests for being able to remove read notifications and mark notifications to trigger again later.</p>
+<p>This seems like the ideal candidate for a feature flag, so the development team writes down their next steps:</p>
+<ol>
+<li>create a flag <code>enable-rich-notifications</code></li>
+<li>develop all the capabilities (API, UI)</li>
+<li>deploy</li>
+<li>QA can test it with the flag</li>
+<li>release it to the world</li>
+</ol>
+<p>Someone points out that Step 2 looks like several weeks of work on its own, and that isn&rsquo;t very continuous.  They break down the tasks a bit further:</p>
+<ol>
+<li>create a flag <code>enable-rich-notifications</code></li>
+<li>update the API with a new <code>/rich</code> endpoint, which can only be queried if you have the flag.</li>
+<li>create some fake data for the <code>/rich</code> endpoint to return</li>
+<li>create a new UI component which uses the new endpoint</li>
+<li>update the application to use the new component if you have the flag and the old component otherwise</li>
+</ol>
+<p>With implicit &ldquo;Deploy&rdquo; steps after each step.  This seems reasonable to the development team, but the QA team still have questions: when should they test the UI?  once it is fully complete?  And how do they know it is working?</p>
+<p>The development team also realises that the new notifications system will be using the same data model as the old system, and they need to make sure the old system continues to work correctly.  Come to think of it, QA involvement would be useful here too&hellip;</p>
+<h2 id="moving-qa-earlier">Moving QA Earlier</h2>
+<blockquote>
+<p>As an aside, I find it much better to have a QA Engineer be part of the development team.  The whole DevOps thing is about working in one cross-functional team, and why should QA, Security, or anyone else be excluded from this?  Regrettably, this is a slow organisational change to make, so we come up with ways to make it work as best we can and iterate towards the embedded QA model.</p>
+</blockquote>
+<p>When the new notifications feature is being designed, the development team requests someone from QA be involved from the start; there are things which they should be aware of, and have useful input on.</p>
+<ol>
+<li>Update the data model in place with the new design</li>
+<li>QA to test it in an isolated environment; no changes expected</li>
+<li>Deploy</li>
+</ol>
+<p>The QA points out that as far as they are aware, there aren&rsquo;t any tests for the old notifications system; it was so barebones and unused that no one bothered.  The QA also points out that they have been evaluating switching to a more code-first UI automation tool, and this might be the ideal candidate to start with, and could they put the UI testing code in the repo alongside the feature?</p>
+<p>This is well received by the dev team; this might help the regressions they keep causing when a selector is updated, and the UI tests break; if it&rsquo;s all in the same repository, <code>grep</code> can find all the instances at once!  It&rsquo;s win-win again.</p>
+<p>The again updated list of actions is now:</p>
+<ol>
+<li>QA creates UI tests for the current system (and verifies against isolated environment)</li>
+<li>Devs Update the data model</li>
+<li>QA verifies nothing has changed in a staging environment</li>
+<li>Deploy</li>
+</ol>
+<p>Note there are no flags involved yet!</p>
+<p>The team goes ahead and makes all the discussed changes; however, when the new UI tests are run against the environment with the new data model, they break, and it isn&rsquo;t apparent why.  The QA and the developer sit down and dig around until they find the problem; the format of a field has changed slightly, and the UI tests are catching the problem.</p>
+<p>They fix the issue, test again, and this time deploy into production.</p>
+<h2 id="the-new-api-and-ui">The New API and UI</h2>
+<p>Now that involving QA earlier has been tried and seems to work, the team decide to move forward with the API changes and the feature flag for the original version and the rich version of notifications.</p>
+<p>The flag is created, the API is wrapped with a check for the flag, the developers test it works, and deployment is done.  No problems so far.</p>
+<p>The UI is up next; as this is early on in the process, the dev team, designer, and QA engineer are all sitting together to figure out exactly how it will work.  As the QA is present, they can start writing outlines for UI testing.  As the code for tests is alongside the application code, the developers can help keep the tests working as they flesh out the UI, and they might even write a test themselves too.</p>
+<p>The interesting realisation comes that with a feature flag, two QAs can be involved at once; one is running tests for the flag off, and one is running the tests for the flag on.  It isn&rsquo;t required to be like this of course, but it does mean you can spread the work further.</p>
+<p>Features are developed, tests are written, and deployments are done.</p>
+<h2 id="ready-for-release">Ready for Release</h2>
+<p>The team, which now includes the QA by default, is getting close to being ready to release their new rich notifications to the world.  They have one more test they would like to conduct: what is the load like when users are re-notifying themselves?  How do they even go about testing this?</p>
+<p>The answer, perhaps unsurprisingly, is a feature flag.  In this case, a new feature flag called <code>load-generator-rich-notifications</code>.  When this flag is enabled, the rich notifications system is still hidden, but a small piece of code randomly activates notifications for re-notifying and varying intervals.  The team can switch it on for a few percent of users and then watch their traces and monitoring systems to keep an eye on the health of the system.</p>
+<p>They can add more and more users to the test until they are happy.  Then disable the load generator and clean up all the mess it has left.</p>
+<blockquote>
+<p>Aside; this is how Facebook Messenger was load tested before the public saw anything!</p>
+</blockquote>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>The key takeaway from this is that QA is an important part of the delivery lifecycle.  Your QA Engineers are smart people who want to make things better, so involve them early and see what conversations and ideas can happen when you put smart people together and task them with making things better.</p>
+<p>This was a lot longer than it sounded in my head when I thought this up while cycling home, but I like how it&rsquo;s gone.  I might even turn this into a talk to give to clients if it is well received.</p>
+]]></content:encoded></item><item><title>Branching and Red Builds</title><link>https://andydote.co.uk/2018/08/10/red-builds/</link><pubDate>Fri, 10 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/10/red-builds/</guid><description>So this is a bit of a rant&amp;hellip;but hopefully with some solutions and workarounds too. So let&amp;rsquo;s kick things off with a nice statement:
 I hate broken builds.
 So everyone basically agrees on this point I think. The problem is that I mean all builds, including ones on shared feature branches.
-Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description></item><item><title>Writing Conference Talks</title><link>https://andydote.co.uk/2018/05/15/writing-conference-talks/</link><pubDate>Tue, 15 May 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/05/15/writing-conference-talks/</guid><description>I saw an interesting question on twitter today:
+Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description><content:encoded><![CDATA[<p>So this is a bit of a rant&hellip;but hopefully with some solutions and workarounds too. So let&rsquo;s kick things off with a nice statement:</p>
+<p>I hate broken builds.</p>
+<p>So everyone basically agrees on this point I think.  The problem is that I mean <em>all</em> builds, including ones on shared feature branches.</p>
+<p>Currently, I work on a number of projects which uses small(ish) feature branches.  The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.  Once the feature branch is completed, it&rsquo;s deployed and merged to master.  We&rsquo;ll ignore the fact that Trunk Based Development is just better for now.</p>
+<p><img loading="lazy" src="branching-features.png" alt="branching, developers working on small tasks being merged into a feature branch"  />
+</p>
+<p>The problem occurs when one of the first tasks to be completed is writing behaviour (or acceptance) tests.  These are written in something like SpecFlow, and call out to stubbed methods which throw <code>NotImplementedException</code> s.  When this gets merged, the feature branch build goes red and stays red until all other tasks are done.  And probably for a little while afterwards too.  Nothing like &ldquo;red-green-refactor&rdquo; when your light can&rsquo;t change away from red!</p>
+<h2 id="the-problems">The Problems</h2>
+<ul>
+<li>Local tests are failing, no matter how much you implement</li>
+<li>PullRequests to the feature branch don&rsquo;t have passing build checks</li>
+<li>The failing build is failing because:
+<ul>
+<li>Not everything is implemented yet</li>
+<li>A developer has introduced an error, and no one has noticed yet</li>
+<li>The build machine is playing up</li>
+</ul>
+</li>
+</ul>
+<p><img loading="lazy" src="branching-features-builds.png" alt="branching, developers working on small tasks being merged into a feature branch showing everything as failed builds"  />
+</p>
+<h2 id="bad-solutions">Bad Solutions</h2>
+<p>The first thing we could do is to not run the acceptance tests on a Task branch&rsquo;s build, and only when a feature branch build runs.  This is a bad idea, as someone will have forgotten to check if their task&rsquo;s acceptance tests pass, and will require effort later to fix the broken acceptance tests.</p>
+<p>We could also implement the acceptance file and not call any stubbed methods, making the file a text file and non-executable.  This is also a pretty bad idea - how much would you like to bet that it stays non-executable?</p>
+<h2 id="the-solution">The Solution</h2>
+<p>Don&rsquo;t have the acceptance tests as a separate task.  Instead, split the criteria among the implementation tasks.  This does mean that your other tasks should be Vertical Slices rather than Horizontal, which can be difficult to do depending on the application&rsquo;s architecture.</p>
+<h2 id="an-example">An Example</h2>
+<p>So let&rsquo;s dream up a super simple Acceptance Criteria:</p>
+<ul>
+<li>When a user signs up with a valid email which has not been used, they receive a welcome email with an activation link.</li>
+<li>When a user signs up with an invalid email, they get a validation error.</li>
+<li>When a user signs up with an in-use email, they get an error</li>
+</ul>
+<p>Note how this is already pretty close to being the tasks for the feature?  Our tasks are pretty much:</p>
+<ul>
+<li>implement the happy path</li>
+<li>implement other scenarios</li>
+</ul>
+<p>Of course, this means that not everything can be done in parallel - I imagine you&rsquo;d want the happy path task to be done first, and then the other scenarios are probably parallelisable.</p>
+<p>So our trade-off here is that we lose some parallelisation, but gain feedback. While this may seem insignificant, it has a significant impact on the overall delivery rate - everyone knows if their tasks are complete or not, and when the build goes red, you can be sure of what introduced the problem.</p>
+<p>Not to mention that features are rarely this small - you probably have various separate acceptance criteria, such as being able to view an account page.</p>
+<p>Oh, and once you can split your tasks correctly, there is only a small step to getting to do Trunk Based Development.  Which would make me happy.</p>
+<p>And developer happiness is important.</p>
+]]></content:encoded></item><item><title>Writing Conference Talks</title><link>https://andydote.co.uk/2018/05/15/writing-conference-talks/</link><pubDate>Tue, 15 May 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/05/15/writing-conference-talks/</guid><description>I saw an interesting question on twitter today:
 Hey, people who talk at things: How long does it take you to put a new talk together?
 I need like 50 hours over at least a couple of months to make something I don&amp;rsquo;t hate. I&amp;rsquo;m trying to get that down (maybe by not doing pictures?) but wondering what&amp;rsquo;s normal for everyone else.
 Source
-I don&amp;rsquo;t know how long it takes me to write a talk - as it is usually spread over many weeks/months, worked on as and when I have inspiration.</description></item><item><title>Getting Things Done</title><link>https://andydote.co.uk/2017/07/15/getting-things-done/</link><pubDate>Sat, 15 Jul 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/07/15/getting-things-done/</guid><description>I have been trying to actually be productive in my evenings and weekends, but I find I often end up not getting as much done as I feel I could have. I end up browsing imgur, reading slashdot, reddit, twitter, etc. rather than reading books, writing or anything else.
-The first point doesn&amp;rsquo;t fit in anywhere else, but somewhere I saw a tip about keeping a house clean (I think):</description></item></channel></rss>
+I don&amp;rsquo;t know how long it takes me to write a talk - as it is usually spread over many weeks/months, worked on as and when I have inspiration.</description><content:encoded><![CDATA[<p>I saw an interesting question on twitter today:</p>
+<blockquote>
+<p>Hey, people who talk at things: How long does it take you to put a new talk together?</p>
+<p>I need like 50 hours over at least a couple of months to make something I don&rsquo;t hate. I&rsquo;m trying to get that down (maybe by not doing pictures?) but wondering what&rsquo;s normal for everyone else.</p>
+</blockquote>
+<p><a href="https://twitter.com/whereistanya/status/995653828933496832">Source</a></p>
+<p>I don&rsquo;t know how long it takes me to write a talk - as it is usually spread over many weeks/months, worked on as and when I have inspiration.  The actual processes is something like this:</p>
+<ol>
+<li>
+<p>Think it through</p>
+<p>The start of this is usually with an idea for a subject I like a lot, such as Strong Typing, Feature Toggles, or Trunk Based Development.  Where I live I walk everywhere (around 15k to 20k steps per day), which gives me a lot of time to think about things.</p>
+</li>
+<li>
+<p>Giant markdown file of bullet points which I might want to cover</p>
+<p>I write down all the points that I want to talk about into one markdown file, which I add to over time.  I use the github checkbox markdown format (<code>* [ ] some point or other</code>) so I can tick thinks off later.</p>
+</li>
+<li>
+<p>Rough order of points at the bottom</p>
+<p>At the bottom of this notes file, I start writing an order of things, just to get a sense of flow.  Once this order gets comfortable enough, I stop updating it and start using the real slides file.</p>
+</li>
+<li>
+<p>Start slides writing sections as I feel like it</p>
+<p>I start with the title slide, and finding a suitable large image for it.  This takes way longer than you might imagine!  For the rest of the slides, I use a mix of titles, text and hand drawn images.</p>
+<p>I use OneNote and Gimp to do the hand drawn parts, and usually the <a href="https://cloud.google.com/icons/">Google Cloud Platform Icons</a>, as they&rsquo;re the best looking (sorry Amazon!)</p>
+<p>Attribute all the images as you go.  Much easier than trying to do it later.</p>
+</li>
+<li>
+<p>Re-order it all!</p>
+<p>I talk bits of the presentation through in my head, and shuffle bits around as I see fit.  This happens a lot as I write the slides.</p>
+</li>
+<li>
+<p>Talk it through to a wall</p>
+<p>My wall gets me talking to it a lot.  I talk it through outloud, and make note of stumbling points, and how long the talk takes, adding speaker notes if needed.</p>
+</li>
+<li>
+<p>Tweaks and re-ordering</p>
+<p>I usually end up making last minute tweaks and order switches as I figure out how to make something flow better.  I am still not happy with some transitions in my best talks yet!</p>
+</li>
+</ol>
+<p>I write all my talks using <a href="https://github.com/hakimel/reveal.js">RevealJS</a>, mostly because I can write my slides as a markdown file and have it rendered in the browser, and partly because I&rsquo;ve always used it.</p>
+<p>To get things like the Speaker Notes view working, you need to be running from a webserver (rather than just from an html file on your filesystem.)  For this I use <a href="https://www.npmjs.com/package/nws">NWS</a>, which is a static webserver for your current working directory (e.g. <code>cd /d/dev/presentations &amp;&amp; nws</code>).</p>
+<p>Currently, I am trying to work out if I can use Jekyll or Hugo to generate the repository for me, as all the presentations have the same content, other than images, slides file, and a customise.css file.  Still not sure on how best to achieve what I am after though.</p>
+<p>You can see the source for all my talks in my <a href="https://github.com/pondidum/presentations">Presentations Repository</a> on github.  The actual slides can be seen on my website <a href="https://andydote.co.uk/presentations/">here</a>, and the videos (if available), I link to <a href="https://andydote.co.uk/talks/">here</a>.</p>
+]]></content:encoded></item><item><title>Getting Things Done</title><link>https://andydote.co.uk/2017/07/15/getting-things-done/</link><pubDate>Sat, 15 Jul 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/07/15/getting-things-done/</guid><description>I have been trying to actually be productive in my evenings and weekends, but I find I often end up not getting as much done as I feel I could have. I end up browsing imgur, reading slashdot, reddit, twitter, etc. rather than reading books, writing or anything else.
+The first point doesn&amp;rsquo;t fit in anywhere else, but somewhere I saw a tip about keeping a house clean (I think):</description><content:encoded><![CDATA[<p>I have been trying to actually be productive in my evenings and weekends, but I find I often end up not getting as much done as I feel I could have.  I end up browsing imgur, reading slashdot, reddit, twitter, etc. rather than reading books, writing or anything else.</p>
+<p>The first point doesn&rsquo;t fit in anywhere else, but somewhere I saw a tip about keeping a house clean (I think):</p>
+<blockquote>
+<p>If it takes less than 2 minutes to do, do it immediately</p>
+</blockquote>
+<p>This has helped me a lot in keeping my work areas tidier (e.g. take empty tea cups back to the sink&hellip;), but I also find I am applying this to things while working too.  Notice a spelling mistake in a <code>readme.md</code>? Fix and pull request. Notice packages are out of date on a project? update them and pull request.  Notice a method could be refactored to be clearer? Refactor and&hellip;you get the picture.  Lots of little improvements add up.  Katrina Owen does a great talk about <a href="https://www.youtube.com/watch?v=J4dlF0kcThQ">Therapeutic Refactoring</a>, and a lot of what she says applies to the fixing of small issues.</p>
+<p>So here are some of the things which I have found help me to get things done.</p>
+<h2 id="a-good-environment">A Good Environment</h2>
+<p>Being comfortable is super important.  A slightly uncomfortable chair will niggle away at the back of your mind, and cause you to fidget.  Try a standing desk if you find yourself getting restless sitting down all day.</p>
+<p>If you can control the temperature of the room you are in (without causing office drama/war over it), do so!  Nothing like the constant discomfort of being too hot to distract you.  Oh, and if you want the room hotter, but someone else want&rsquo;s it colder, let them have the coolness.  You can put on more layers to stay warm, but they&rsquo;re probably not allowed to take any more off by this point!</p>
+<p>Lighting is another important part, and not just in making sure you are not straining your eyes, or coping with screen glare.  One of my previous work locations had inset lights in the ceiling, but no diffusers underneath them, so in the corner of my eye all day was a bright halogen-type light.  It was amazing how some days the light drove me crazy, and other days I barely noticed it.</p>
+<h2 id="a-good-virtual-environment">A Good Virtual Environment</h2>
+<p>How often are you part way through a task, and you switch to reddit/twitter/slashdot/whatever to have a quick look?  I never want to shut all my standard browsing tabs, but when I am working, I don&rsquo;t want to be distracted by them either.</p>
+<p>Luckily, Windows 10 finally added Virtual Desktop support in, which I use to create separate areas for different tasks.  For example, the laptop I am typing on at the moment has 3 Virtual Desktops:</p>
+<ol>
+<li>General/day to day: chrome, spotify, etc</li>
+<li>Blog writing: atom, git bash, chrome (with only a tab of my local blog instance open)</li>
+<li>Current development project, so a couple of git bash windows, atom, rider, chrome with AWS tabs open</li>
+</ol>
+<p>By doing this, when I get briefly distracted and tab to chrome&hellip;there is only task related tabs open, and I just keep on at the current task.</p>
+<h2 id="music">Music</h2>
+<p>Something to listen to, which wont distract.  Game and film sound tracks are amazing for this, as they are designed to be immersive, but also not to distract you from what is going on.  Generally there are no words to them, so you don&rsquo;t end up singing along either.  Personally, I like using:</p>
+<ul>
+<li>Mirror&rsquo;s Edge (game) <a href="https://www.youtube.com/watch?v=Y05wiQQbFLU">YouTube</a>, <a href="https://open.spotify.com/album/3x8kUWCtDfOEnOtyaRdkdp">Spotify</a></li>
+<li>Inception (film) <a href="https://www.youtube.com/watch?v=zp6pwnfmO48">YouTube</a>, <a href="https://open.spotify.com/album/2qvA7HmSg1iM6XMiFF76dp">Spotify</a></li>
+<li>Oblivion (film) -<a href="https://www.youtube.com/watch?v=sYD_U1CChew">YouTube</a>, <a href="https://open.spotify.com/album/6V8ConRfFeocQqrgmGd2MY">Spotify</a> - I actually listened to this a lot before seeing the film&hellip;</li>
+</ul>
+<h2 id="focus">Focus</h2>
+<p>I find timeboxing tasks helps me a great deal.  The method I like is called <a href="https://en.wikipedia.org/wiki/Pomodoro_Technique">Pomodoro</a>, and just involves doing 3x 25min tasks with 5min breaks after, and the 4th task gets a longer break after.  I tend to use 20 minute timers for this, and allow myself to keep working a little if I wish to finish a paragraph or similar.</p>
+<p>Setting tasks up for success helps a great deal too.  For example, I find getting started on writing something very difficult.  For example, this blog post has been rattling around in my head for at least a week.  To help write it, I start off by writing a list of bullet point ideas, which goes into my drafts folder.  When I sit down to write a blog post, I can hopefully start off by expanding a bullet point or two, and by the time that is done, I am in the writing zone.</p>
+<h2 id="and-on">And on</h2>
+<p>Hopefully all these little techniques will become habit soon, and I will find more along the way I am sure.</p>
+]]></content:encoded></item></channel></rss>

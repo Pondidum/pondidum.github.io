@@ -1,3 +1,256 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>jaeger on Andy Dote</title><link>https://andydote.co.uk/tags/jaeger/</link><description>Recent content in jaeger on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 22 Dec 2018 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/jaeger/rss.xml" rel="self" type="application/rss+xml"/><item><title>Code-free tracing with LogStash and Jaeger</title><link>https://andydote.co.uk/2018/12/22/serilog-elk-jaeger/</link><pubDate>Sat, 22 Dec 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/12/22/serilog-elk-jaeger/</guid><description>I wanted to show request charts (similar to the network tab in firefox) for requests across our microservices but wanted to do so in the least invasive way possible.
 We already use LogStash to collect logs from multiple hosts (via FileBeat) and forward them on to ElasticSearch, so perhaps I can do something to also output from LogStash to a tracing service.
-There are a number of tracing services available (AppDash, Jaeger, Zipkin), but unfortunately LogStash doesn&amp;rsquo;t have plugins for any of them or for OpenTracing.</description></item></channel></rss>
+There are a number of tracing services available (AppDash, Jaeger, Zipkin), but unfortunately LogStash doesn&amp;rsquo;t have plugins for any of them or for OpenTracing.</description><content:encoded><![CDATA[<p>I wanted to show request charts (similar to the network tab in firefox) for requests across our microservices but wanted to do so in the least invasive way possible.</p>
+<p><img loading="lazy" src="firefox-network-timeline.png" alt="Firefox network timeline"  />
+</p>
+<p>We already use <a href="https://www.elastic.co/products/logstash">LogStash</a> to collect logs from multiple hosts (via <a href="https://www.elastic.co/products/beats/filebeat">FileBeat</a>) and forward them on to <a href="https://www.elastic.co/products/elasticsearch">ElasticSearch</a>, so perhaps I can do something to also output from LogStash to a tracing service.</p>
+<p><img loading="lazy" src="logstash-jaeger.png" alt="app to filebeat to logstash to elasticsearch and opentracing"  />
+</p>
+<p>There are a number of tracing services available (<a href="https://github.com/sourcegraph/appdash">AppDash</a>, <a href="https://www.jaegertracing.io/">Jaeger</a>, <a href="https://zipkin.io/">Zipkin</a>), but unfortunately LogStash doesn&rsquo;t have plugins for any of them or for <a href="https://opentracing.io/">OpenTracing</a>.  I picked Jaeger, as it seemed to be the easiest to get up and running, and also had a &ldquo;Zipkin compatible&rdquo; API too if you didn&rsquo;t want to use the Jaeger one.</p>
+<p>Setting up and running Jaeger in a production environment is way out of scope for this post, but for testing, I am just using the all-in-one Docker container:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker run -d --nameron jaeger <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -e COLLECTOR_ZIPKIN_HTTP_PORT<span style="color:#f92672">=</span><span style="color:#ae81ff">9411</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -p 5775:5775/udp <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -p 6831:6831/udp <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -p 6832:6832/udp <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -p 5778:5778 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -p 16686:16686 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -p 14268:14268 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -p 9411:9411 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  jaegertracing/all-in-one
+</span></span></code></pre></div><p>The tracing APIs work in roughly the same way:  all traces have the same <code>traceid</code>, and are sub-divided into spans.  Spans have a unique id and can have a parent (span) id set.  The trouble with sending data from LogStash is that I don&rsquo;t have any parent IDs available. Well, at least without going and adding it to all our applications, and I&rsquo;m not sure how I would want to propagate it correctly either.</p>
+<p>So the first question is: can I push multiple spans without any parent IDs, and have it plot them as I would expect.</p>
+<h2 id="is-spanparentid-required">Is span.parentid required?</h2>
+<p>As the HTTP API documentation seems to be non-existent (other than &ldquo;there is one!&rdquo;), and most of the other docs mention the Thrift API, I decided to use that to test the theory.  The <a href="https://github.com/jaegertracing/jaeger-client-csharp">Jaeger C# client</a> library has a nice API to use, but I wanted to manually specify things (e.g. <code>traceid</code>, <code>spanid</code>, etc.) and the API has no way to do that, as pretty much everything is marked as <code>internal</code>.</p>
+<p>Instead, I cloned the client repository, and added a test (which had access to all the internals I wanted):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Scratch</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> HttpSender _sender;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Tracer _tracer;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> TraceId _id;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Scratch(ITestOutputHelper output)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _sender = <span style="color:#66d9ef">new</span> HttpSender(<span style="color:#e6db74">&#34;http://localhost:14268/api/traces&#34;</span>);
+</span></span><span style="display:flex;"><span>        _tracer = <span style="color:#66d9ef">new</span> Tracer.Builder(<span style="color:#e6db74">&#34;FirstService&#34;</span>).Build();
+</span></span><span style="display:flex;"><span>        _id = TraceId.NewUniqueId(<span style="color:#66d9ef">false</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        output.WriteLine(_id.ToString());
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [Fact]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task Send()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> start = DateTime.UtcNow;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Create(start, start.AddSeconds(<span style="color:#ae81ff">5</span>));
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Create(start, start.AddSeconds(<span style="color:#ae81ff">3</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Create(start.AddSeconds(<span style="color:#ae81ff">5</span>), start.AddSeconds(<span style="color:#ae81ff">10</span>));
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Create(start.AddSeconds(<span style="color:#ae81ff">10</span>), start.AddSeconds(<span style="color:#ae81ff">20</span>));
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Create(start, start.AddSeconds(<span style="color:#ae81ff">20</span>));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> _sender.FlushAsync(CancellationToken.None);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">async</span> Task Create(DateTime start, DateTimeOffset finish)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> context = <span style="color:#66d9ef">new</span> SpanContext(_id, SpanId.NewUniqueId(), <span style="color:#66d9ef">new</span> SpanId(<span style="color:#ae81ff">0</span>), SpanContextFlags.None);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> span = <span style="color:#66d9ef">new</span> Span(_tracer, <span style="color:#e6db74">&#34;test&#34;</span>, context, start, <span style="color:#66d9ef">new</span> Dictionary&lt;<span style="color:#66d9ef">string</span>, <span style="color:#66d9ef">object</span>&gt;(), <span style="color:#66d9ef">null</span>);
+</span></span><span style="display:flex;"><span>        span.Finish(finish);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> _sender.AppendAsync(span, CancellationToken.None);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The graph rendered how I hoped, proving that I don&rsquo;t need to set the span&rsquo;s <code>parentid</code> for everything with the same <code>traceid</code> to work correctly!</p>
+<h2 id="how-to-generate-a-consistent-traceid">How to generate a consistent TraceID?</h2>
+<p>All our services pass along or generate a <code>correlationID</code> for each request, so my idea here was to do some conversion to put it in the <code>traceid</code>, which is an <code>int64</code>.  Our <code>correlationID</code>s are guids, which internally is an <code>int128</code>, so I figured I would take the least significant 8 bytes and use that.  This can be done in C# like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> correlationID = Guid.NewGuid();
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> traceID = <span style="color:#66d9ef">new</span> TraceId(BitConverter.ToInt64(correlationID.ToByteArray(), <span style="color:#ae81ff">8</span>));
+</span></span></code></pre></div><p>I noticed, however, that the <code>TraceID</code> structure in the Jaeger client can take two values: <code>int64 low</code> and <code>int64 high</code>, so I can use the entire <code>correlationid</code>.</p>
+<h2 id="how-to-ship-from-logstash">How to ship from LogStash?</h2>
+<p>After reading through the LogStash <a href="https://www.elastic.co/guide/en/logstash/current/output-plugins.html">Output Plugins docs</a> it looked like there were three possible ways to ship the events to Jaeger: writing a command line app; invoked through either <code>exec</code> or <code>pipe</code>, writing a LogStash plugin, or doing something with the <code>http</code> output.</p>
+<h3 id="cli-adaptor">CLI adaptor</h3>
+<p>The idea of this method would be to write a CLI app which takes an event from LogStash and then sends it to Jaeger using the Thrift API.  The app itself could be invoked using the <code>exec</code> or <code>pipe</code> outputs.  I didn&rsquo;t want to use this method for a few reasons:</p>
+<p><strong>Development:</strong> The Jaeger client has things I need hidden from the public surface, such as being able to specify the <code>traceid</code>, rather than generating a new one each time, so I would either have to reimplement the classes I need, use reflection to instantiate things, or try opening Pull Requests to expose more internals of the library.</p>
+<p><strong>Maintenance:</strong> I&rsquo;d rather not have yet another thing to maintain if I can avoid it, not to mention all the additional things like repository location, build agents, etc.</p>
+<p><strong>Deployment:</strong> Our LogStash box is a plain Ubuntu box with nothing other than Java and LogStash installed on it.  As I would probably end up using C# to write the app, I&rsquo;d need to add even more dependencies.</p>
+<p><strong>Throughput:</strong> Jaeger (and the others) support sending traces in batches for better efficiency.  Writing an app which supported that would involve writing the batching and caching, and the likelihood is I would mess it up, and increase the chances of lost messages.</p>
+<h3 id="logstash-plugin">LogStash plugin</h3>
+<p>Basically has the same problems as above, with the addition of me needing to learn enough about Java to build something reliable, and as this is a test and no one else in my team really knows Java either, so I ruled this out.</p>
+<h3 id="http">Http?</h3>
+<p>The Jaeger collector process can also expose a Zipkin compatible API, and while the documentation for that API is also terrible, I was able to find a <a href="https://github.com/openzipkin/zipkin/issues/1499">Pull Request on Github</a> with some structure defined.  I figured I could do most of this directly with LogStash&rsquo;s configuration DSL, assuming I can: generate a uuid (<code>logstash-filter-uuid</code> plugin), and remove all extra stuff from the post body (<code>logstash-filter-prune</code>).</p>
+<h2 id="building-the-logstash-message">Building the LogStash message</h2>
+<p>The first step of my configuration is based on what we need to do to <a href="https://github.com/serilog/serilog">Serilog</a> messages to make them a bit nicer in Kibana:</p>
+<h3 id="pre-processing">Pre-processing</h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>json {
+</span></span><span style="display:flex;"><span>    source <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;message&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>date {
+</span></span><span style="display:flex;"><span>    match <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;Timestamp&#34;</span>, <span style="color:#e6db74">&#34;ISO8601&#34;</span>, <span style="color:#e6db74">&#34;yyyy-MM-dd&#39;T&#39;HH:mm:ss.SSSSSSSZZ&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>    target <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;@timestamp&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    rename <span style="color:#f92672">=&gt;</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;[Properties][ApplicationName]&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;ApplicationName&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;[Properties][CorrelationId]&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;CorrelationId&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;[Properties][SourceContext]&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;Context&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;[Properties][TimedOperationElapsedInMs]&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;TimeElapsed&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>json</code> block tells LogStash that everything in the <code>message</code> property is a json object, rather than a string.</p>
+<p>The <code>date</code> block extracts the time the message was recorded by the application and writes it to the special <code>@timestamp</code> field.  This is a good idea as due to queuing, and processing times, the time the message was written and the time it was processed by LogStash will be different.</p>
+<p>Lastly, the <code>mutate</code> block is moving a bunch of fields out of the message properties, and up to the top level of the object.  We query by things like <code>ApplicationName</code> a lot, and it&rsquo;s nice not to have to write <code>Properties.ApplicationName:blahblah</code> all the time.</p>
+<h3 id="splitting">Splitting</h3>
+<p>Our messages contain a lot of data which for the purposes of tracing, we just don&rsquo;t care about.  Not only is it a waste of bandwidth to send all the data to Jaeger, but also there could be clashing fields, and if we ever decide to use a hosted version of Jaeger, I don&rsquo;t want to be sending them all the data either.</p>
+<p>So how do we remove everything from the message, but still keep it in the message for the other outputs?</p>
+<p>LogStash has an interesting filter called <code>clone</code>.  What it does is copy the message as many times as you specify, and then runs the remaining part of the pipeline once per message, including the original message.  In code, this just looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>clone {
+</span></span><span style="display:flex;"><span>    clones <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;jaeger&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>If we wanted to split the message more times, we can just add more types to the <code>clones</code> array; there will be one extra message produced for each entry in the array, which will also be added to the message as the <code>type</code> property so we can filter on it later.</p>
+<p>We don&rsquo;t want to send the <code>type</code> field itself to Jaeger (or ElasticSeach), so we move it from the message to the <code>@metadata</code> object, which doesn&rsquo;t get passed to outputs.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    rename <span style="color:#f92672">=&gt;</span> { <span style="color:#e6db74">&#34;type&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;[@metadata][type]&#34;</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To handle the messages differently, we can just use an <code>if</code> statement on the <code>@metadata.type</code> property:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span>@metadata<span style="color:#f92672">][</span>type<span style="color:#f92672">]</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;jaeger&#34;</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># do stuff to the jaeger message</span>
+</span></span><span style="display:flex;"><span>} <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># process the original message</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="building-the-http-payload">Building the Http Payload</h3>
+<p>The hardest part of getting this to work was handling the dates.  Jaeger specifies that timestamps should come in <strong>micro</strong>seconds since epoch, and duration should be in microseconds also.  We need to use the <code>ruby</code> filter so we can run some code to do this, rather than using an inbuilt filter primitive.</p>
+<p>The <code>duration</code> is easy enough, as we report <code>TimeElapsed</code> in milliseconds:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>ruby {
+</span></span><span style="display:flex;"><span>    code <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;event.set(&#39;duration&#39;, (event.get(&#39;TimeElapsed&#39;) * 1000).floor)&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To handle the timestamp we need to convert it to epoch milliseconds.  We can get the fractional seconds since the epoch by calling <a href="https://ruby-doc.org/core-1.9.3/Time.html#method-i-to_f"><code>to_f</code></a> on the <code>@timestamp</code> field, and then multiply by <code>1000</code> a couple of times to express it as microseconds.  We also <code>floor</code> it to remove the leftover fraction:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>ruby {
+</span></span><span style="display:flex;"><span>    code <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;event.set(&#39;timestamp&#39;, (event.get(&#39;@timestamp&#39;).to_f * 1000 * 1000).floor)&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This on its own will work, but it <strong>won&rsquo;t be right</strong>.  We report log entries when an operation completes, which means our timestamp is the finish of the event, not the start.  To solve this, we subtract the duration off the timestamp:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>ruby {
+</span></span><span style="display:flex;"><span>    code <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;event.set(&#39;timestamp&#39;, (event.get(&#39;@timestamp&#39;).to_f * 1000 * 1000).floor - event.get(&#39;duration&#39;))&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Next, we need to create our span id.  We need to generate a random id, consisting of letters and numbers, so the easiest way is to generate a <code>uuid</code>, and then tweak it to fit the Jaeger/Zipkin format.  To do that we need to install the <code>logstash-filter-uuid</code> plugin:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>/usr/share/logstash/bin/logstash-plugin install logstash-filter-uuid
+</span></span></code></pre></div><p>There are a few things we need to do to generate a valid span id (for Jaeger):</p>
+<ol>
+<li>generate a uuid</li>
+<li>remove the dashes</li>
+<li>make it lowercase</li>
+<li>trim it to 16 chars</li>
+</ol>
+<p>We use four filters to achieve this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>uuid {
+</span></span><span style="display:flex;"><span>    target <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;id&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    gsub <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;id&#34;</span>, <span style="color:#e6db74">&#34;-&#34;</span>, <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>    lowercase <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;id&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    gsub <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;id&#34;</span>, <span style="color:#e6db74">&#34;(^.{1,16}).*$&#34;</span>, <span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\1</span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The reason we specify the <code>mutate</code> twice is that order of the same operation (<code>gsub</code> in this case) is not guaranteed within a <code>mutate</code> block.</p>
+<p>Next up we need to tweak the <code>traceid</code> from a guid to a uuid:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    gsub <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;traceid&#34;</span>, <span style="color:#e6db74">&#34;-&#34;</span>, <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>    lowercase <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;traceid&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Next, we can populate some other context into the message, by renaming the other fields we want.  I discovered most of the fields and their formats from a combination of the <a href="https://github.com/jaegertracing/jaeger-idl/blob/master/thrift/zipkincore.thrift">thrift dtos</a> and the <a href="https://github.com/openzipkin/zipkin/issues/1499">this pull request</a>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    rename <span style="color:#f92672">=&gt;</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;CorrelationId&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;traceid&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;Context&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;name&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;ApplicationName&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;[localEndpoint][serviceName]&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Finally, we want to trim all the other properties from our message, which we can do by using the <code>logstash-filter-prune</code> plugin:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>prune {
+</span></span><span style="display:flex;"><span>    whitelist_names <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;id&#34;</span>, <span style="color:#e6db74">&#34;traceid&#34;</span>, <span style="color:#e6db74">&#34;name&#34;</span>, <span style="color:#e6db74">&#34;timestamp&#34;</span>, <span style="color:#e6db74">&#34;duration&#34;</span>, <span style="color:#e6db74">&#34;localEndpoint&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    remove_field <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;@timestamp&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We have to explicitly remove the <code>@timestamp</code> property as the prune plugin seems to ignore it (it also ignores the <code>@metadata</code> property).</p>
+<p>The complete filter code can be made a little more efficient by combining several of the <code>mutate</code> blocks, provided we keep things in the right order, as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>ruby {
+</span></span><span style="display:flex;"><span>    code <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;event.set(&#39;duration&#39;, (event.get(&#39;TimeElapsed&#39;) * 1000).floor)&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>ruby {
+</span></span><span style="display:flex;"><span>    code <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;event.set(&#39;timestamp&#39;, (event.get(&#39;@timestamp&#39;).to_f * 1000 * 1000).floor - event.get(&#39;duration&#39;))&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>uuid {
+</span></span><span style="display:flex;"><span>    target <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;id&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    rename <span style="color:#f92672">=&gt;</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;CorrelationId&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;traceid&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;Context&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;name&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;ApplicationName&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;[localEndpoint][serviceName]&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    remove_field <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;@timestamp&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    gsub <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;id&#34;</span>, <span style="color:#e6db74">&#34;-&#34;</span>, <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>    gsub <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;traceid&#34;</span>, <span style="color:#e6db74">&#34;-&#34;</span>, <span style="color:#e6db74">&#34;&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>    lowercase <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;traceid&#34;</span>, <span style="color:#e6db74">&#34;id&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mutate {
+</span></span><span style="display:flex;"><span>    gsub <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;id&#34;</span>, <span style="color:#e6db74">&#34;(^.{1,16}).*$&#34;</span>, <span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\1</span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>prune {
+</span></span><span style="display:flex;"><span>    whitelist_names <span style="color:#f92672">=&gt;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;id&#34;</span>, <span style="color:#e6db74">&#34;traceid&#34;</span>, <span style="color:#e6db74">&#34;name&#34;</span>, <span style="color:#e6db74">&#34;timestamp&#34;</span>, <span style="color:#e6db74">&#34;duration&#34;</span>, <span style="color:#e6db74">&#34;localEndpoint&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="publishing-to-jaeger">Publishing to Jaeger</h3>
+<p>When publishing to the Jaeger API, you have to send it an array of json objects.  To achieve this in the <code>http</code> output plugin, we can enable the <code>format =&gt; json_batch</code>, which will cause the HTTP client to buffer some events and then send them all at once.  So more efficiency, and no extra code on our part.</p>
+<p>To help make testing easier, I publish to two different HTTP endpoints: the Jaeger docker container running on my host machine, and to a <a href="http://requestloggerbin.herokuapp.com/">Request Logger Bin</a>; where I can inspect the response if something is reported as a failure by Jaeger, and replay it (via the <a href="https://insomnia.rest/">Insomnia</a> REST client) and check error messages returned from Jaeger.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span>output {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span>@metadata<span style="color:#f92672">][</span>type<span style="color:#f92672">]</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;jaeger&#34;</span> {
+</span></span><span style="display:flex;"><span>        http {
+</span></span><span style="display:flex;"><span>            url <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;http://192.168.0.115:9411/api/v2/spans&#34;</span>
+</span></span><span style="display:flex;"><span>            format <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;json_batch&#34;</span>
+</span></span><span style="display:flex;"><span>            http_method <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;post&#34;</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        http {
+</span></span><span style="display:flex;"><span>            url <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;http://requestloggerbin.herokuapp.com/bin/ff3da5b2-ec57-4611-ada8-b360ab38830c&#34;</span>
+</span></span><span style="display:flex;"><span>            format <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;json_batch&#34;</span>
+</span></span><span style="display:flex;"><span>            http_method <span style="color:#f92672">=&gt;</span> <span style="color:#e6db74">&#34;post&#34;</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># normal message handling: elasticsearch etc.</span>
+</span></span><span style="display:flex;"><span>        stdout { codec <span style="color:#f92672">=&gt;</span> rubydebug }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>I also used LogStash&rsquo;s log output by tailing the log file:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>tail -f /var/log/logstash/logstash-plain.log
+</span></span></code></pre></div><p>Eventually, I had a working LogStash configuration and can view application traces in Jaeger.</p>
+<h2 id="problems">Problems</h2>
+<p>One thing I cannot figure out how to do is sending the <code>tags</code> property to Jaeger.  The Zipkin (and OpenTracing) APIs specify tags to be an object, e.g.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;traceid&#34;</span>: <span style="color:#e6db74">&#34;1ee98d32185e41faba146c151ce8e27d&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;id&#34;</span>: <span style="color:#e6db74">&#34;8377a6dae87947d7&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;timestamp&#34;</span>: <span style="color:#ae81ff">1545321238784000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;duration&#34;</span>: <span style="color:#ae81ff">409000</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;localEndpoint&#34;</span>: { <span style="color:#f92672">&#34;serviceName&#34;</span>: <span style="color:#e6db74">&#34;PersonInformationService&#34;</span> },
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;SomeOperation&#34;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;tags&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;CorrelationID&#34;</span>: <span style="color:#e6db74">&#34;1ee98d32-185e-41fa-ba14-6c151ce8e27d&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;db.name&#34;</span>: <span style="color:#e6db74">&#34;test-blahblah&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>But LogStash wants the <code>tags</code> property to be an array of strings, and even using the <code>remove_field</code> on <code>tags</code> and then manually populating it doesn&rsquo;t work.  Currently, I don&rsquo;t <em>need</em> anything in the tags, but it would be nice to have it working.  I should ask on the Elastic forums perhaps.</p>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>This post turned out to be a lot longer than I was expecting, but hopefully, it was interesting.  Next time I&rsquo;ll try and go through how I do testing of immutable infrastructure, as well as local development of the base images.</p>
+]]></content:encoded></item></channel></rss>

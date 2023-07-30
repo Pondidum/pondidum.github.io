@@ -1,3 +1,196 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>dotnetcore on Andy Dote</title><link>https://andydote.co.uk/tags/dotnetcore/</link><description>Recent content in dotnetcore on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Mon, 02 Oct 2017 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/dotnetcore/rss.xml" rel="self" type="application/rss+xml"/><item><title>Integration Testing with Dotnet Core, Docker and RabbitMQ</title><link>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</link><pubDate>Mon, 02 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/02/dotnet-core-docker-integration-tests/</guid><description>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.
-For one of my libraries (RabbitHarness) I have a set of tests which check it behaves as expected against a real instance of RabbitMQ. Ideally these tests will always be run, but sometimes RabbitMQ just isn&amp;rsquo;t available such as when running on AppVeyor builds, or if I haven&amp;rsquo;t started my local RabbitMQ Docker container.</description></item><item><title>Implementing Custom Aspnet Core ModelBinders</title><link>https://andydote.co.uk/2017/09/22/implemeting-custom-aspnetcore-modelbinders/</link><pubDate>Fri, 22 Sep 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/09/22/implemeting-custom-aspnetcore-modelbinders/</guid><description>This post is a summary of a stream I did last night where I implemented all of this. If you want to watch me grumble my way through it, it&amp;rsquo;s available on YouTube here.
-In my Crispin project, I wanted the ability to support loading Toggles by both name and ID, for all operations. As I use mediator to send messages from my controllers to the handlers in the domain, this means that I had to either:</description></item></channel></rss>
+For one of my libraries (RabbitHarness) I have a set of tests which check it behaves as expected against a real instance of RabbitMQ. Ideally these tests will always be run, but sometimes RabbitMQ just isn&amp;rsquo;t available such as when running on AppVeyor builds, or if I haven&amp;rsquo;t started my local RabbitMQ Docker container.</description><content:encoded><![CDATA[<p>When building libraries, not only is it a good idea to have a large suite of Unit Tests, but also a suite of Integration Tests.</p>
+<p>For one of my libraries (<a href="https://github.com/pondidum/rabbitharness">RabbitHarness</a>) I have a set of tests which check it behaves as expected against a real instance of <a href="http://www.rabbitmq.com/">RabbitMQ</a>.  Ideally these tests will always be run, but sometimes RabbitMQ just isn&rsquo;t available such as when running on <a href="https://ci.appveyor.com/project/Pondidum/rabbitharness">AppVeyor</a> builds, or if I haven&rsquo;t started my local RabbitMQ Docker container.</p>
+<h2 id="skipping-tests-if-rabbitmq-is-not-available">Skipping tests if RabbitMQ is not available</h2>
+<p>First off, I prevent the tests from running if RabbitMQ is not available by using a custom <a href="https://xunit.github.io/">XUnit</a> <code>FactAttribute</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">RequiresRabbitFactAttribute</span> : FactAttribute
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">readonly</span> Lazy&lt;<span style="color:#66d9ef">bool</span>&gt; IsAvailable = <span style="color:#66d9ef">new</span> Lazy&lt;<span style="color:#66d9ef">bool</span>&gt;(() =&gt;
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> factory = <span style="color:#66d9ef">new</span> ConnectionFactory { HostName = <span style="color:#e6db74">&#34;localhost&#34;</span>, RequestedConnectionTimeout = <span style="color:#ae81ff">1000</span> };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">try</span>
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> connection = factory.CreateConnection())
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> connection.IsOpen;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">catch</span> (Exception)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">false</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">string</span> Skip
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">get</span> { <span style="color:#66d9ef">return</span> IsAvailable.Value ? <span style="color:#e6db74">&#34;&#34;</span> : <span style="color:#e6db74">&#34;RabbitMQ is not available&#34;</span>;  }
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">set</span> { <span style="color:#75715e">/* nothing */</span> }
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This attribute will try connecting to a RabbitMQ instance on <code>localhost</code> once for all tests per run, and cause any test with this attribute to be skipped if RabbitMQ is not available.</p>
+<h2 id="build-script--docker">Build Script &amp; Docker</h2>
+<p>I decided the build script should start a RabbitMQ container, and use that for the tests, but I didn&rsquo;t want to re-use my standard RabbitMQ instance which I use for all kinds of things, and may well be broken at any given time.</p>
+<p>As my build script is just a <code>bash</code> script, I can check if the <code>docker</code> command is available, and then start a container if it is (relying on the assumption that if <code>docker</code> is available, I can start a container).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -x <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>command -v docker<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  CONTAINER<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>docker run -d --rm -p 5672:5672 rabbitmq:3.6.11-alpine<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Started RabbitMQ container: </span>$CONTAINER<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>If <code>docker</code> is available, we start a new container.  I use <code>rabbitmq:3.6.11-alpine</code> as it is a tiny image, with no frills, and also start it with the <code>-d</code> and <code>--rm</code> flags, which starts the container in a disconnected mode (e.g. the <code>docker run</code> command returns instantly), and will delete the container when it is stopped, taking care of clean up for us! I only bother binding the main data connection port (<code>5672</code>), as that is all we are going to be using. Finally, the container&rsquo;s ID, which is returned by the <code>docker run</code> command, is stored in the <code>CONTAINER</code> variable.</p>
+<p>I recommend putting this step as the very first part of your build script, as it gives the container time to start up RabbitMQ and be ready for connections while your build is running.  Otherwise I found I was needing to put a <code>sleep 5</code> command in afterwards to pause the script for a short time.</p>
+<p>The script then continues on with the normal build process:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>dotnet restore <span style="color:#e6db74">&#34;</span>$NAME<span style="color:#e6db74">.sln&#34;</span>
+</span></span><span style="display:flex;"><span>dotnet build <span style="color:#e6db74">&#34;</span>$NAME<span style="color:#e6db74">.sln&#34;</span> --configuration $MODE
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>find . -iname <span style="color:#e6db74">&#34;*.Tests.csproj&#34;</span> -type f -exec dotnet test <span style="color:#e6db74">&#34;{}&#34;</span> --configuration $MODE <span style="color:#ae81ff">\;</span>
+</span></span><span style="display:flex;"><span>dotnet pack ./src/$NAME --configuration $MODE --output ../../.build
+</span></span></code></pre></div><p>Once this is all done, I have another check that <code>docker</code> exists, and stop the container we started earlier, by using the container ID in <code>CONTAINER</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -x <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>command -v docker<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  docker stop $CONTAINER
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>And that&rsquo;s it!  You can see the full <a href="https://github.com/Pondidum/RabbitHarness/blob/master/build.sh">build script for RabbitHarness here</a>.</p>
+<p>The only problem with this script is if you try and start a RabbitMQ container while you already have one running, the command will fail, but the build should succeed anyway as the running instance of RabbitMQ will work for the tests, and the <code>docker stop</code> command will just output that it can&rsquo;t find a container with a blank ID.</p>
+<p>I think I will be using this technique more to help provide isolation for builds - I think that the <a href="https://hub.docker.com/r/microsoft/mssql-server-linux/">Microsoft/mssql-server-linux</a> containers might be very useful for some of our work codebases (which do work against the Linux instances of MSSQL, even if they weren&rsquo;t designed to!)</p>
+]]></content:encoded></item><item><title>Implementing Custom Aspnet Core ModelBinders</title><link>https://andydote.co.uk/2017/09/22/implemeting-custom-aspnetcore-modelbinders/</link><pubDate>Fri, 22 Sep 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/09/22/implemeting-custom-aspnetcore-modelbinders/</guid><description>This post is a summary of a stream I did last night where I implemented all of this. If you want to watch me grumble my way through it, it&amp;rsquo;s available on YouTube here.
+In my Crispin project, I wanted the ability to support loading Toggles by both name and ID, for all operations. As I use mediator to send messages from my controllers to the handlers in the domain, this means that I had to either:</description><content:encoded><![CDATA[<p>This post is a summary of a <a href="https://twitch.tv/pondidum">stream</a> I did last night where I implemented all of this.  If you want to watch me grumble my way through it, it&rsquo;s <a href="https://www.youtube.com/watch?v=hR213Oxj_xI">available on YouTube here</a>.</p>
+<p>In my <a href="https://github.com/pondidum/crispin">Crispin</a> project, I wanted the ability to support loading Toggles by both name and ID, for all operations.  As I use mediator to send messages from my controllers to the handlers in the domain, this means that I had to either:</p>
+<ul>
+<li>create separate request types for loading by name and loading by id</li>
+<li>have both an <code>ID</code> and <code>Name</code> property on each method</li>
+</ul>
+<p>I didn&rsquo;t like the sound of either of these as both involve more typing than I want to do, and the second variant has the added downside of causing a lot of <code>if</code> statements in the handlers, as you have to work out which is set before loading.  Not to mention the duplication of the load toggle logic in every handler.</p>
+<p>The solution I came up with was to use some inheritance, a static factory, some method hiding, and a custom <code>IModelBinder</code>.</p>
+<h2 id="togglelocator">ToggleLocator</h2>
+<p>I started off by having an <code>abstract</code> base class called <code>ToggleLocator</code>.  To start with, it just has two static methods for creating an instance of <code>ToggleLocator</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ToggleLocator</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> ToggleLocator Create(Guid toggleID) =&gt; <span style="color:#66d9ef">new</span> ToggleLocatorByID(toggleID);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> ToggleLocator Create(<span style="color:#66d9ef">string</span> toggleName) =&gt; <span style="color:#66d9ef">new</span> ToggleLocatorByName(toggleName);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As this is going to be used in both Query handlers and Command handlers, I need to be able to load the Toggle (the EventSourced AggregateRoot), and the ToggleView (the projected current state of the AggregateRoot).  So we add two <code>abstract</code> methods to the <code>ToggleLocator</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">internal</span> <span style="color:#66d9ef">abstract</span> ToggleView LocateView(IStorageSession session);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">internal</span> <span style="color:#66d9ef">abstract</span> Toggle LocateAggregate(IStorageSession session);
+</span></span></code></pre></div><p>Note that not only are these two methods <code>abstract</code>, they are also <code>internal</code> - we don&rsquo;t want anything outside the domain to know about how a toggle is loaded.  I was considering using an privately implemented interface to do this method hiding, but didn&rsquo;t see the point as I can acomplish the same using the internal methods.</p>
+<p>We can now write two implementations of the <code>ToggleLocator</code>.  First up is the <code>ToggleLocatorByID</code>, which is very straight forward to implement; we use the ID to load the AggregateRoot directly, and the <code>AllToggles</code> view can be queried by ID to fetch the view version also.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ToggleLocatorByID</span> : ToggleLocator
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> ToggleID _toggleID;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> ToggleLocatorByID(ToggleID toggleID)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_toggleID = toggleID;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">internal</span> <span style="color:#66d9ef">override</span> ToggleView LocateView(IStorageSession session) =&gt; session
+</span></span><span style="display:flex;"><span>		.LoadProjection&lt;AllToggles&gt;()
+</span></span><span style="display:flex;"><span>		.Toggles
+</span></span><span style="display:flex;"><span>		.SingleOrDefault(view =&gt; view.ID == _toggleID);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">internal</span> <span style="color:#66d9ef">override</span> Toggle LocateAggregate(IStorageSession session) =&gt; session
+</span></span><span style="display:flex;"><span>		.LoadAggregate&lt;Toggle&gt;(_toggleID);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The more interesting class to implement is <code>ToggleLocatorByName</code>, as this needs to be able to load an AggregateRoot by name; something which is not directly supported.  So to do this we fetch the <code>ToggleView</code> first, and then use the <code>ID</code> property so we can load the <code>Toggle</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ToggleLocatorByName</span> : ToggleLocator
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> <span style="color:#66d9ef">string</span> _toggleName;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> ToggleLocatorByName(<span style="color:#66d9ef">string</span> toggleName)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		_toggleName = toggleName;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">internal</span> <span style="color:#66d9ef">override</span> ToggleView LocateView(IStorageSession session) =&gt; session
+</span></span><span style="display:flex;"><span>		.LoadProjection&lt;AllToggles&gt;()
+</span></span><span style="display:flex;"><span>		.Toggles
+</span></span><span style="display:flex;"><span>		.SingleOrDefault(t =&gt; t.Name.Equals(_toggleName, StringComparison.OrdinalIgnoreCase));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">internal</span> <span style="color:#66d9ef">override</span> Toggle LocateAggregate(IStorageSession session)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> view = LocateView(session);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> view != <span style="color:#66d9ef">null</span>
+</span></span><span style="display:flex;"><span>			? session.LoadAggregate&lt;Toggle&gt;(view.ID)
+</span></span><span style="display:flex;"><span>			: <span style="color:#66d9ef">null</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>All this means that the handlers have no conditionals for loading, they just call the relevant <code>.Locate</code> method:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">private</span> Task&lt;UpdateToggleTagsResponse&gt; ModifyTags(ToggleLocator locator, Action&lt;Toggle&gt; modify)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> session = _storage.BeginSession())
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> toggle = locator.LocateAggregate(session);
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//or</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> view  = locator.LocateView(session);
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">//...</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And in the controllers, we have separate action methods for each route:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Route(&#34;name/{toggleName}/tags/{tagName}&#34;)]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">[HttpPut]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task&lt;IActionResult&gt; PutTag(<span style="color:#66d9ef">string</span> toggleName, <span style="color:#66d9ef">string</span> tagName)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> request = <span style="color:#66d9ef">new</span> AddToggleTagRequest(ToggleLocator.Create(toggleName), tagName);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> response = <span style="color:#66d9ef">await</span> _mediator.Send(request);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> JsonResult(response.Tags);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">[Route(&#34;id/{toggleID}/tags/{tagName}&#34;)]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">[HttpPut]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task&lt;IActionResult&gt; PutTag(Guid toggleID, <span style="color:#66d9ef">string</span> tagName)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> request = <span style="color:#66d9ef">new</span> AddToggleTagRequest(ToggleLocator.Create(ToggleID.Parse(toggleID)), tagName);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> response = <span style="color:#66d9ef">await</span> _mediator.Send(request);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> JsonResult(response.Tags);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>But that is still more duplication than I would like, so lets see if we can resolve this with a custom <code>IModelBinder</code>.</p>
+<h2 id="custom-imodelbinder-for-togglelocator">Custom IModelBinder for ToggleLocator</h2>
+<p>To make a custom model binder, we need to implement two interfaces: <code>IModelBinderProvider</code> and <code>IModelBinder</code>.  I am not sure why <code>IModelBinderProvider</code> exists to be perfectly honest, but you need it, and as it is doing nothing particularly interesting, I decided to implement both interfaces in the one class, and just return <code>this</code> from <code>IModelBinderProvider.GetBinder</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ToggleLocatorBinder</span> : IModelBinderProvider
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IModelBinder GetBinder(ModelBinderProviderContext context)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (context.Metadata.ModelType == <span style="color:#66d9ef">typeof</span>(ToggleLocator))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">this</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">null</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We can then implement the second interface, <code>IModelBinder</code>.  Here we check (again) that the parameter is a <code>ToggleLocator</code>, fetch the value which came from the route (or querystring, thanks to the <code>.ValueProvider</code> property).</p>
+<p>All I need to do here is try and parse the value as a <code>Guid</code>.  If it parses successfully, we create a <code>ToggleLocatorByID</code> instance, otherwise create a <code>ToggleLocatorByName</code> instance.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ToggleLocatorBinder</span> : IModelBinderProvider, IModelBinder
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Task BindModelAsync(ModelBindingContext bindingContext)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (bindingContext.ModelType != <span style="color:#66d9ef">typeof</span>(ToggleLocator))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> Task.CompletedTask;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> <span style="color:#66d9ef">value</span> = bindingContext.ValueProvider.GetValue(bindingContext.FieldName);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> guid = Guid.Empty;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> locator = Guid.TryParse(<span style="color:#66d9ef">value</span>.FirstValue, <span style="color:#66d9ef">out</span> guid)
+</span></span><span style="display:flex;"><span>			? ToggleLocator.Create(ToggleID.Parse(guid))
+</span></span><span style="display:flex;"><span>			: ToggleLocator.Create(<span style="color:#66d9ef">value</span>.FirstValue);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		bindingContext.Result = ModelBindingResult.Success(locator);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> Task.CompletedTask;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We add this into our MVC registration code at the beginning of the <code>ModelBinderProviders</code> collection, as MVC will use the first binder which can support the target type, and there is a binder in the collection somewhere which will handle anything which inherits object&hellip;</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>services.AddMvc(options =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	options.ModelBinderProviders.Insert(<span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">new</span> ToggleLocatorBinder());
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>Now we can reduce our action methods down to one which handles both routes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#a6e22e">[Route(&#34;id/{id}/tags/{tagName}&#34;)]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">[Route(&#34;name/{id}/tags/{tagName}&#34;)]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">[HttpPut]</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task&lt;IActionResult&gt; PutTag(ToggleLocator id, <span style="color:#66d9ef">string</span> tagName)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> request = <span style="color:#66d9ef">new</span> AddToggleTagRequest(id, tagName);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> response = <span style="color:#66d9ef">await</span> _mediator.Send(request);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> JsonResult(response.Tags);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Much better, no duplication, and no (obvious) if statements!</p>
+]]></content:encoded></item></channel></rss>

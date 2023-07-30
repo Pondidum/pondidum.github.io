@@ -1,4 +1,47 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>rant on Andy Dote</title><link>https://andydote.co.uk/tags/rant/</link><description>Recent content in rant on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Fri, 10 Aug 2018 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/rant/rss.xml" rel="self" type="application/rss+xml"/><item><title>Branching and Red Builds</title><link>https://andydote.co.uk/2018/08/10/red-builds/</link><pubDate>Fri, 10 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/10/red-builds/</guid><description>So this is a bit of a rant&amp;hellip;but hopefully with some solutions and workarounds too. So let&amp;rsquo;s kick things off with a nice statement:
 I hate broken builds.
 So everyone basically agrees on this point I think. The problem is that I mean all builds, including ones on shared feature branches.
-Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description></item></channel></rss>
+Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description><content:encoded><![CDATA[<p>So this is a bit of a rant&hellip;but hopefully with some solutions and workarounds too. So let&rsquo;s kick things off with a nice statement:</p>
+<p>I hate broken builds.</p>
+<p>So everyone basically agrees on this point I think.  The problem is that I mean <em>all</em> builds, including ones on shared feature branches.</p>
+<p>Currently, I work on a number of projects which uses small(ish) feature branches.  The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.  Once the feature branch is completed, it&rsquo;s deployed and merged to master.  We&rsquo;ll ignore the fact that Trunk Based Development is just better for now.</p>
+<p><img loading="lazy" src="branching-features.png" alt="branching, developers working on small tasks being merged into a feature branch"  />
+</p>
+<p>The problem occurs when one of the first tasks to be completed is writing behaviour (or acceptance) tests.  These are written in something like SpecFlow, and call out to stubbed methods which throw <code>NotImplementedException</code> s.  When this gets merged, the feature branch build goes red and stays red until all other tasks are done.  And probably for a little while afterwards too.  Nothing like &ldquo;red-green-refactor&rdquo; when your light can&rsquo;t change away from red!</p>
+<h2 id="the-problems">The Problems</h2>
+<ul>
+<li>Local tests are failing, no matter how much you implement</li>
+<li>PullRequests to the feature branch don&rsquo;t have passing build checks</li>
+<li>The failing build is failing because:
+<ul>
+<li>Not everything is implemented yet</li>
+<li>A developer has introduced an error, and no one has noticed yet</li>
+<li>The build machine is playing up</li>
+</ul>
+</li>
+</ul>
+<p><img loading="lazy" src="branching-features-builds.png" alt="branching, developers working on small tasks being merged into a feature branch showing everything as failed builds"  />
+</p>
+<h2 id="bad-solutions">Bad Solutions</h2>
+<p>The first thing we could do is to not run the acceptance tests on a Task branch&rsquo;s build, and only when a feature branch build runs.  This is a bad idea, as someone will have forgotten to check if their task&rsquo;s acceptance tests pass, and will require effort later to fix the broken acceptance tests.</p>
+<p>We could also implement the acceptance file and not call any stubbed methods, making the file a text file and non-executable.  This is also a pretty bad idea - how much would you like to bet that it stays non-executable?</p>
+<h2 id="the-solution">The Solution</h2>
+<p>Don&rsquo;t have the acceptance tests as a separate task.  Instead, split the criteria among the implementation tasks.  This does mean that your other tasks should be Vertical Slices rather than Horizontal, which can be difficult to do depending on the application&rsquo;s architecture.</p>
+<h2 id="an-example">An Example</h2>
+<p>So let&rsquo;s dream up a super simple Acceptance Criteria:</p>
+<ul>
+<li>When a user signs up with a valid email which has not been used, they receive a welcome email with an activation link.</li>
+<li>When a user signs up with an invalid email, they get a validation error.</li>
+<li>When a user signs up with an in-use email, they get an error</li>
+</ul>
+<p>Note how this is already pretty close to being the tasks for the feature?  Our tasks are pretty much:</p>
+<ul>
+<li>implement the happy path</li>
+<li>implement other scenarios</li>
+</ul>
+<p>Of course, this means that not everything can be done in parallel - I imagine you&rsquo;d want the happy path task to be done first, and then the other scenarios are probably parallelisable.</p>
+<p>So our trade-off here is that we lose some parallelisation, but gain feedback. While this may seem insignificant, it has a significant impact on the overall delivery rate - everyone knows if their tasks are complete or not, and when the build goes red, you can be sure of what introduced the problem.</p>
+<p>Not to mention that features are rarely this small - you probably have various separate acceptance criteria, such as being able to view an account page.</p>
+<p>Oh, and once you can split your tasks correctly, there is only a small step to getting to do Trunk Based Development.  Which would make me happy.</p>
+<p>And developer happiness is important.</p>
+]]></content:encoded></item></channel></rss>

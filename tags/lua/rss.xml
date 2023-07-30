@@ -1,4 +1,477 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>lua on Andy Dote</title><link>https://andydote.co.uk/tags/lua/</link><description>Recent content in lua on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Fri, 05 Dec 2014 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/lua/rss.xml" rel="self" type="application/rss+xml"/><item><title>Encapsulation in Warcraft Addons - Inheritance</title><link>https://andydote.co.uk/2014/12/05/encapsulation-in-warcraft-addons-inheritance/</link><pubDate>Fri, 05 Dec 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/12/05/encapsulation-in-warcraft-addons-inheritance/</guid><description>Using Inheritance (sort of) When we actually need inheritance, things get a little more complicated. We need to use two of lua&amp;rsquo;s slightly harder features to get it to work: metatables and colon notation. A little background on these will help:
-MetaTables All &amp;ldquo;objects&amp;rdquo; in lua are tables, and tables can something called a metatable added to them. Metatables can have special methods on them which run under certain circumstances (called metamethods), such as keys being added.</description></item><item><title>Encapsulation in Warcraft Addons - Closures</title><link>https://andydote.co.uk/2014/11/28/encapsulation-in-warcraft-addons-closures/</link><pubDate>Fri, 28 Nov 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/11/28/encapsulation-in-warcraft-addons-closures/</guid><description>In the last post I alluded to the fact that if you put in a little leg work, you could write well encapsulated objects in lua. There are two main ways to do this; with closures, and with metatables. In this post we will deal with using closures, and in the next post we will cover using metatables.
-Using Closures The simplest way to write an object in lua is with a closure to hide all the variables from the outside world.</description></item><item><title>Good Design in Warcraft Addons/Lua</title><link>https://andydote.co.uk/2014/11/23/good-design-in-warcraft-addons/</link><pubDate>Sun, 23 Nov 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/11/23/good-design-in-warcraft-addons/</guid><description>Lack of Encapsulation in Addons I first noticed a lack of good design in addon code when I started trying to tweak existing addons to be slightly different.
-One of the stand out examples was a Threat Meter (you know which one I mean). It works well, but I felt like writing my own, to make it really fit into my UI, with as little overhead as possible. Not knowing how to even begin writing a Threat Meter, I downloaded a copy, and opened its source directory&amp;hellip; to discover that the entire addon is one 3500+ line file, and 16 Ace.</description></item></channel></rss>
+MetaTables All &amp;ldquo;objects&amp;rdquo; in lua are tables, and tables can something called a metatable added to them. Metatables can have special methods on them which run under certain circumstances (called metamethods), such as keys being added.</description><content:encoded><![CDATA[<h2 id="using-inheritance-sort-of">Using Inheritance (sort of)</h2>
+<p>When we actually need inheritance, things get a little more complicated.  We need to use two of lua&rsquo;s slightly harder features to get it to work: <code>metatables</code> and <code>colon notation</code>.  A little background on these will help:</p>
+<h3 id="metatables">MetaTables</h3>
+<p>All &ldquo;objects&rdquo; in lua are tables, and tables can something called a metatable added to them.  Metatables can have special methods on them which run under certain circumstances (called metamethods), such as keys being added.  A full list of metamethods is <a href="http://lua-users.org/wiki/MetatableEvents">available here</a>.</p>
+<p>The metamethod we are interested in is called called <code>__index</code>, which gets triggered when a key is not found in the table.</p>
+<p>There are two ways of using <code>__index</code>.  The first is to assign it a function, which gets passed two arguments: <code>table</code>, and <code>key</code>.  This is useful if you want to provide a default value if a key in a table isn&rsquo;t found, which I use in the <code>spellData</code> example <a href="http://andydote.co.uk/2014/11/28/encapsulation-in-warcraft-addons-closures.html">in the previous post</a>.</p>
+<p>The other way of using <code>__index</code> is to pass it another table of methods to call, like in this example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> meta <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	print <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>()
+</span></span><span style="display:flex;"><span>		print(<span style="color:#e6db74">&#34;Hi from the metatable&#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> actual <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	test <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>()
+</span></span><span style="display:flex;"><span>		print(<span style="color:#e6db74">&#34;testing&#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">--wont work:</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">-- actual.print()</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>setmetatable(actual, { __index <span style="color:#f92672">=</span> meta })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">-- now it will!</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">-- actual.print()</span>
+</span></span></code></pre></div><p>By calling <code>setmetatable</code> on <code>actual</code>, we provide <code>actual</code> with all the methods on <code>meta</code>.  A table can only have one meta table though, and you might break things by overwriting it (example, don&rsquo;t call <code>setmetatable</code> on a Frame or ActionButton&hellip;)</p>
+<h3 id="colon-notation">Colon Notation</h3>
+<p>All methods on a table can be called in two ways; with a colon, or with a period.  The colon can be thought of as &ldquo;fill in the first parameter with the table this is being called on&rdquo;.  For example, these two statements are equivalent:</p>
+<pre tabindex="0"><code class="language-lua%}" data-lang="lua%}">local x = string.gsub(&#34;hello world&#34;, &#34;hello&#34;, &#34;bye&#34;)
+local x = &#34;hello world&#34;:gsub(&#34;hello&#34;, &#34;bye&#34;)
+</code></pre><p>In the example above, the signature of <code>gsub</code> is something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> string <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	gsub <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, searchTerm, replacement)
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">--self is the input string</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The convention used is to call the first parameter <code>self</code>.  We can now use this colon notation with metatables to make our version of inheritance.</p>
+<h3 id="combining">Combining</h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> base <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	increase <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self)
+</span></span><span style="display:flex;"><span>		self.count <span style="color:#f92672">=</span> self.count <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>	print <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self)
+</span></span><span style="display:flex;"><span>		print(<span style="color:#e6db74">&#34;The count is &#34;</span> <span style="color:#f92672">..</span> self.count <span style="color:#f92672">..</span> <span style="color:#e6db74">&#34;.&#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> first <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>setmetatable(first, { __index <span style="color:#f92672">=</span> base })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> second <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	count <span style="color:#f92672">=</span> <span style="color:#ae81ff">100</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>setmetatable(second, { __index <span style="color:#f92672">=</span> base })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">--usage</span>
+</span></span><span style="display:flex;"><span>first:increase()
+</span></span><span style="display:flex;"><span>second:increase()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>first:print()		<span style="color:#75715e">-- prints 1</span>
+</span></span><span style="display:flex;"><span>first:print()		<span style="color:#75715e">-- prints 101</span>
+</span></span></code></pre></div><p>Due to the way the colon operator works, the <code>self</code> parameter is filled in with the table calling the method, not the table the method is defined on.  So calling <code>first:increase()</code> is the same as <code>base.increase(first)</code></p>
+<h2 id="usage">Usage</h2>
+<p>We can now take these elements, and craft a set of classes designed for reuse.  We start off with our root object (think <code>System.Object</code> if you are from a .net world.)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> class <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	extend <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, this)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> setmetatable(this, { __index <span style="color:#f92672">=</span> self })
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	new <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, ...)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">local</span> this <span style="color:#f92672">=</span> setmetatable({}, { __index <span style="color:#f92672">=</span> self })
+</span></span><span style="display:flex;"><span>		this:ctor(...)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> this
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	ctor <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, ...)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We have two methods here, <code>extend</code> and <code>new</code>.  The <code>new</code> method is nice and straight forward - it creates a new table, assigns the meta to be <code>class</code> and calls the <code>ctor</code> method (which is the one you would want to replace in sub classes).</p>
+<p>The <code>extend</code> method takes in a new table, and applies and sets the meta to <code>class</code>.  This is what is used to inherit and add new functionality.</p>
+<p>For example, in my control library, I have a base class with some common methods:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> control <span style="color:#f92672">=</span> class:extend({
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	size <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, config)
+</span></span><span style="display:flex;"><span>		self.frame:SetSize(unpack(config))
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	point <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, config)
+</span></span><span style="display:flex;"><span>		self.frame:SetPoint(unpack(config))
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	parent <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, value)
+</span></span><span style="display:flex;"><span>		self.frame:SetParent(value)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre></div><p>And then many other classes which extend the base, cilling in the <code>ctor</code> method with how to actually create the frame:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> label <span style="color:#f92672">=</span> control:extend({
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	ctor <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, name, parent)
+</span></span><span style="display:flex;"><span>		self.frame <span style="color:#f92672">=</span> CreateFrame(<span style="color:#e6db74">&#34;Frame&#34;</span>, name, parent)
+</span></span><span style="display:flex;"><span>		self.label <span style="color:#f92672">=</span> self.frame:CreateFontString()
+</span></span><span style="display:flex;"><span>		self.label:SetAllPoints(self.frame)
+</span></span><span style="display:flex;"><span>		self.label:SetFont(fonts.normal, <span style="color:#ae81ff">12</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> textbox  <span style="color:#f92672">=</span> control:extend({
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	ctor <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, name, parent)
+</span></span><span style="display:flex;"><span>		self.frame <span style="color:#f92672">=</span> CreateFrame(<span style="color:#e6db74">&#34;editbox&#34;</span>, name, parent, <span style="color:#e6db74">&#34;InputBoxTemplate&#34;</span>)
+</span></span><span style="display:flex;"><span>		self.frame:SetAutoFocus(<span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>		self.frame:SetFont(fonts.normal, <span style="color:#ae81ff">12</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	text <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, value)
+</span></span><span style="display:flex;"><span>		self.frame:SetText(value)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre></div><p>Some classes, such as the textbox provide other methods where they make sense.</p>
+<h3 id="calling-base-class-methods">Calling Base Class Methods</h3>
+<p>If we wish to start overriding a method and then call the original method within, things start to get a lot more complicated.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> class <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	extend <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, this)
+</span></span><span style="display:flex;"><span>		this.base <span style="color:#f92672">=</span> self
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> setmetatable(this, { __index <span style="color:#f92672">=</span> self })
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> child <span style="color:#f92672">=</span> class:extend({
+</span></span><span style="display:flex;"><span>	method <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self)
+</span></span><span style="display:flex;"><span>		self.name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;child&#34;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> grandchild <span style="color:#f92672">=</span> child:extend({
+</span></span><span style="display:flex;"><span>	method <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self)
+</span></span><span style="display:flex;"><span>		self.base:method()
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre></div><p>While this looks like it will work, it will cause some strange and hard to debug problems (I know it will, it took me ages to figure out.)</p>
+<p>The problem is that when you do <code>self.base:method()</code> you are effectively doing <code>self.base.method(self.base)</code>, which means the base method is referencing the wrong table!</p>
+<p>We can solve this, but it requires a certain level of voodoo.  First we need to change our <code>extend</code> method:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span>extend <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, this)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	this.super <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(child)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">local</span> parent <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>			__index <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(_, methodName)
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">function</span>(_, ...)
+</span></span><span style="display:flex;"><span>					self[methodName](child, ...)
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> setmetatable({}, parent)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> setmetatable(this, { __index <span style="color:#f92672">=</span> self })
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>This took me far too long to come up with and get working.  Essentially what it does is take all calls, and replace the <code>self</code> parameter with the correct table.</p>
+<p>This method has some restrictions, in that you can only go &lsquo;up&rsquo; one level in the class hierarchy, e.g. you cannot do <code>item:super():super():super()</code>.  In practice though, I have never needed to do this.</p>
+<p>The entirety of my class file can be found on <a href="https://github.com/Pondidum/Dark/blob/abcaa319ccce1bb448a1e04f1d82b8d24578acbe/class.lua">my github</a>.</p>
+<h3 id="problems">Problems</h3>
+<p>There are two disadvantages to this method of creating objects.  The first is using a table like this, you can no longer totally hide variables as you could do in the closure version.  The other is the complexity added - especially if you wish to allow base method calling, however in balance, you only need to write the <code>super()</code> functionality once (or use mine!)</p>
+<p>When writing addons, I use both methods of encapsulation where they fit best - as like everything else in development the answer to what to use is &ldquo;it depends&rdquo;.</p>
+]]></content:encoded></item><item><title>Encapsulation in Warcraft Addons - Closures</title><link>https://andydote.co.uk/2014/11/28/encapsulation-in-warcraft-addons-closures/</link><pubDate>Fri, 28 Nov 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/11/28/encapsulation-in-warcraft-addons-closures/</guid><description>In the last post I alluded to the fact that if you put in a little leg work, you could write well encapsulated objects in lua. There are two main ways to do this; with closures, and with metatables. In this post we will deal with using closures, and in the next post we will cover using metatables.
+Using Closures The simplest way to write an object in lua is with a closure to hide all the variables from the outside world.</description><content:encoded><![CDATA[<p>In the <a href="http://andydote.co.uk/2014/11/23/good-design-in-warcraft-addons.html">last post</a> I alluded to the fact that if you put in a little leg work, you could write well encapsulated objects in lua.  There are two main ways to do this; with closures, and with metatables.  In this post we will deal with using closures, and in the next post we will cover using metatables.</p>
+<h2 id="using-closures">Using Closures</h2>
+<p>The simplest way to write an object in lua is with a <a href="http://en.wikipedia.org/wiki/Closure_(computer_programming)">closure</a>  to hide all the variables from the outside world.  For example, we can write a counter class like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> counter <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	new <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">local</span> count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">local</span> this <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			increase <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>()
+</span></span><span style="display:flex;"><span>				count <span style="color:#f92672">=</span> count <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span> <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			print <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>()
+</span></span><span style="display:flex;"><span>				print(<span style="color:#e6db74">&#34;The count is &#34;</span> <span style="color:#f92672">..</span> count <span style="color:#f92672">..</span> <span style="color:#e6db74">&#34;.&#34;</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> this
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We are using a table to give us a class name, and the closure is the only method on it (called <code>new</code>).  My standard convention is to call the actual object we return <code>this</code>. The <code>this</code> object contains the public surface of our object, in this case two methods called <code>increase()</code> and <code>print()</code>.  You can use the counter like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> first <span style="color:#f92672">=</span> counter.new()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>first.increase()
+</span></span><span style="display:flex;"><span>first.print() <span style="color:#75715e">-- prints &#34;The count is 1&#34;</span>
+</span></span></code></pre></div><p>By using a closure, we limit the use of the <code>count</code> variable to only methods defined in the body of the function <code>new</code>.  This prevents anyone who uses the class from knowing how it is implemented, which is important as we are now at liberty to change the implementation without affecting our users.</p>
+<p>A good example of this technique is in my <a href="https://github.com/Pondidum/Dark.Combat">Dark.Combat</a> addon.  While writing cooldown tracking, I needed to know how many stacks of Maelstrom Weapon was the maximum, so that I could trigger a glow effect on the icon.  The problem is that the Warcraft API doesn&rsquo;t have a way of querying this (you can call <a href="http://wowprogramming.com/docs/api/GetSpellCharges">GetSpellCharges</a> for spells such as Conflagurate, but sadly this doesn&rsquo;t work on an aura.)</p>
+<p>To solve this, rather than hard coding values into the view, or forcing the user to specify some kind of &ldquo;glow at xxx stacks&rdquo; parameter in the config, I wrote an object which you can be queried.  This could also be expanded later to hold additional spell data which is not available in the API.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> addon, ns <span style="color:#f92672">=</span> ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> spellData <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	new <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">local</span> charges <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>			[<span style="color:#ae81ff">53817</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">5</span>,
+</span></span><span style="display:flex;"><span>			[<span style="color:#e6db74">&#34;Maelstrom Weapon&#34;</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">5</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			[<span style="color:#ae81ff">91342</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">5</span>,
+</span></span><span style="display:flex;"><span>			[<span style="color:#e6db74">&#34;Shadow Infusion&#34;</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">5</span>,
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		setmetatable(charges, { __index <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(key) <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">1</span> <span style="color:#66d9ef">end</span> })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> {
+</span></span><span style="display:flex;"><span>			getMaxCharges <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(spellID)
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> charges[spellID]
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>ns.spellData <span style="color:#f92672">=</span> spellData.new()
+</span></span></code></pre></div><p>As the implementation of <code>getMaxCharges</code> is hidden, I can change it at will - perhaps splitting my <code>charges</code> table into two separate tables, or if Blizzard kindly implemented a <code>GetMaxStacks(spellName)</code> I could call this instead and remove my <code>charges</code> table altogether.</p>
+<h3 id="composition">Composition</h3>
+<p>We can utilise composition to create objects based off other objects, by decorating an instance with new functionality.  A slightly cut down version of the grouping code from my <a href="https://github.com/Pondidum/Dark.Bags/tree/master/groups">Dark.Bags addon</a> makes good use of this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> group <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	new <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(name, parent, options)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">local</span> frame <span style="color:#f92672">=</span> CreateFrame(<span style="color:#e6db74">&#34;Frame&#34;</span>, name, parent),
+</span></span><span style="display:flex;"><span>		layoutEngine.init(frame, { type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;HORIZONTAL&#34;</span>, wrap <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>, autosize <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span> })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> {
+</span></span><span style="display:flex;"><span>			add <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(child)
+</span></span><span style="display:flex;"><span>				frame.add(child)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> bag <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	new <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(name, parent)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">local</span> this <span style="color:#f92672">=</span> group.new(name, parent)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		this.populate <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(contents)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">for</span> key, details <span style="color:#66d9ef">in</span> pairs(contents) <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>				this.add(itemView.new(details))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> this
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Here we have two classes <code>group</code> and <code>bag</code>.  The <code>group</code> acts as our base class; it just creates a frame, and initialises a layout engine which does the heavy lifiting of laying out child frames.</p>
+<p>In the <code>bag.new()</code> function, we create an instance of a <code>group</code> and add a <code>populate</code> method to it, and return it.  We can continue creating new classes which use <code>bag</code> and <code>group</code> as base types as we need.</p>
+<h3 id="problems-with-closures">Problems with Closures</h3>
+<p>The down side to using closures is that inheritance is not really possible.  To take the <code>counter</code> example again, if you wanted to create a stepping counter, you couldn&rsquo;t do this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> evenCounter <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	new <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">local</span> this <span style="color:#f92672">=</span> counter.new()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		this.increase <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>()
+</span></span><span style="display:flex;"><span>			<span style="color:#75715e">-- how do we access count?!</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> this
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Not only can you not access the original <code>count</code> variable, but you would also have to reimplement the <code>print</code> function as it would not have access to your new counting variable.</p>
+<p>These problems can be solved using the metatables methods in the next post, however depending on what you are doing, you could just use composition instead as outlined below.</p>
+]]></content:encoded></item><item><title>Good Design in Warcraft Addons/Lua</title><link>https://andydote.co.uk/2014/11/23/good-design-in-warcraft-addons/</link><pubDate>Sun, 23 Nov 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/11/23/good-design-in-warcraft-addons/</guid><description>Lack of Encapsulation in Addons I first noticed a lack of good design in addon code when I started trying to tweak existing addons to be slightly different.
+One of the stand out examples was a Threat Meter (you know which one I mean). It works well, but I felt like writing my own, to make it really fit into my UI, with as little overhead as possible. Not knowing how to even begin writing a Threat Meter, I downloaded a copy, and opened its source directory&amp;hellip; to discover that the entire addon is one 3500+ line file, and 16 Ace.</description><content:encoded><![CDATA[<h2 id="lack-of-encapsulation-in-addons">Lack of Encapsulation in Addons</h2>
+<p>I first noticed a lack of good design in addon code when I started trying to tweak existing addons to be slightly different.</p>
+<p>One of the stand out examples was a Threat Meter (you know which one I mean).  It works well, but I felt like writing my own, to make it really fit into my UI, with as little overhead as possible.  Not knowing how to even begin writing a Threat Meter, I downloaded a copy, and opened its source directory&hellip; to discover that the entire addon is one 3500+ line file, and 16 Ace.* dependencies.</p>
+<p>When I had finished my Threat Meter, I had two files (170 lines and 130 lines), and one dependency (Dark.Core, which all my addons use).  I learnt a lot while reading the source for the original threat meter - it is very customisable, is externally skinable, and has some very good optimisations in it.  But it also has a lot of unused variables (which are named very similarly to used ones), and so much of it&rsquo;s code <em>could</em> be separated out, making it easier to modify by newer project members.</p>
+<p>This set of observations goes on forever when concerning addons.  The three main problems I see are:</p>
+<ul>
+<li>Pollution of the global namespace</li>
+<li>All code in one file</li>
+<li>No separation of concerns</li>
+</ul>
+<p>All of this makes it harder for new developers to pick up and learn how to maintain and write addons.  They are all fairly straight forward to solve problems, so lets address them!</p>
+<h2 id="pollution-of-the-global-namespace">Pollution of the Global Namespace</h2>
+<p>A lot of addons you find declare many variables as global so they can access them anywhere within their addon.  For example, this is pretty standard:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span>MyAddonEvents <span style="color:#f92672">=</span> CreateFrame(<span style="color:#e6db74">&#34;Frame&#34;</span>, <span style="color:#e6db74">&#34;MyAddonEventFrame&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>MyAddonEvents:RegisterEvent(<span style="color:#e6db74">&#34;PLAYER_ENTERING_WORLD&#34;</span>)
+</span></span><span style="display:flex;"><span>MyAddonEvents:SetScript(<span style="color:#e6db74">&#34;OnEvent&#34;</span>, MyAddonEventHandler)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>MyAddonEventHandler <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, event, ...)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> event <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;PLAYER_ENTERING_WORLD&#34;</span> <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">--do something useful</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>This is an example of poluting the global namespace, as now the entire UI has access to: <code>MyAddonEvents</code>, <code>MyAddonEventFrame</code>, <code>MyAddonEventHandler</code>.  This is very trivial to rewrite to not expose anything to the global namespace:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> events <span style="color:#f92672">=</span> CreateFrame(<span style="color:#e6db74">&#34;Frame&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> handler <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(self, event, ...)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> event <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;PLAYER_ENTERING_WORLD&#34;</span> <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">--do something useful</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>events:RegisterEvent(<span style="color:#e6db74">&#34;PLAYER_ENTERING_WORLD&#34;</span>)
+</span></span><span style="display:flex;"><span>events:SetScript(<span style="color:#e6db74">&#34;OnEvent&#34;</span>, handler)
+</span></span></code></pre></div><p>This version exposes nothing to the global namespace, and performs exactly the same function (you can even get rid of the <code>handler</code> variable and just pass the function directly into <code>SetScript</code>).</p>
+<p>However, by writing your code like this, you can&rsquo;t access any of this from another file (either a lua file, or <em>shudder</em> a frameXml file), but using namespaces we can get around this limitation without polluting the global namespace.</p>
+<h2 id="splitting-into-separate-files">Splitting into Separate Files</h2>
+<p>So, how to access local variables in other files?  Well Warcraft addons come with a feature where all lua files are provided with two arguments: <code>addon</code> and <code>ns</code>.  The first of these is a string of the addon name, and the second is an empty table.  I almost never use the <code>addon</code> parameter, but the <code>ns</code> (or &ldquo;namespace&rdquo;) parameter is key to everything.</p>
+<p>You can access these two variables by writing this as the first line of your lua file:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> addon, ns <span style="color:#f92672">=</span> ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>print(<span style="color:#e6db74">&#34;Hello from, &#34;</span> <span style="color:#f92672">..</span> addon)
+</span></span></code></pre></div><p>By using the <code>ns</code>, we can put our own variables into it to access from other files.  For example, we have an event system in one file:</p>
+<p><em>eventSystem.lua</em></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> addon, ns <span style="color:#f92672">=</span> ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> events <span style="color:#f92672">=</span> CreateFrame(<span style="color:#e6db74">&#34;Frame&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> handlers <span style="color:#f92672">=</span> {}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>events:SetScript(<span style="color:#e6db74">&#34;OnEvent&#34;</span>, <span style="color:#66d9ef">function</span>(self, event, ...)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">local</span> eventHandlers <span style="color:#f92672">=</span> handlers[event] <span style="color:#f92672">or</span> {}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> i, handler <span style="color:#66d9ef">in</span> ipairs(eventHandlers) <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>		handler(event, ...)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>ns.register <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(event, handler)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	handlers[event] <span style="color:#f92672">=</span> handlers[event] <span style="color:#f92672">or</span> {}
+</span></span><span style="display:flex;"><span>	table.insert(handlers[event], handler)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	events:RegisterEvent(event)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>Note how the <code>register</code> function is defined on the <code>ns</code>.  This means that any other file in our addon can do this to handle an event:</p>
+<p><em>goldPrinter.lua</em></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> addon, ns <span style="color:#f92672">=</span> ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>ns.register(<span style="color:#e6db74">&#34;PLAYER_MONEY&#34;</span>, <span style="color:#66d9ef">function</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">local</span> gold <span style="color:#f92672">=</span> floor(money <span style="color:#f92672">/</span> (COPPER_PER_SILVER <span style="color:#f92672">*</span> SILVER_PER_GOLD))
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">local</span> silver <span style="color:#f92672">=</span> floor((money <span style="color:#f92672">-</span> (gold <span style="color:#f92672">*</span> COPPER_PER_SILVER <span style="color:#f92672">*</span> SILVER_PER_GOLD)) <span style="color:#f92672">/</span> COPPER_PER_SILVER)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">local</span> copper <span style="color:#f92672">=</span> mod(money, COPPER_PER_SILVER)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">local</span> moneyString <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">local</span> separator <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> ( gold <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span> ) <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>		moneyString <span style="color:#f92672">=</span> format(GOLD_AMOUNT_TEXTURE, gold, <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>		separator <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34; &#34;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> ( silver <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span> ) <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>		moneyString <span style="color:#f92672">=</span> moneyString <span style="color:#f92672">..</span> separator <span style="color:#f92672">..</span> format(SILVER_AMOUNT_TEXTURE, silver, <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>		separator <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34; &#34;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> ( copper <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span> <span style="color:#f92672">or</span> moneyString <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> ) <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>		moneyString <span style="color:#f92672">=</span> moneyString <span style="color:#f92672">..</span> separator <span style="color:#f92672">..</span> format(COPPER_AMOUNT_TEXTURE, copper, <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	print(<span style="color:#e6db74">&#34;You now have &#34;</span> <span style="color:#f92672">..</span> moneyString)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>)
+</span></span></code></pre></div><p>A pretty trivial example, but we have managed to write a two file addon, without putting <strong>anything</strong> in the global namespace.</p>
+<p>We have also managed to separate our concerns - the <code>goldPrinter</code> does not care what raises the events, and the <code>eventSystem</code> knows nothing about gold printing, just how to delegate events.  There is also an efficiency here too - anything else in our addon that needs events uses the same eventSystem, meaning we only need to create one frame for the entire addon to receive events.</p>
+<h2 id="structure">Structure</h2>
+<p>Now that we can separate things into individual files, we gain a slightly different problem - how to organise those files.  I found over time that I end up with roughly the same structure each time, and others might benefit from it too.</p>
+<p>All my addons start with four files:</p>
+<ul>
+<li>AddonName.toc</li>
+<li>initialise.lua</li>
+<li>config.lua</li>
+<li>run.lua</li>
+</ul>
+<p>The toc file, other than the usual header information is laid out in the order the files will run, for example this is the file segment of my bags addon&rsquo;s toc file:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-powershell" data-lang="powershell"><span style="display:flex;"><span>initialise.lua
+</span></span><span style="display:flex;"><span>config.lua
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>models\classifier.lua
+</span></span><span style="display:flex;"><span>models\classifiers\equipmentSet.lua
+</span></span><span style="display:flex;"><span>models\itemModel.lua
+</span></span><span style="display:flex;"><span>models\model.lua
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>groups\group.lua
+</span></span><span style="display:flex;"><span>groups\bagGroup.lua
+</span></span><span style="display:flex;"><span>groups\bagContainer.lua
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>views\item.lua
+</span></span><span style="display:flex;"><span>views\goldDisplay.lua
+</span></span><span style="display:flex;"><span>views\currencyDisplay.lua
+</span></span><span style="display:flex;"><span>views\bankBagBar.lua
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sets\container.lua
+</span></span><span style="display:flex;"><span>sets\bag.lua
+</span></span><span style="display:flex;"><span>sets\bank.lua
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>run.lua
+</span></span></code></pre></div><p>The <code>initialise</code> lua file is the first thing to run.  All this tends to do is setup any sub-namespaces on <code>ns</code>, and copy in external dependencies to <code>ns.lib</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> addon, ns <span style="color:#f92672">=</span> ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>ns.models <span style="color:#f92672">=</span> {}
+</span></span><span style="display:flex;"><span>ns.groups <span style="color:#f92672">=</span> {}
+</span></span><span style="display:flex;"><span>ns.views <span style="color:#f92672">=</span> {}
+</span></span><span style="display:flex;"><span>ns.sets <span style="color:#f92672">=</span> {}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> core <span style="color:#f92672">=</span> Dark.core
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>ns.lib <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	fonts <span style="color:#f92672">=</span> core.fonts,
+</span></span><span style="display:flex;"><span>	events <span style="color:#f92672">=</span> core.events,
+</span></span><span style="display:flex;"><span>	slash <span style="color:#f92672">=</span> core.slash,
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>By copying in the dependencies, we not only save a global lookup each time we need say the event system, but we also have an abstraction point.  If we want to replace the event system, as long as the replacement has the right function names, we can just assign the new one to the lib: <code>ns.lib.events = replacementEvents:new()</code></p>
+<p>The sub namespaces correspond to folders on in the addon (much the same practice used by c# developers), so for example the <code>classifier.lua</code> file might have this in it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> addon, ns <span style="color:#f92672">=</span> ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> classifier <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	new <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>() <span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>	update <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>() <span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>	classify <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span>(item) <span style="color:#66d9ef">end</span>,
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>ns.models.classifier <span style="color:#f92672">=</span> classifier
+</span></span></code></pre></div><p>The config file should be fairly simple, with not much more than a couple of tables in it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> addon, ns <span style="color:#f92672">=</span> ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>ns.config <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	buttonSize <span style="color:#f92672">=</span> <span style="color:#ae81ff">24</span>,
+</span></span><span style="display:flex;"><span>	spacing <span style="color:#f92672">=</span> <span style="color:#ae81ff">4</span>,
+</span></span><span style="display:flex;"><span>	screenPadding <span style="color:#f92672">=</span> <span style="color:#ae81ff">10</span>,
+</span></span><span style="display:flex;"><span>	currencies <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#ae81ff">823</span>, <span style="color:#75715e">-- apexis</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#ae81ff">824</span>,  <span style="color:#75715e">-- garrison resources</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And finally, the <code>run.lua</code> file is what makes your addon come to life:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-lua" data-lang="lua"><span style="display:flex;"><span><span style="color:#66d9ef">local</span> addon, ns <span style="color:#f92672">=</span> ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> sets <span style="color:#f92672">=</span> ns.sets
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> pack <span style="color:#f92672">=</span> sets.bag:new()
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> bank <span style="color:#f92672">=</span> sets.bank:new()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">local</span> ui <span style="color:#f92672">=</span> ns.controllers.uiIntegration.new(pack.frame, bank.frame)
+</span></span><span style="display:flex;"><span>ui.hook()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">--expose</span>
+</span></span><span style="display:flex;"><span>DarkBags <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>	addClassifier <span style="color:#f92672">=</span> ns.classifiers.add
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>If you need to expose something to the entire UI or other addons, that&rsquo;s fine.  But make sure you only expose what you want to.  In the example above the <code>DarkBags</code> global only has one method - <code>addClassifier</code>, because that is all I want other addons to be able to do.</p>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>I hope this helps other people with their addons - I know I wish that I had gotten to this structure and style a lot sooner than I did.</p>
+<p>There will be a few more posts incoming covering encapsulation, objects and inheritance in more detail, so stay tuned.</p>
+]]></content:encoded></item></channel></rss>

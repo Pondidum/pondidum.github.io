@@ -1,2 +1,52 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>api on Andy Dote</title><link>https://andydote.co.uk/tags/api/</link><description>Recent content in api on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Wed, 25 Mar 2015 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/api/rss.xml" rel="self" type="application/rss+xml"/><item><title>Communicating Intent in APIs</title><link>https://andydote.co.uk/2015/03/25/communicating-intent-in-apis/</link><pubDate>Wed, 25 Mar 2015 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2015/03/25/communicating-intent-in-apis/</guid><description>Recently was trying to work out how to allow custom resources to be specified in Dashen. I already know what data is needed/defined for a resource: a name, a MIME type, and a Stream. We can make this required data known very easily:
-public class Resource { public string Name { get; private set; } public string MimeType { get; private set; } public Stream Content { get; private set; } public Resource(string name, string mimeType, Stream content) { Name = name; MimeType = mimeType; Content = content; } } As all the parameters can only be set through the constructor, you are communicating that they are all required.</description></item></channel></rss>
+public class Resource { public string Name { get; private set; } public string MimeType { get; private set; } public Stream Content { get; private set; } public Resource(string name, string mimeType, Stream content) { Name = name; MimeType = mimeType; Content = content; } } As all the parameters can only be set through the constructor, you are communicating that they are all required.</description><content:encoded><![CDATA[<p>Recently was trying to work out how to allow custom resources to be specified in <a href="https://github.com/pondidum/Dashen">Dashen</a>.  I already know what data is needed/defined for a resource: a name, a MIME type, and a Stream.  We can make this required data known very easily:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Resource</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Name { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> MimeType { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Stream Content { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Resource(<span style="color:#66d9ef">string</span> name, <span style="color:#66d9ef">string</span> mimeType, Stream content)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Name = name;
+</span></span><span style="display:flex;"><span>		MimeType = mimeType;
+</span></span><span style="display:flex;"><span>		Content = content;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As all the parameters can only be set through the constructor, you are communicating that they are all required.</p>
+<p>However when it comes to adding this <code>Resource</code> into our configuration, we are met with 3 possible solutions:</p>
+<h2 id="resource-collection-on-the-config">Resource collection on the config</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> dashboard = DashboardBuilder.Create(<span style="color:#66d9ef">new</span> DashboardConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	ListenOn = <span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;http://localhost:3030&#34;</span>),
+</span></span><span style="display:flex;"><span>	Resources = <span style="color:#66d9ef">new</span>[] { <span style="color:#66d9ef">new</span> Resource(<span style="color:#e6db74">&#34;test.png&#34;</span>, <span style="color:#e6db74">&#34;image/png&#34;</span>, <span style="color:#66d9ef">new</span> FileStrea(...))}
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>As the <code>DashboardConfiguration</code> object is only used in this one call, it implies that the contents of it only get read once.
+Nothing to stop you holding on to a reference to the <code>Resources</code> collection though.</p>
+<h2 id="addresource-method-on-the-config">AddResource method on the config</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> config = <span style="color:#66d9ef">new</span> DashboardConfiguration
+</span></span><span style="display:flex;"><span>config.ListenOn = <span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;http://localhost:3030&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>config.AddResource(<span style="color:#66d9ef">new</span> Resource(<span style="color:#e6db74">&#34;test.png&#34;</span>, <span style="color:#e6db74">&#34;image/png&#34;</span>, <span style="color:#66d9ef">new</span> FileStrea(...)));
+</span></span><span style="display:flex;"><span><span style="color:#75715e">//or</span>
+</span></span><span style="display:flex;"><span>config.AddResource(<span style="color:#e6db74">&#34;test.png&#34;</span>, <span style="color:#e6db74">&#34;image/png&#34;</span>, <span style="color:#66d9ef">new</span> FileStrea(...));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> dashboard = DashboardBuilder.Create(config);
+</span></span></code></pre></div><p><code>Resources</code> are still added to the <code>DashboardConfiguration</code>, but this time via a method.  This hides the internal storage of resources.  Second version also means we can hide the <code>Resource</code> class from the public too if we want.
+Also implies a level of uniqueness - could throw an exception on duplicate name being added, or rename the method to <code>AddUniqueResource</code> or similar.</p>
+<h2 id="addresource-method-on-the-dashboard">AddResource method on the Dashboard</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> dashboard = DashboardBuilder.Create(<span style="color:#66d9ef">new</span> DashboardConfiguration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	ListenOn = <span style="color:#66d9ef">new</span> Uri(<span style="color:#e6db74">&#34;http://localhost:3030&#34;</span>),
+</span></span><span style="display:flex;"><span>});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>dashboard.AddResource(<span style="color:#66d9ef">new</span> Resource(<span style="color:#e6db74">&#34;test.png&#34;</span>, <span style="color:#e6db74">&#34;image/png&#34;</span>, <span style="color:#66d9ef">new</span> FileStrea(...)));
+</span></span><span style="display:flex;"><span><span style="color:#75715e">//or</span>
+</span></span><span style="display:flex;"><span>dashboard.AddResource(<span style="color:#e6db74">&#34;test.png&#34;</span>, <span style="color:#e6db74">&#34;image/png&#34;</span>, <span style="color:#66d9ef">new</span> FileStrea(...));
+</span></span></code></pre></div><p><code>Resource</code> class is still hideable. Being able to add to the dashboard rather than the config implies that resources could be added at anytime, rather than just startup/config time.</p>
+<h1 id="selected-solution">Selected Solution</h1>
+<p>In the end I decided to expose the <code>Resources</code> as an <code>IEnumerable&lt;Resource&gt;</code> on the <code>DashboardConfiguration</code> object.  I did this as I don&rsquo;t actually mind if the collection gets modified once the dashboard is started, and I can see some use-cases for dynamic resource resolution.</p>
+]]></content:encoded></item></channel></rss>

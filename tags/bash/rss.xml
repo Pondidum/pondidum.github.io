@@ -1,7 +1,262 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>bash on Andy Dote</title><link>https://andydote.co.uk/tags/bash/</link><description>Recent content in bash on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Fri, 28 Aug 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/bash/rss.xml" rel="self" type="application/rss+xml"/><item><title>Better BASHing Through Technology</title><link>https://andydote.co.uk/2020/08/28/better-bashing-through-technology/</link><pubDate>Fri, 28 Aug 2020 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2020/08/28/better-bashing-through-technology/</guid><description>I write a lot of bash scripts for both my day job and my personal projects, and while they are functional, bash scripts always seem to lack that structure that I want, especially when compared to writing something in Go or C#. The main problem I have with bash scripts is that when I use functions, I lose the ability to log things.
-For example the get_config_path function will print the path to the configuration file, which will get consumed by the do_work function:</description></item><item><title>Fixing Docker volume paths on Git Bash on Windows</title><link>https://andydote.co.uk/2018/06/18/git-bash-docker-volume-paths/</link><pubDate>Mon, 18 Jun 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/06/18/git-bash-docker-volume-paths/</guid><description>My normal development laptop runs Windows, but like a lot of developers, I make huge use of Docker, which I run under Hyper-V. I also heavily use the git bash terminal on windows to work.
-Usually, everything works as expected, but I was recently trying to run an ELK (Elasticsearch, Logstash, Kibana) container, and needed to pass in an extra configuration file for Logstash. This caused me a lot of trouble, as nothing was working as expected.</description></item><item><title>Update all Docker images</title><link>https://andydote.co.uk/2017/01/16/update-all-docker-images/</link><pubDate>Mon, 16 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/16/update-all-docker-images/</guid><description>My work&amp;rsquo;s wifi is much faster than my 4G connection, so periodically I want to update all my docker images on my personal laptop while at work.
+For example the get_config_path function will print the path to the configuration file, which will get consumed by the do_work function:</description><content:encoded><![CDATA[<p>I write a lot of bash scripts for both my day job and my personal projects, and while they are functional, bash scripts always seem to lack that structure that I want, especially when compared to writing something in Go or C#. The main problem I have with bash scripts is that when I use functions, I lose the ability to log things.</p>
+<p>For example the <code>get_config_path</code> function will print the path to the configuration file, which will get consumed by the <code>do_work</code> function:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>get_config_path<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Finding Machine Configurtaion&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span>$CONFIG_PATH<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">[</span> -e <span style="color:#e6db74">&#34;</span>$CONFIG_PATH<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># echo &#34;Using Configuration from environment&#34;</span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;</span>$CONFIG_PATH<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -e <span style="color:#e6db74">&#34;~/.config/demo/config.toml&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># echo &#34;Using Configuration directory file&#34;</span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;~/.config/demo/config.toml&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># echo &#34;Unable to find configuration&#34;</span>
+</span></span><span style="display:flex;"><span>  exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>do_work<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  local -r config<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>get_config_path<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># actual work...</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>The problem is, if I include the <code>echo</code> statements which are log lines, the <code>config</code> variable in the <code>do_work</code> function will contain them too.</p>
+<p>In the past, this has caused me to use functions in bash very sparingly; usually with things that are short that I don&rsquo;t need to add much logging to.  However, I was recently building some AMIs, and happened to be browsing the <a href="https://github.com/hashicorp/terraform-aws-consul">Consul</a> and <a href="https://github.com/hashicorp/terraform-aws-vault">Vault</a> terraform module source, which uses several bash scripts which are written in a different style, which makes them vastly more maintainable.</p>
+<p>So let&rsquo;s have a look at the new structure I use, which is heavily based off these scripts.</p>
+<h2 id="better-bash-scripts">Better Bash Scripts</h2>
+<p>Before we get to the implementation, make sure you are using <a href="https://github.com/koalaman/shellcheck/">ShellCheck</a> it provides static analysis of your scripts, pointing out many things like missing quotes, or incorrectly handling arrays.  It has plugins for all your favourite editors too.</p>
+<h3 id="0-general-styles-and-constructs">0. General Styles and Constructs</h3>
+<p>All variables should be declared <code>readonly</code>, and <code>local</code> if possible, to help prevent surprise values from being present if other functions forget to do the same.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#top level</span>
+</span></span><span style="display:flex;"><span>readonly SCRIPT_NAME<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>basename <span style="color:#e6db74">&#34;</span>$0<span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>some_method<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># within a method</span>
+</span></span><span style="display:flex;"><span>  local -r config_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>Functions should assign their passed arguments to named variables as the first thing they do, preferably matching the variable name they are passed, which helps later when you are searching through a script for usages of &ldquo;config_file&rdquo; and not having to find other names/aliases for the same value.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>read_config<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  local -r config_file<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  local -r skip_validation<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># ...</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>invoke<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># ...</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  read_config <span style="color:#e6db74">&#34;</span>$config_file<span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span>$skip_validation<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><h3 id="1-error-handling">1. Error Handling</h3>
+<p>It should go without saying, but you really need to start your scripts with the following:</p>
+<pre tabindex="0"><code>#!/bin/bash
+
+set -euo pipefail;
+</code></pre><p>There are <a href="https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/">many better articles</a> on what these specifically do, but suffice to say:</p>
+<ul>
+<li><code>e</code> causes the script to stop on errors</li>
+<li><code>u</code> causes it to error on undefined variables being used</li>
+<li><code>o pipefail</code> causes a non-zero exit code from any command in a pipeline to fail the script too (rather than just the last command.)</li>
+</ul>
+<h3 id="2-logging">2. Logging</h3>
+<p>The real advantage of this structure is we get to have log statements! This is achieved by doing all logging to <code>stderr</code> instead of <code>stdout</code>.  We use a standardised <code>log</code> function across all the scripts, which also includes the script&rsquo;s name so when calling other scripts you can see which one wrote the log line:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>readonly SCRIPT_NAME<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>basename <span style="color:#e6db74">&#34;</span>$0<span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>log<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  local -r level<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  local -r message<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  local -r timestamp<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>date +<span style="color:#e6db74">&#34;%Y-%m-%d %H:%M:%S&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  &gt;&amp;<span style="color:#ae81ff">2</span> echo -e <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>timestamp<span style="color:#e6db74">}</span><span style="color:#e6db74"> [</span><span style="color:#e6db74">${</span>level<span style="color:#e6db74">}</span><span style="color:#e6db74">] [</span>$SCRIPT_NAME<span style="color:#e6db74">] </span><span style="color:#e6db74">${</span>message<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><p>Invoking the function is <code>log &quot;INFO&quot; &quot;Some status&quot;</code> or <code>log &quot;WARN&quot; &quot;Something concerning&quot;</code> etc.</p>
+<h3 id="3-error-checking">3. Error Checking</h3>
+<p>We have some standard assertion functions which are used by the script when starting up to validate arguments:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>assert_not_empty<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  local -r arg_name<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  local -r arg_value<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[[</span> -z <span style="color:#e6db74">&#34;</span>$arg_value<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    log <span style="color:#e6db74">&#34;ERROR&#34;</span> <span style="color:#e6db74">&#34;The value for &#39;</span>$arg_name<span style="color:#e6db74">&#39; cannot be empty&#34;</span>
+</span></span><span style="display:flex;"><span>    exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>assert_is_installed<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  local -r name<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[[</span> ! <span style="color:#66d9ef">$(</span>command -v <span style="color:#e6db74">&#34;</span>$name<span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span> <span style="color:#f92672">]]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    log <span style="color:#e6db74">&#34;ERROR&#34;</span> <span style="color:#e6db74">&#34;The binary &#39;</span>$name<span style="color:#e6db74">&#39; is required by this script but is not installed or in the system&#39;s PATH.&#34;</span>
+</span></span><span style="display:flex;"><span>    exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><h3 id="4-argument-parsing">4. Argument parsing</h3>
+<p>When scripts need to take parameters in, I prefer to use long-flag style, as they are little more readable for people checking invocations again in the future.  This function is usually always called <code>run</code>, and is the last function defined, and is invoked immediately after definition, passing in all script arguments (<code>run &quot;$@&quot;</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>run<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  local namespace<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>  local suffix<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>  local dry_run<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;false&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">while</span> <span style="color:#f92672">[[</span> $# -gt <span style="color:#ae81ff">0</span> <span style="color:#f92672">]]</span>; <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>    local key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">case</span> <span style="color:#e6db74">&#34;</span>$key<span style="color:#e6db74">&#34;</span> in
+</span></span><span style="display:flex;"><span>      --namespace<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>        namespace<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>        shift
+</span></span><span style="display:flex;"><span>        ;;
+</span></span><span style="display:flex;"><span>      --suffix<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>        assert_not_empty <span style="color:#e6db74">&#34;</span>$key<span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>        suffix<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>        shift
+</span></span><span style="display:flex;"><span>        ;;
+</span></span><span style="display:flex;"><span>      --dry-run<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>        dry_run<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;true&#34;</span>
+</span></span><span style="display:flex;"><span>        ;;
+</span></span><span style="display:flex;"><span>      --help<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>        print_usage
+</span></span><span style="display:flex;"><span>        exit
+</span></span><span style="display:flex;"><span>        ;;
+</span></span><span style="display:flex;"><span>      *<span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>        log <span style="color:#e6db74">&#34;ERROR&#34;</span> <span style="color:#e6db74">&#34;Unrecognized argument: </span>$key<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>        print_usage
+</span></span><span style="display:flex;"><span>        exit <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>        ;;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">esac</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    shift
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">done</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># mandatory flag validation</span>
+</span></span><span style="display:flex;"><span>  assert_not_empty <span style="color:#e6db74">&#34;--namespace&#34;</span> <span style="color:#e6db74">&#34;</span>$namespace<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># make sure tools are installed</span>
+</span></span><span style="display:flex;"><span>  assert_is_installed <span style="color:#e6db74">&#34;vault&#34;</span>
+</span></span><span style="display:flex;"><span>  assert_is_installed <span style="color:#e6db74">&#34;openssl&#34;</span>
+</span></span><span style="display:flex;"><span>  assert_is_installed <span style="color:#e6db74">&#34;jq&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># do the work!</span>
+</span></span><span style="display:flex;"><span>  local -r cert<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>generate_cert <span style="color:#e6db74">&#34;</span>$suffix<span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  store_cert <span style="color:#e6db74">&#34;</span>$namespace<span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span>$cert<span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span>$dry_run<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>run <span style="color:#e6db74">&#34;</span>$@<span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><p>The validation uses the <code>assert_not_empty</code> function defined above, which is used in two ways: after the <code>while</code> loop to check mandatory values have been filled in, and within the <code>case</code> statement for optional flags values.</p>
+<p>We also use <code>assert_is_installed</code> to validate that utilities we need are installed, such as <code>vault</code>, <code>openssl</code> and <code>jq</code></p>
+<p>The <code>print_usage</code> function is just a set of <code>echo</code> statements giving all the flags, and an example of invokation:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>print_usage<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  echo
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Usage: </span>$SCRIPT_NAME<span style="color:#e6db74"> [OPTIONS]&#34;</span>
+</span></span><span style="display:flex;"><span>  echo
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;This script creates a new certiticate, and it installs it into the right namespace&#34;</span>
+</span></span><span style="display:flex;"><span>  echo
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Options:&#34;</span>
+</span></span><span style="display:flex;"><span>  echo
+</span></span><span style="display:flex;"><span>  echo -e <span style="color:#e6db74">&#34;  --namespace\tThe namespace to install the certificate in&#34;</span>
+</span></span><span style="display:flex;"><span>  echo -e <span style="color:#e6db74">&#34;  --suffix\tAn optional suffix for the hostname&#34;</span>
+</span></span><span style="display:flex;"><span>  echo -e <span style="color:#e6db74">&#34;  --dry-run\tDon&#39;t install the certificate&#34;</span>
+</span></span><span style="display:flex;"><span>  echo
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Example:&#34;</span>
+</span></span><span style="display:flex;"><span>  echo
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;  </span>$SCRIPT_NAME<span style="color:#e6db74"> --namespace test --dry-run&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><h2 id="usage">Usage</h2>
+<p>I keep a single template file which has all of this written into it, and new scripts start off with a copy-paste of the template.  Could it be <a href="https://en.wikipedia.org/wiki/Don%27t_repeat_yourself">DRY</a>er? Sure, but then I have to deal with dependency management, and it&rsquo;s just not worth the hassle and overhead.</p>
+]]></content:encoded></item><item><title>Fixing Docker volume paths on Git Bash on Windows</title><link>https://andydote.co.uk/2018/06/18/git-bash-docker-volume-paths/</link><pubDate>Mon, 18 Jun 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/06/18/git-bash-docker-volume-paths/</guid><description>My normal development laptop runs Windows, but like a lot of developers, I make huge use of Docker, which I run under Hyper-V. I also heavily use the git bash terminal on windows to work.
+Usually, everything works as expected, but I was recently trying to run an ELK (Elasticsearch, Logstash, Kibana) container, and needed to pass in an extra configuration file for Logstash. This caused me a lot of trouble, as nothing was working as expected.</description><content:encoded><![CDATA[<p>My normal development laptop runs Windows, but like a lot of developers, I make huge use of Docker, which I run under Hyper-V.  I also heavily use the git bash terminal on windows to work.</p>
+<p>Usually, everything works as expected, but I was recently trying to run an ELK (Elasticsearch, Logstash, Kibana) container, and needed to pass in an extra configuration file for Logstash.  This caused me a lot of trouble, as nothing was working as expected.</p>
+<p>The command I was running is as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker run <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -d --rm <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --name elk_temp <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 5044:5044 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 5601:5601 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 9200:9200 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -v logstash/app.conf:/etc/logstash/conf.d/app.conf <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    sebp/elk
+</span></span></code></pre></div><p>But this has the interesting effect of mounting the <code>app.conf</code> in the container as a directory (which is empty), rather than doing the useful thing of mounting it as a file. Hmm.  I realised it was git bash doing path transformations to the windows style causing the issue, but all the work arounds I tried failed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># single quotes</span>
+</span></span><span style="display:flex;"><span>docker run ... -v <span style="color:#e6db74">&#39;logstash/app.conf:/etc/logstash/conf.d/app.conf&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># absolute path</span>
+</span></span><span style="display:flex;"><span>docker run ... -v /d/dev/temp/logstash/app.conf:/etc/logstash/conf.d/app.conf
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># absolute path with // prefix</span>
+</span></span><span style="display:flex;"><span>docker run ... -v //d/dev/temp/logstash/app.conf:/etc/logstash/conf.d/app.conf
+</span></span></code></pre></div><p>In the end, I found a way to switch off MSYS&rsquo;s (what git bash is based on) path conversion:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>MSYS_NO_PATHCONV<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> docker run <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -d --rm <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --name elk_temp <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 5044:5044 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 5601:5601 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -p 9200:9200 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    -v logstash/app.conf:/etc/logstash/conf.d/app.conf <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    sebp/elk
+</span></span></code></pre></div><p>And Voila, the paths get passed through correctly, and I can go back to hacking away at Logstash!</p>
+]]></content:encoded></item><item><title>Update all Docker images</title><link>https://andydote.co.uk/2017/01/16/update-all-docker-images/</link><pubDate>Mon, 16 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/16/update-all-docker-images/</guid><description>My work&amp;rsquo;s wifi is much faster than my 4G connection, so periodically I want to update all my docker images on my personal laptop while at work.
 As I want to just set it going and then forget about it, I use the following one liner to do a docker pull against each image on my local machine:
-docker images | grep -v REPOSITORY | awk &amp;#39;{print $1}&amp;#39;| xargs -L1 docker pull If you only want to fetch the versions you have the tags for:</description></item><item><title>Git Aliases</title><link>https://andydote.co.uk/2017/01/06/git-aliases/</link><pubDate>Fri, 06 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/06/git-aliases/</guid><description>Git is great, but creating some git aliases is a great way to make your usages even more efficient.
+docker images | grep -v REPOSITORY | awk &amp;#39;{print $1}&amp;#39;| xargs -L1 docker pull If you only want to fetch the versions you have the tags for:</description><content:encoded><![CDATA[<p>My work&rsquo;s wifi is <em>much</em> faster than my 4G connection, so periodically I want to update all my docker images on my personal laptop while at work.</p>
+<p>As I want to just set it going and then forget about it, I use the following one liner to do a <code>docker pull</code> against each image on my local machine:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker images | grep -v REPOSITORY | awk <span style="color:#e6db74">&#39;{print $1}&#39;</span>| xargs -L1 docker pull
+</span></span></code></pre></div><p>If you only want to fetch the versions you have the tags for:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker images | grep -v REPOSITORY | awk <span style="color:#e6db74">&#39;{ if ($2 != &#34;&lt;none&gt;&#34;) { print $1&#34;:&#34;$2 } else { print $1 } }&#39;</span> | xargs -L1 docker pull
+</span></span></code></pre></div><p>Now if only I could get git bash to do TTY properly so I get the pretty download indicators too :(</p>
+]]></content:encoded></item><item><title>Git Aliases</title><link>https://andydote.co.uk/2017/01/06/git-aliases/</link><pubDate>Fri, 06 Jan 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/01/06/git-aliases/</guid><description>Git is great, but creating some git aliases is a great way to make your usages even more efficient.
 To add any of these you can either copy and paste into the [alias] section of your .gitconfig file or run git config --global alias.NAME 'COMMAND' replacing NAME with the alias to use, and COMMAND with what to run.
-So without further ado, here are the ones I have created and use on a very regular basis.</description></item></channel></rss>
+So without further ado, here are the ones I have created and use on a very regular basis.</description><content:encoded><![CDATA[<p>Git is great, but creating some git aliases is a great way to make your usages even more efficient.</p>
+<p>To add any of these you can either copy and paste into the <code>[alias]</code> section of your <code>.gitconfig</code> file or run <code>git config --global alias.NAME 'COMMAND'</code> replacing <code>NAME</code> with the alias to use, and <code>COMMAND</code> with what to run.</p>
+<p>So without further ado, here are the ones I have created and use on a very regular basis.</p>
+<h1 id="constant-usage">Constant usage</h1>
+<ul>
+<li>
+<p><code>git s</code> - an alias for <code>git status</code>.  Have to save those 5 keypresses!</p>
+<pre tabindex="0"><code>s = status
+</code></pre></li>
+<li>
+<p><code>git cm &quot;some commit message&quot;</code> - shorthand for commit with a message</p>
+<pre tabindex="0"><code>cm = commit -m
+</code></pre></li>
+<li>
+<p><code>git dc</code> - diff files staged for commit</p>
+<pre tabindex="0"><code>dc = diff --cached
+</code></pre></li>
+<li>
+<p><code>git scrub</code> - deletes everything not tracked by git (<code>git clean -dxf</code>) except the <code>packages</code> and <code>node_modules</code> directories</p>
+<pre tabindex="0"><code>scrub = clean -dxf --exclude=packages --exclude=node_modules
+</code></pre></li>
+</ul>
+<h1 id="context-switching-rebasing-on-dirty-head">Context switching, rebasing on dirty HEAD</h1>
+<p>I rebase my changes onto the current branches often, but rebasing requires a clean repository to work on.  The following two aliases are used something like this: <code>git save &amp;&amp; git pull --rebase &amp;&amp; git undo</code></p>
+<ul>
+<li>
+<p><code>git save</code> - adds and commits everything in the repository, with the commit message <code>SAVEPOINT</code></p>
+<pre tabindex="0"><code>save = !git add -A &amp;&amp; git commit -m &#39;SAVEPOINT&#39;
+</code></pre></li>
+<li>
+<p><code>git undo</code> - undoes the last commit, leaving everything as it was before committing.  Mostly used to undo a <code>git save</code> call</p>
+<pre tabindex="0"><code>undo = reset HEAD~1 --mixed
+</code></pre></li>
+</ul>
+<p>I also use these if I need to save my work to work on a bug fix on a different branch.</p>
+<h1 id="what-have-i-done">What have I done?</h1>
+<p>Often I want commits I have pending, either to the local master, or a remote tracking branch.  These both give an output like this:</p>
+<p><img loading="lazy" src="git-pending.png" alt="Git Pending"  />
+</p>
+<ul>
+<li>
+<p><code>git pending</code> - shows the commits on the current branch compared to the <code>origin/master</code> branch</p>
+<pre tabindex="0"><code>pending = log origin/master..HEAD --pretty=oneline --abbrev-commit --format=&#39;%Cgreen%cr:%Creset %C(auto)%h%Creset %s&#39;
+</code></pre></li>
+<li>
+<p><code>git pendingup</code> - shows the commits on the current branch compared to its tracking branch</p>
+<pre tabindex="0"><code>pendingup = &#34;!git log origin/\&#34;$(git rev-parse --abbrev-ref HEAD)\&#34;..HEAD --pretty=oneline --abbrev-commit --format=&#39;%Cgreen%cr:%Creset %C(auto)%h%Creset %s&#39;&#34;
+</code></pre></li>
+</ul>
+<h1 id="more">More?</h1>
+<p>I have some others not documented here, but are in my <a href="https://github.com/Pondidum/config/blob/master/configs/.gitconfig">config repo</a> on Github.</p>
+]]></content:encoded></item></channel></rss>

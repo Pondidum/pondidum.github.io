@@ -1,6 +1,541 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>di on Andy Dote</title><link>https://andydote.co.uk/tags/di/</link><description>Recent content in di on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Tue, 11 Jun 2019 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/di/rss.xml" rel="self" type="application/rss+xml"/><item><title>Feature Toggles: Reducing Coupling</title><link>https://andydote.co.uk/2019/06/11/feature-toggles-reducing-coupling/</link><pubDate>Tue, 11 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/11/feature-toggles-reducing-coupling/</guid><description>One of the points I make in my Feature Toggles talk is that you shouldn&amp;rsquo;t be querying a toggle&amp;rsquo;s status all over your codebase. Ideally, each toggle gets checked in as few places as possible - preferably only one place. The advantage of doing this is that very little of your codebase needs to be coupled to the toggles (either the toggle itself or the library/system for managing toggles itself).</description></item><item><title>Feature Toggles: Branch by Abstraction</title><link>https://andydote.co.uk/2019/06/03/feature-toggles-branch-by-abstraction/</link><pubDate>Mon, 03 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/03/feature-toggles-branch-by-abstraction/</guid><description>Recently, I was asked if I could provide an example of Branch By Abstraction when dealing with feature toggles. As this has come up a few times, I thought a blog post would be a good idea so I can refer others to it later too.
-The Context As usual, this is some kind of backend (micro)service, and it will send email messages somehow. We will start with two implementations of message sending: the &amp;ldquo;current&amp;rdquo; version; which is synchronous, and a &amp;ldquo;new&amp;rdquo; version; which is async.</description></item><item><title>Composite Decorators with StructureMap</title><link>https://andydote.co.uk/2017/10/04/structuremap-composite-decorator/</link><pubDate>Wed, 04 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/04/structuremap-composite-decorator/</guid><description>While I was developing my Crispin project, I ended up needing to create a bunch of implementations of a single interface, and then use all those implementations at once (for metrics logging).
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>di on Andy Dote</title><link>https://andydote.co.uk/tags/di/</link><description>Recent content in di on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Tue, 11 Jun 2019 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/di/rss.xml" rel="self" type="application/rss+xml"/><item><title>Feature Toggles: Reducing Coupling</title><link>https://andydote.co.uk/2019/06/11/feature-toggles-reducing-coupling/</link><pubDate>Tue, 11 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/11/feature-toggles-reducing-coupling/</guid><description>One of the points I make in my Feature Toggles talk is that you shouldn&amp;rsquo;t be querying a toggle&amp;rsquo;s status all over your codebase. Ideally, each toggle gets checked in as few places as possible - preferably only one place. The advantage of doing this is that very little of your codebase needs to be coupled to the toggles (either the toggle itself or the library/system for managing toggles itself).</description><content:encoded><![CDATA[<p>One of the points I make in my <a href="https://www.youtube.com/watch?v=r7VI5x2XKXw">Feature Toggles talk</a> is that you shouldn&rsquo;t be querying a toggle&rsquo;s status all over your codebase.  Ideally, each toggle gets checked in as few places as possible - preferably only one place.  The advantage of doing this is that very little of your codebase needs to be coupled to the toggles (either the toggle itself or the library/system for managing toggles itself).</p>
+<p>This post will go over several situations when that seems hard to do, namely: multiple services, multiple distinct areas of a codebase, and multiple times in a complex class or method.  As in the <a href="/2019/06/03/feature-toggles-branch-by-abstraction/">previous post</a> on this, we will be using <a href="https://www.martinfowler.com/bliki/BranchByAbstraction.html">Branch By Abstraction</a> to do most of the heavy lifting.</p>
+<h2 id="multiple-services">Multiple Services</h2>
+<p>Multiple services interacting with the same feature toggle is a problematic situation to deal with, especially if multiple teams own the different services.</p>
+<p>One of the main issues with this is trying to coordinate the two (or more) services.  For example, if one team needs to switch off their implementation due to a problem, should the other services also get turned off too?  To compound on this problem, what happens if one system can react to the toggle change faster than the other?</p>
+<p>Services changing configuration at different speeds can also cause issues with handling in-flight requests too: if the message format is different when the toggle is on, will the receiving system be able to process a message produced when the toggle was in one state but consumed in the other state?</p>
+<p>We can solve some of this by using separate toggles for each service (and they are not allowed to query the other service&rsquo;s toggle state), and by writing the services so that they can handle both old format and new format requests at the same time.</p>
+<p>For example, if we had a sending system which when the toggle is off will send this DTO:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PurchaseOptions</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Address Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And when the toggle is enabled, it will send the following DTO instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PurchaseOptions</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> BillingAddress Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> DeliveryAddress Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To make the receiving system handle this, we deserialize the request into a DTO which contains all possible versions of the address, and then use the best version based on our own toggle state:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PurchaseOptionsRequest</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Address Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> BillingAddress Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> DeliveryAddress Address { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">PurchaseController</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task&lt;PurchaseOptionsResponse&gt; Post(PurchaseOptionsRequest request)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (separateAddresses.Enabled)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">var</span> deliveryAddress = request.DeliveryAddress ?? request.Address;
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">var</span> billingAddress = request.BillingAddress ?? request.Address;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            ConfigureDelivery(deliveryAddress);
+</span></span><span style="display:flex;"><span>            CreateInvoice(billingAddress, deliveryAddress);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">var</span> address = request.Address ?? request.DeliveryAddress ?? request.BillingAddress;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            ConfigureDelivery(address)
+</span></span><span style="display:flex;"><span>            CreateInvoice(address, address);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Note how both sides of the toggle check read all three possible address fields, but try to use different fields first.  This means that no matter whether the sending service has it&rsquo;s toggle on or not, we will use the correct address.</p>
+<h2 id="multiple-areas-of-the-codebase">Multiple Areas of the Codebase</h2>
+<p>To continue using the address example, we might have a UI, Controller and Handler, which all need to act differently based on the same toggle:</p>
+<ul>
+<li>The UI needs to display either one or two address editors</li>
+<li>The controller needs to have different validation logic for multiple addresses</li>
+<li>The Command Handler will need to dispatch different values</li>
+</ul>
+<p>We can solve this all by utilising <a href="https://www.martinfowler.com/bliki/BranchByAbstraction.html">Branch By Abstraction</a> and Dependency Injection to make most of the codebase unaware that a feature toggle exists.  Even the implementations won&rsquo;t need to know about the toggles.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Startup</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ConfigureContainer(ServiceRegistry services)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (separateAddresses.Enabled) {
+</span></span><span style="display:flex;"><span>            services.Add&lt;IAddressEditor, MultiAddressEditor&gt;();
+</span></span><span style="display:flex;"><span>            services.Add&lt;IRequestValidator, MultiAddressValidator&gt;();
+</span></span><span style="display:flex;"><span>            services.Add&lt;IDeliveryHandler, MultiAddressDeliveryHandler&gt;();
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>            services.Add&lt;IAddressEditor, SingleAddressEditor&gt;();
+</span></span><span style="display:flex;"><span>            services.Add&lt;IRequestValidator, SingleAddressValidator&gt;();
+</span></span><span style="display:flex;"><span>            services.Add&lt;IDeliveryHandler, SingleAddressDeliveryHandler&gt;();
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Let&rsquo;s look at how one of these might work.  The <code>IRequestValidator</code> has a definition like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IRequestValidator</span>&lt;TRequest&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;<span style="color:#66d9ef">string</span>&gt; Validate(TRequest request);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>There is a middleware in the API request pipeline which will pick the right validator out of the container, based on the request type being processed.  We implement two validators, once for the single address, and one for multiaddress:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">SingleAddressValidator</span> : IRequestValidator&lt;SingleAddressRequest&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;<span style="color:#66d9ef">string</span>&gt; Validate(SingleAddressRequest request)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//complex validation logic..</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (request.Address == <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">yield</span> <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;No Address specified&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (PostCode.Validate(request.Address.PostCode) == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">yield</span> <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;Invalid Postcode&#34;</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">MultiAddressValidator</span> : IRequestValidator&lt;MultiAddressRequest&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IEnumerable&lt;<span style="color:#66d9ef">string</span>&gt; Validate(MultiAddressRequest request)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> billingMessages = ValidateAddress(request.BillingAddress);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (billingMessages.Any())
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> billingMessages;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (request.DifferentDeliveryAddress)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> ValidateAddress(request.DeliveryAddress);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The implementations themselves don&rsquo;t need to know about the state of the toggle, as the container and middleware take care of picking the right implementation to use.</p>
+<h2 id="multiple-places-in-a-classmethod">Multiple Places in a Class/Method</h2>
+<p>If you have a single method (or class) which needs to check the toggle state in multiple places, you can also use the same Branch by Abstraction technique as above, by creating a custom interface and pair of implementations, which contain all the functionality which changes.</p>
+<p>For example, if we have a method for finding an offer for a customer&rsquo;s basket, which has a few separate checks that the toggle is enabled in it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> SuggestedBasket CreateOffer(CreateOfferCommand command)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (newFeature.Enabled) {
+</span></span><span style="display:flex;"><span>        ExtraPreValidation(command).Throw();
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>        StandardPreValidation(command).Throw();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> offer = SelectBestOffer(command.Items);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (offer == <span style="color:#66d9ef">null</span> &amp;&amp; newFeature.Enabled) {
+</span></span><span style="display:flex;"><span>        offer = FindAlternativeOffer(command.Customer, command.Items);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> SuggestedBasket
+</span></span><span style="display:flex;"><span>        .From(command)
+</span></span><span style="display:flex;"><span>        .With(offer);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We can extract an interface for this, and replace the toggle specific parts with calls to the interface instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ICreateOfferStrategy</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    IThrowable PreValidate(CreateOfferCommand command);
+</span></span><span style="display:flex;"><span>    Offer AlternativeOffer(CreateOfferCommand command, Offer existingOffer);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DefaultOfferStrategy</span> : ICreateOfferStrategy
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IThrowable PreValidate(CreateOfferCommand command)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> StandardPreValidation(command);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Offer AlternativeOffer(CreateOfferCommand command, Offer existingOffer)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> existingOffer;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DefaultOfferStrategy</span> : ICreateOfferStrategy
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> IThrowable PreValidate(CreateOfferCommand command)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> ExtraPreValidation(command);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Offer AlternativeOffer(CreateOfferCommand command, Offer existingOffer)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (existingOffer != <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> existingOffer;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> TryFindAlternativeOffer(command.Customer, command.Items, offer);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">OfferBuilder</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> ICreateOfferStrategy _strategy;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> OfferBuilder(ICreateOfferStrategy strategy)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _strategy = strategy;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> SuggestedBasket CreateOffer(CreateOfferCommand command)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _strategy.PreValidation(command).Throw();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> offer = SelectBestOffer(command.Items);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        offer = _strategy.AlternativeOffer(command, offer);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> SuggestedBasket
+</span></span><span style="display:flex;"><span>            .From(command)
+</span></span><span style="display:flex;"><span>            .With(offer);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now that we have done this, our <code>CreateOffer</code> method has shrunk dramatically and no longer needs to know about the toggle state, as like the rest of our DI examples, the toggle can be queried once in the startup of the service and the correct <code>ICreateOfferStrategy</code> implementation registered into the container.</p>
+<h2 id="end">End</h2>
+<p>Hopefully, this post will give a few insights into different ways of reducing the number of calls to your feature toggling library, and prevent you scattering lots of if statements around the codebase!</p>
+]]></content:encoded></item><item><title>Feature Toggles: Branch by Abstraction</title><link>https://andydote.co.uk/2019/06/03/feature-toggles-branch-by-abstraction/</link><pubDate>Mon, 03 Jun 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/06/03/feature-toggles-branch-by-abstraction/</guid><description>Recently, I was asked if I could provide an example of Branch By Abstraction when dealing with feature toggles. As this has come up a few times, I thought a blog post would be a good idea so I can refer others to it later too.
+The Context As usual, this is some kind of backend (micro)service, and it will send email messages somehow. We will start with two implementations of message sending: the &amp;ldquo;current&amp;rdquo; version; which is synchronous, and a &amp;ldquo;new&amp;rdquo; version; which is async.</description><content:encoded><![CDATA[<p>Recently, I was asked if I could provide an example of Branch By Abstraction when dealing with feature toggles.  As this has come up a few times, I thought a blog post would be a good idea so I can refer others to it later too.</p>
+<h2 id="the-context">The Context</h2>
+<p>As usual, this is some kind of backend (micro)service, and it will send email messages somehow.  We will start with two implementations of message sending: the &ldquo;current&rdquo; version; which is synchronous, and a &ldquo;new&rdquo; version; which is async.</p>
+<p>We&rsquo;ll do a bit of setup to show how feature toggling can be done in three ways for this feature:</p>
+<ol>
+<li>Static: Configured on startup</li>
+<li>Dynamic: Check the toggle state on each send</li>
+<li>Dynamic: Check the toggle for a given message</li>
+</ol>
+<h2 id="abstractions-and-implementations">Abstractions and Implementations</h2>
+<p>We have an interface called <code>IMessageDispatcher</code> which defines a single <code>Send</code> method, which returns a <code>Task</code> (or <code>Promise</code>, <code>Future</code>, etc. depending on your language.)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IMessageDispatcher</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Task&lt;SendResult&gt; Send(Message message);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The two message sending implementations don&rsquo;t matter, but we need the types to show the other code examples.  Fill in the blanks if you want!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">HttpMessageDispatcher</span> : IMessageDispatcher
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">QueueMessageDispatcher</span> : IMessageDispatcher
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="1-static-configuration">1. Static Configuration</h2>
+<p>The word static in this context means that we check the feature toggle&rsquo;s state once on startup and pick an implementation.  We don&rsquo;t recheck the toggle state unless the service is restarted.</p>
+<p>For instance, in an ASP.Net core application, you could change which service is registered into the container at startup like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ConfigureServices(IServiceCollection services)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> toggleSource = <span style="color:#66d9ef">new</span> ToggleSource(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (toggleSource.IsActive(Toggles.AsyncMessageDispatch))
+</span></span><span style="display:flex;"><span>        services.AddTransient&lt;IMessageDispatcher, QueueMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>        services.AddTransient&lt;IMessageDispatcher, HttpMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Which means any class which takes in an instance of <code>IMessageDispatcher</code> doesn&rsquo;t need to check the toggle state or worry about which implementation to use.</p>
+<h2 id="2-dynamic-configuration">2. Dynamic Configuration</h2>
+<p>We can build on this abstraction to enable more flexibility, if we want to be able to change the toggle state while the service is running, without needing to restart it.  To do this, we can implement another version of the <code>IMessageDispatcher</code> interface which will check the toggle state on each invocation of <code>Send()</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ToggleDispatcher</span> : IMessageDispatcher
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Func&lt;<span style="color:#66d9ef">bool</span>&gt; _isToggleActive;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IMessageDispatcher _queueSender;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IMessageDispatcher _httpSender;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ToggleDispatcher(Func&lt;<span style="color:#66d9ef">bool</span>&gt; isToggleActive, IMessageDispatcher queueSender, IMessageDispatcher httpSender)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _isToggleActive = isToggleActive;
+</span></span><span style="display:flex;"><span>        _queueSender = queueSender;
+</span></span><span style="display:flex;"><span>        _httpSender = httpSender;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Task&lt;SendResult&gt; Send(Message message)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> chosen = _isToggleActive()
+</span></span><span style="display:flex;"><span>            ? _queueSender
+</span></span><span style="display:flex;"><span>            : _httpSender;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> chosen.Send(message);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And in our startup class, we can change the service registration to use the new version.  Note how we are now registering the two concrete versions into the container so that they can be resolved later by the ToggleDispatcher registration:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ConfigureServices(IServiceCollection services)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> toggleSource = <span style="color:#66d9ef">new</span> ToggleSource(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;HttpMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;QueueMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;IMessageDispatcher&gt;(context =&gt; <span style="color:#66d9ef">new</span> ToggleDispatcher(
+</span></span><span style="display:flex;"><span>        () =&gt; toggleSource.IsActive(Toggles.AsyncMessageDispatch),
+</span></span><span style="display:flex;"><span>        context.GetService&lt;QueueMessageDispatcher&gt;(),
+</span></span><span style="display:flex;"><span>        context.GetService&lt;HttpMessageDispatcher&gt;())
+</span></span><span style="display:flex;"><span>    );
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="3-dynamicer-configuration">3. Dynamic(er) Configuration</h2>
+<p>We can take this another step further too, if we want to be able to have a phased rollout of this new <code>QueueMessageDispatcher</code>, for example, based on the sender address.  In this case, we can create another decorator which uses the individual message to make the decision.  The only difference to the original <code>ToggleDispatcher</code> is that the first argument now also provides a <code>Message</code> object:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">MessageBasedToggleDispatcher</span> : IMessageDispatcher
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Func&lt;Message, <span style="color:#66d9ef">bool</span>&gt; _isToggleActive;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IMessageDispatcher _queueSender;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IMessageDispatcher _httpSender;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> MessageBasedToggleDispatcher(Func&lt;Message, <span style="color:#66d9ef">bool</span>&gt; isToggleActive, IMessageDispatcher queueSender, IMessageDispatcher httpSender)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _isToggleActive = isToggleActive;
+</span></span><span style="display:flex;"><span>        _queueSender = queueSender;
+</span></span><span style="display:flex;"><span>        _httpSender = httpSender;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Task&lt;SendResult&gt; Send(Message message)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> chosen = _isToggleActive(message)
+</span></span><span style="display:flex;"><span>            ? _queueSender
+</span></span><span style="display:flex;"><span>            : _httpSender;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> chosen.Send(message);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The startup registration is modified to pass the message property we care about to the <code>ToggleSource</code>, with the <code>toggleSource.IsActive()</code> call being responsible for what to do with the key we have passed in.  Perhaps it does something like a consistent hash of the address, and if the value is above a certain threshold the toggle is active, or maybe it queries a whitelist of people who the toggle is enabled for.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ConfigureServices(IServiceCollection services)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> toggleSource = <span style="color:#66d9ef">new</span> ToggleSource(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;HttpMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;QueueMessageDispatcher&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    services.AddTransient&lt;IMessageDispatcher&gt;(context =&gt; <span style="color:#66d9ef">new</span> MessageBasedToggleDispatcher(
+</span></span><span style="display:flex;"><span>        message =&gt; toggleSource.IsActive(Toggles.AsyncMessageDispatch, message.SenderAddress),
+</span></span><span style="display:flex;"><span>        context.GetService&lt;QueueMessageDispatcher&gt;(),
+</span></span><span style="display:flex;"><span>        context.GetService&lt;HttpMessageDispatcher&gt;())
+</span></span><span style="display:flex;"><span>    );
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="conclusion">Conclusion</h2>
+<p>This method of branching is extremly flexible, as it allows us to use toggles to replace feature implementations, but also gives us lots of places where we can add other decorators to add functionality to the pipeline.  For example, we could add an auditing decorator or one which implements the outbox pattern - and the calling code which depends only on <code>IMessageDispatcher</code> doesn&rsquo;t need to care.</p>
+]]></content:encoded></item><item><title>Composite Decorators with StructureMap</title><link>https://andydote.co.uk/2017/10/04/structuremap-composite-decorator/</link><pubDate>Wed, 04 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/04/structuremap-composite-decorator/</guid><description>While I was developing my Crispin project, I ended up needing to create a bunch of implementations of a single interface, and then use all those implementations at once (for metrics logging).
 The interface looks like so:
 public interface IStatisticsWriter { Task WriteCount(string format, params object[] parameters); } And we have a few implementations already:
-LoggingStatisticsWriter - writes to an ILogger instance StatsdStatisticsWriter - pushes metrics to StatsD InternalStatisticsWriter - aggregates metrics for exposing via Crispin&amp;rsquo;s api To make all of these be used together, I created a fourth implementation, called CompositeStatisticsWriter (a name I made up, but apparently matches the Gang of Four definition of a composite!</description></item><item><title>Serilog LogContext with StructureMap and SimpleInjector</title><link>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</link><pubDate>Fri, 28 Jul 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</guid><description>This article has been updated after feedback from .Net Junkie (Godfather of SimpleInjector). I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)
-Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.</description></item></channel></rss>
+LoggingStatisticsWriter - writes to an ILogger instance StatsdStatisticsWriter - pushes metrics to StatsD InternalStatisticsWriter - aggregates metrics for exposing via Crispin&amp;rsquo;s api To make all of these be used together, I created a fourth implementation, called CompositeStatisticsWriter (a name I made up, but apparently matches the Gang of Four definition of a composite!</description><content:encoded><![CDATA[<p>While I was developing my <a href="https://github.com/pondidum/crispin">Crispin</a> project, I ended up needing to create a bunch of implementations of a single interface, and then use all those implementations at once (for metrics logging).</p>
+<p>The interface looks like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IStatisticsWriter</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Task WriteCount(<span style="color:#66d9ef">string</span> format, <span style="color:#66d9ef">params</span> <span style="color:#66d9ef">object</span>[] parameters);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And we have a few implementations already:</p>
+<ul>
+<li>LoggingStatisticsWriter - writes to an <code>ILogger</code> instance</li>
+<li>StatsdStatisticsWriter - pushes metrics to <a href="https://github.com/etsy/statsd">StatsD</a></li>
+<li>InternalStatisticsWriter - aggregates metrics for exposing via Crispin&rsquo;s api</li>
+</ul>
+<p>To make all of these be used together, I created a fourth implementation, called <code>CompositeStatisticsWriter</code> (a name I made up, but apparently matches the <a href="https://en.wikipedia.org/wiki/Composite_pattern">Gang of Four definition</a> of a composite!)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">CompositeStatisticsWriter</span> : IStatisticsWriter
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IStatisticsWriter[] _writers;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> CompositeStatisticsWriter(IEnumerable&lt;IStatisticsWriter&gt; writers)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _writers = writers.ToArray();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task WriteCount(<span style="color:#66d9ef">string</span> format, <span style="color:#66d9ef">params</span> <span style="color:#66d9ef">object</span>[] parameters)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Task.WhenAll(_writers
+</span></span><span style="display:flex;"><span>            .Select(writer =&gt; writer.WriteCount(format, parameters))
+</span></span><span style="display:flex;"><span>            .ToArray());
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The problem with doing this is that StructureMap throws an error about a bi-directional dependency:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>StructureMap.Building.StructureMapBuildException : Bi-directional dependency relationship detected!
+</span></span><span style="display:flex;"><span>Check the StructureMap stacktrace below:
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">1.</span>) Instance of Crispin.Infrastructure.Statistics.IStatisticsWriter (Crispin.Infrastructure.Statistics.CompositeStatisticsWriter)
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">2.</span>) All registered children <span style="color:#66d9ef">for</span> IEnumerable&lt;IStatisticsWriter&gt;
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">3.</span>) Instance of IEnumerable&lt;IStatisticsWriter&gt;
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">4.</span>) <span style="color:#66d9ef">new</span> CompositeStatisticsWriter(*Default of IEnumerable&lt;IStatisticsWriter&gt;*)
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">5.</span>) Crispin.Infrastructure.Statistics.CompositeStatisticsWriter
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">6.</span>) Instance of Crispin.Infrastructure.Statistics.IStatisticsWriter (Crispin.Infrastructure.Statistics.CompositeStatisticsWriter)
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">7.</span>) Container.GetInstance&lt;Crispin.Infrastructure.Statistics.IStatisticsWriter&gt;()
+</span></span></code></pre></div><p>After attempting to solve this myself in a few different ways (you can even <a href="https://www.youtube.com/watch?v=2N6cgMBN7ZA">watch the stream</a> of my attempts), I asked in the StructreMap gitter chat room, and received this answer:</p>
+<blockquote>
+<p>This has come up a couple times, and yeah, you’ll either need a custom convention or a policy that adds the other <code>ITest</code>’s to the instance for <code>CompositeTest</code> as inline dependencies so it doesn’t try to make Composite a dependency of itself
+&ndash; <cite>Jeremy D. Miller</cite></p>
+</blockquote>
+<p>Finally, Babu Annamalai provided a simple implementation when I got stuck (again).</p>
+<p>The result is the creation of a custom convention for registering the composite, which provides all the implementations I want it to wrap:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">CompositeDecorator</span>&lt;TComposite, TDependents&gt; : IRegistrationConvention
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">where</span> TComposite : TDependents
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ScanTypes(TypeSet types, Registry registry)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> dependents = types
+</span></span><span style="display:flex;"><span>            .FindTypes(TypeClassification.Concretes)
+</span></span><span style="display:flex;"><span>            .Where(t =&gt; t.CanBeCastTo&lt;TDependents&gt;() &amp;&amp; t.HasConstructors())
+</span></span><span style="display:flex;"><span>            .Where(t =&gt; t != <span style="color:#66d9ef">typeof</span>(TComposite))
+</span></span><span style="display:flex;"><span>            .ToList();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        registry
+</span></span><span style="display:flex;"><span>            .For&lt;TDependents&gt;()
+</span></span><span style="display:flex;"><span>            .Use&lt;TComposite&gt;()
+</span></span><span style="display:flex;"><span>            .EnumerableOf&lt;TDependents&gt;()
+</span></span><span style="display:flex;"><span>            .Contains(x =&gt; dependents.ForEach(t =&gt; x.Type(t)));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To use this the StructureMap configuration changes from this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> CrispinRestRegistry()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Scan(a =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        a.AssemblyContainingType&lt;Toggle&gt;();
+</span></span><span style="display:flex;"><span>        a.WithDefaultConventions();
+</span></span><span style="display:flex;"><span>        a.AddAllTypesOf&lt;IStatisticsWriter&gt;();
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> store = BuildStorage();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    For&lt;IStorage&gt;().Use(store);
+</span></span><span style="display:flex;"><span>    For&lt;IStatisticsWriter&gt;().Use&lt;CompositeStatisticsWriter&gt;();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To this version:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> CrispinRestRegistry()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Scan(a =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        a.AssemblyContainingType&lt;Toggle&gt;();
+</span></span><span style="display:flex;"><span>        a.WithDefaultConventions();
+</span></span><span style="display:flex;"><span>        a.Convention&lt;CompositeDecorator&lt;CompositeStatisticsWriter, IStatisticsWriter&gt;&gt;();
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> store = BuildStorage();
+</span></span><span style="display:flex;"><span>    For&lt;IStorage&gt;().Use(store);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And now everything works successfully, and I have Pull Request open on StructureMap&rsquo;s repo with an update to the documentation about this.</p>
+<p>Hopefully this helps someone else too!</p>
+]]></content:encoded></item><item><title>Serilog LogContext with StructureMap and SimpleInjector</title><link>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</link><pubDate>Fri, 28 Jul 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</guid><description>This article has been updated after feedback from .Net Junkie (Godfather of SimpleInjector). I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)
+Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.</description><content:encoded><![CDATA[<p><em>This article has been updated after feedback from <a href="https://twitter.com/dot_NET_Junkie">.Net Junkie</a> (Godfather of SimpleInjector).  I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)</em></p>
+<p>Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.  Take the following snippet for example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Something</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">readonly</span> ILogger Log = Log.ForContext(<span style="color:#66d9ef">typeof</span>(Something));
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>There are two things I don&rsquo;t like about this.  The first is the static field access:  We have tests which assert on log content for disallowed information, or to include a correlationid etc.  Having a static field means that if tests run in parallel, we end up with flaky tests due to multiple log messages being written.  The second thing I don&rsquo;t like is less about the line itself, but the repetition of this line throughout the codebase.  Nearly every class which does logging has the same line, but with the type parameter changed.</p>
+<p>I set out to see if I could remedy both problems at once.</p>
+<h2 id="fixing-the-static-field">Fixing the Static Field</h2>
+<p>The first fix is to inject the logger in via a constructor argument, which will allow tests to use their own version of the logger:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Something</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> ILogger _log;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Something(ILogger logger)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _log = logger.ForContext(<span style="color:#66d9ef">typeof</span>(Something));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>That was easy! Now on to the hard part; removing the repeated <code>.ForContext</code> call.</p>
+<h2 id="fixing-the-forcontext-repetition">Fixing the ForContext Repetition</h2>
+<p>Most (if not all) the applications I build use a dependency injection container to build objects.  In my opinion there are only two containers which are worth considering in the .net space:  <a href="http://structuremap.github.io/">StructureMap</a>, and <a href="https://simpleinjector.org">SimpleInjector</a>.  If you like convention based registration, use StructureMap.  If you like to get a safety net that prevents and detects common misconfigurations, use SimpleInjector.</p>
+<h3 id="tests">Tests</h3>
+<p>We can use the same tests to verify the behaviour both when using StructureMap and SimpleInjector&rsquo;s.  We have a couple of test classes, and an interface to allow for more generic testing:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ILogOwner</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    ILogger Logger { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Something</span> : ILogOwner
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ILogger Logger { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Something(ILogger logger)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Logger = logger;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Everything</span> : ILogOwner
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ILogger Logger { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Everything(ILogger logger)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Logger = logger;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And then a single parameterised test method for verification:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Tests</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Container _container;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Tests()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Log.Logger = <span style="color:#66d9ef">new</span> LoggerConfiguration()
+</span></span><span style="display:flex;"><span>            .MinimumLevel.Debug()
+</span></span><span style="display:flex;"><span>            .WriteTo.Console()
+</span></span><span style="display:flex;"><span>            .CreateLogger();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// _container = new ...</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [Theory]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [InlineData(typeof(Something))]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [InlineData(typeof(Everything))]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Types_get_their_own_context(Type type)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> instance = (ILogOwner)_container.GetInstance(type);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> context = GetContextFromLogger(instance);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        context.ShouldBe(type.FullName);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">string</span> GetContextFromLogger(ILogOwner owner)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> logEvent = CreateLogEvent();
+</span></span><span style="display:flex;"><span>        owner.Logger.Write(logEvent);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> logEvent.Properties[<span style="color:#e6db74">&#34;SourceContext&#34;</span>].ToString().Trim(<span style="color:#e6db74">&#39;&#34;&#39;</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> LogEvent CreateLogEvent() =&gt; <span style="color:#66d9ef">new</span> LogEvent(
+</span></span><span style="display:flex;"><span>        DateTimeOffset.Now,
+</span></span><span style="display:flex;"><span>        LogEventLevel.Debug,
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">null</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">new</span> MessageTemplate(<span style="color:#e6db74">&#34;&#34;</span>, Enumerable.Empty&lt;MessageTemplateToken&gt;()),
+</span></span><span style="display:flex;"><span>        Enumerable.Empty&lt;LogEventProperty&gt;());
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="structuremap">StructureMap</h3>
+<p>The StructureMap initialisation just requires a single line change to use the construction context when creating a logger:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_container = <span style="color:#66d9ef">new</span> Container(_ =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    _.Scan(a =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        a.TheCallingAssembly();
+</span></span><span style="display:flex;"><span>        a.WithDefaultConventions();
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// original:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// _.For&lt;ILogger&gt;().Use(context =&gt; Log.Logger);</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// contextual</span>
+</span></span><span style="display:flex;"><span>    _.For&lt;ILogger&gt;().Use(context =&gt; Log.ForContext(context.ParentType));
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><h3 id="simpleinjector">SimpleInjector</h3>
+<p>SimpleInjector does a lot of verification of your container configuration, and as such deals mostly with Types, rather than instances, or types which have multiple mappings as we are doing.  This makes it slightly harder to support the behaviour we had with StructureMap, but not impossible.  A huge thanks to .Net Junkie for assisting with this!</p>
+<p>First we need to create an implementation of  <code>IDependencyInjectionBehavior</code>, which will handle our <code>ILogger</code> type requests, and pass all other types requests to the standard implementation:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">SerilogContextualLoggerInjectionBehavior</span> : IDependencyInjectionBehavior
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDependencyInjectionBehavior _original;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Container _container;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> SerilogContextualLoggerInjectionBehavior(ContainerOptions options)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _original = options.DependencyInjectionBehavior;
+</span></span><span style="display:flex;"><span>        _container = options.Container;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Verify(InjectionConsumerInfo consumer) =&gt; _original.Verify(consumer);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> InstanceProducer GetInstanceProducer(InjectionConsumerInfo i, <span style="color:#66d9ef">bool</span> t) =&gt;
+</span></span><span style="display:flex;"><span>        i.Target.TargetType == <span style="color:#66d9ef">typeof</span>(ILogger)
+</span></span><span style="display:flex;"><span>            ? GetLoggerInstanceProducer(i.ImplementationType)
+</span></span><span style="display:flex;"><span>            : _original.GetInstanceProducer(i, t);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> InstanceProducer&lt;ILogger&gt; GetLoggerInstanceProducer(Type type) =&gt;
+</span></span><span style="display:flex;"><span>        Lifestyle.Transient.CreateProducer(() =&gt; Log.ForContext(type), _container);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This can then be set in our container setup:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_ontainer = <span style="color:#66d9ef">new</span> Container();
+</span></span><span style="display:flex;"><span>_container.Options.DependencyInjectionBehavior = <span style="color:#66d9ef">new</span> SerilogContextualLoggerInjectionBehavior(_container.Options);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>_container.Register&lt;Something&gt;();
+</span></span><span style="display:flex;"><span>_container.Register&lt;Everything&gt;();
+</span></span></code></pre></div><p>And now our tests pass!</p>
+<h2 id="outcomes">Outcomes</h2>
+<p>Thanks to this container usage, I no longer have to have the <code>.ForContext(typeof(Something))</code> scattered throughout my codebases.</p>
+<p>Hopefully this shows how taking away just some of the little tasks makes life easier - I now no longer have to remember to do the <code>.ForContext</code> on each class, and don&rsquo;t need to have tests to validate it is done on each class (I have one test in my container configuration tests which validates this behaviour instead).</p>
+]]></content:encoded></item></channel></rss>

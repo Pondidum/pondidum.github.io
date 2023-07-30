@@ -1,14 +1,777 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>ci on Andy Dote</title><link>https://andydote.co.uk/tags/ci/</link><description>Recent content in ci on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 06 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/ci/rss.xml" rel="self" type="application/rss+xml"/><item><title>Observability Driven CI</title><link>https://andydote.co.uk/2023/07/06/observability-driven-ci/</link><pubDate>Thu, 06 Jul 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/07/06/observability-driven-ci/</guid><description>Tracking where the time goes in your CI pipeline is an important step towards being able to make it go even faster. Up until somewhat recently, the only way of tracking how long tasks took in CI was either hoping people had wrapped all their commands in time ..., or by reading a timestamped build log and calculating the difference between numbers. Which isn&amp;rsquo;t great or fun, if we&amp;rsquo;re being honest.</description></item><item><title>Feature Flags in a CI Pipeline</title><link>https://andydote.co.uk/2023/01/16/feature-flags-ci/</link><pubDate>Mon, 16 Jan 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/01/16/feature-flags-ci/</guid><description>Feature flags are a great tool for helping software development; they provide controlled feature rollouts, facilitate A/B testing, and help decouple deployment from release. So when it comes to building our software, why do we treat the CI pipeline without the same level of engineering as the production code?
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>ci on Andy Dote</title><link>https://andydote.co.uk/tags/ci/</link><description>Recent content in ci on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 06 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/ci/rss.xml" rel="self" type="application/rss+xml"/><item><title>Observability Driven CI</title><link>https://andydote.co.uk/2023/07/06/observability-driven-ci/</link><pubDate>Thu, 06 Jul 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/07/06/observability-driven-ci/</guid><description>Tracking where the time goes in your CI pipeline is an important step towards being able to make it go even faster. Up until somewhat recently, the only way of tracking how long tasks took in CI was either hoping people had wrapped all their commands in time ..., or by reading a timestamped build log and calculating the difference between numbers. Which isn&amp;rsquo;t great or fun, if we&amp;rsquo;re being honest.</description><content:encoded><![CDATA[<p>Tracking where the time goes in your CI pipeline is an important step towards being able to make it go even faster.  Up until somewhat recently, the only way of tracking how long tasks took in CI was either hoping people had wrapped all their commands in <code>time ...</code>, or by reading a timestamped build log and calculating the difference between numbers.  Which isn&rsquo;t great or fun, if we&rsquo;re being honest.</p>
+<p>What if we could create graphs of what parts of the build took time?  Something like this?</p>
+<p><img loading="lazy" src="trace-build.png" alt="a graph of a single build showing each task as a horizontal box denoting start and durations"  />
+</p>
+<p>Being someone who cares about build pipelines and speed, I decided to add OpenTelemetry to our builds, and see what information we could get.  It turns out that there is far more useful information available than just timings.  For example:</p>
+<ul>
+<li><strong>number of main builds</strong>; are we merging often? is this speeding up or slowing down?</li>
+<li><strong>number commits merged to <code>main</code> at once</strong>; is our batch size going up? why?</li>
+<li><strong>deployments per day</strong>; are we still moving fast?  Are people scared to <a href="/2022/11/02/deploy-doesnt-mean-release/">deploy</a> on Friday?  why?</li>
+<li><strong>pass and failure ratios</strong>; are failures becoming more often? why?</li>
+<li><strong>runtime of failed builds</strong>; failing builds should be fast, so we re-ordered steps so that likely failures are hit first</li>
+<li><strong>what fails most often?</strong>; a test suite testing too much? flaky tests?  a dependency not being locally cached (and thus unavailable sometimes)?</li>
+</ul>
+<h2 id="terminology">Terminology</h2>
+<p>The <a href="https://opentelemetry.io/docs/concepts/glossary/">OTEL</a> website has details on what all the terminology means, but for a brief summary:</p>
+<ul>
+<li>span: the basic units which make up a trace.  They can be parented to other spans and can represent the entire build, a logical grouping of operations, or a single operation.</li>
+<li>trace: a collection of spans with one &ldquo;root span&rdquo; which has no parent.</li>
+<li>attributes: key-value pairs attached to spans to provide more context.</li>
+<li>[Otel Collector][otel-collector] - a service which accepts traces in a variety of formats and can forward them to other places.  Generally, you run one of these locally and all applications send to it, and it is configured to batch, enrich, and forward to a tracing service, such as <a href="https://honeycomb.io/">Honeycomb</a> or <a href="https://www.jaegertracing.io/">Jaeger</a></li>
+</ul>
+<h2 id="tracing-builds">Tracing Builds</h2>
+<p>The first step when tracing builds is to start with the overall picture: one span for the entire build.  Once this is in place, you can move on to adding details, focusing your efforts on figuring out what is the most likely place to find speed improvements.</p>
+<p>To do this, I use the <a href="https://github.com/Pondidum/Trace/">trace</a> tool, which is an opinionated CLI that creates OTEL traces for your build pipeline.  If you need more flexibility or don&rsquo;t like its opinions, you can either open a PR/Issue on Github, or there is the <a href="https://github.com/equinix-labs/otel-cli">otel-cli</a> which is much more low-level.</p>
+<p>The <code>trace</code> command will send spans to <code>localhost:4317</code> by default.  By setting the <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> environment variable, our traces will instead go to our local [OTEL Collector][otel-collector] instance, which is configured to send our traces elsewhere:</p>
+<p>Install the <code>trace</code> tool:</p>
+
+
+<div class="tab-panel">
+    <div class="tab-nav">
+    
+        <button
+          data-tab-item="Github Actions"
+          data-tab-group="default"
+          class="tab-nav-button btn active"
+          onclick="switchTab('default','Github Actions')"
+         >Github Actions</button>
+    
+        <button
+          data-tab-item="bash"
+          data-tab-group="default"
+          class="tab-nav-button btn "
+          onclick="switchTab('default','bash')"
+         >bash</button>
+    
+    </div>
+    <div class="tab-content">
+        
+        <div data-tab-item="Github Actions" data-tab-group="default" class="tab-item active">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">env</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">OTEL_EXPORTER_OTLP_ENDPOINT</span>: <span style="color:#ae81ff">https://otel.internal.xyz:443</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">jobs</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">build</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">runs-on</span>: <span style="color:#ae81ff">ubuntu-latest</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">steps</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Setup Trace</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">pondidum/trace@main</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">with</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">version</span>: <span style="color:#e6db74">&#34;0.0.9&#34;</span>
+</span></span></code></pre></div>
+        </div>
+        
+        <div data-tab-item="bash" data-tab-group="default" class="tab-item ">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>export OTEL_EXPORTER_OTLP_ENDPOINT<span style="color:#f92672">=</span>https://otel.internal.xyz:443
+</span></span><span style="display:flex;"><span>version<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;0.0.9&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>curl -sSL <span style="color:#e6db74">&#34;https://github.com/Pondidum/trace/releases/download/</span><span style="color:#e6db74">${</span>version<span style="color:#e6db74">}</span><span style="color:#e6db74">/trace&#34;</span> -o /usr/bin/trace
+</span></span><span style="display:flex;"><span>chmod +x /usr/bin/trace
+</span></span></code></pre></div>
+        </div>
+        
+    </div>
+</div>
+<p>Now we can start the trace; by default this will be marked as starting when the <code>trace start</code> command is run; we can change this with the <code>--when</code> flag, which is being fed the <code>created_at</code> field from Github so that our trace shows when the build was started.</p>
+
+
+<div class="tab-panel">
+    <div class="tab-nav">
+    
+        <button
+          data-tab-item="Github Actions"
+          data-tab-group="default"
+          class="tab-nav-button btn active"
+          onclick="switchTab('default','Github Actions')"
+         >Github Actions</button>
+    
+        <button
+          data-tab-item="bash"
+          data-tab-group="default"
+          class="tab-nav-button btn "
+          onclick="switchTab('default','bash')"
+         >bash</button>
+    
+    </div>
+    <div class="tab-content">
+        
+        <div data-tab-item="Github Actions" data-tab-group="default" class="tab-item active">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>    - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Start Trace</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">pondidum/trace/start@main</span>
+</span></span></code></pre></div>
+        </div>
+        
+        <div data-tab-item="bash" data-tab-group="default" class="tab-item ">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>json<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>curl -sSL <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --url <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>GITHUB_API_URL<span style="color:#e6db74">}</span><span style="color:#e6db74">/repos/</span><span style="color:#e6db74">${</span>GITHUB_REPOSITORY<span style="color:#e6db74">}</span><span style="color:#e6db74">/actions/runs/</span><span style="color:#e6db74">${</span>GITHUB_RUN_ID<span style="color:#e6db74">}</span><span style="color:#e6db74">/attempts/</span><span style="color:#e6db74">${</span>GITHUB_RUN_ATTEMPT<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -H <span style="color:#e6db74">&#34;Accept: application/vnd.github+json&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -H <span style="color:#e6db74">&#34;Authorization: Bearer </span><span style="color:#e6db74">${</span>GITHUB_TOKEN<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -H <span style="color:#e6db74">&#34;X-GitHub-Api-Version: 2022-11-28&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>created_at<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$json<span style="color:#e6db74">&#34;</span> | sed -n <span style="color:#e6db74">&#39;s/.*&#34;created_at&#34;.*&#34;\(.*\)&#34;.*/\1/p&#39;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>trace_parent<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>trace start <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>GITHUB_REPOSITORY<span style="color:#e6db74">}</span><span style="color:#e6db74">/</span><span style="color:#e6db74">${</span>GITHUB_WORKFLOW<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> --when <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>created_at<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;TRACEPARENT=</span><span style="color:#e6db74">${</span>trace_parent<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div>
+        </div>
+        
+    </div>
+</div>
+<p>So that we can capture the overhead of the build job starting and the first build command running, we also store the current time as an attribute:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>trace attr <span style="color:#e6db74">&#34;first_command&#34;</span> <span style="color:#66d9ef">$(</span>date +%s<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><p>At the end of the build, we finish the trace - this needs to happen no matter how the build finishes, pass or failure.</p>
+
+
+<div class="tab-panel">
+    <div class="tab-nav">
+    
+        <button
+          data-tab-item="Github Actions"
+          data-tab-group="default"
+          class="tab-nav-button btn active"
+          onclick="switchTab('default','Github Actions')"
+         >Github Actions</button>
+    
+        <button
+          data-tab-item="bash"
+          data-tab-group="default"
+          class="tab-nav-button btn "
+          onclick="switchTab('default','bash')"
+         >bash</button>
+    
+    </div>
+    <div class="tab-content">
+        
+        <div data-tab-item="Github Actions" data-tab-group="default" class="tab-item active">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>    - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Finish Trace</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">if</span>: <span style="color:#ae81ff">always()</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">pondidum/trace/finish@main</span>
+</span></span></code></pre></div><p>By using <code>if: always()</code>, we make sure this step runs no matter if the workflow was <code>failed</code>, <code>cancelled</code> or <code>success</code>.</p>
+<p>The action uses the <code>{{ job.status }}</code> context to add the <code>--error</code> flag and a message with the status in it, if the job doesn&rsquo;t pass.</p>
+
+        </div>
+        
+        <div data-tab-item="bash" data-tab-group="default" class="tab-item ">
+            <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>trap <span style="color:#e6db74">&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    rc=$?; # store the exit code
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    [ $rc = &#34;0&#34; ] &amp;&amp; echo trace finish ${TRACEPARENT}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    [ $rc != &#34;0&#34; ] &amp;&amp; echo trace finish --error=&#34;exit ${rc}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    trap - EXIT;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    exit
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  &#39;</span> EXIT INT HUP
+</span></span></code></pre></div><p>By using a <code>trap</code>, we can make sure the <code>./trace finish</code> command always runs regardless of how the script was killed.  This needs to be written near the top of the script however!</p>
+
+        </div>
+        
+    </div>
+</div>
+<h2 id="tracing-build-steps">Tracing Build Steps</h2>
+<p>Now that there is a trace for the entire build, we can start adding more details.</p>
+<p>For example, we might want to pull a few docker containers so that we have <a href="/2020/05/14/docker-layer-sharing/">warm caches</a>, and want to keep track of how long this takes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>group<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>trace group start <span style="color:#e6db74">&#34;docker_pull&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  trace task -- docker pull app:builder <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>  trace task -- docker pull app:latest <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>  trace task -- docker pull alpine:3.18 <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>trace group finish <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>group<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><h2 id="tracing-and-feature-flags">Tracing and Feature Flags</h2>
+<p>When you are using <a href="/2023/01/16/feature-flags-ci/">feature flags</a> in your CI system, adding their state to the trace is important; it allows us to filter traces by what flags were active on a given run, letting us see if a particular flag has an impact on success rate or time taken.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># flagon supports the `TRACEPARENT` environment variable, so you</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># also get spans for it querying your flag service too!</span>
+</span></span><span style="display:flex;"><span>vitest<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>flagon state <span style="color:#e6db74">&#34;ci-enable-vitest&#34;</span> <span style="color:#e6db74">&#34;false&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --user <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>email<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --attr <span style="color:#e6db74">&#34;branch=</span><span style="color:#e6db74">${</span>branch<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --output <span style="color:#e6db74">&#34;template={{.Value}}&#34;</span> <span style="color:#f92672">||</span> true<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>trace attr <span style="color:#e6db74">&#34;enable_vitest=</span><span style="color:#e6db74">${</span>vitest<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># later</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>group<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>trace group start <span style="color:#e6db74">&#34;testing&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>vitest<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;true&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    pnpm run vitest
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>    pnpm run jest
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>trace group finish <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>group<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><p>This will give us a trace with the <code>enable-vitest</code> flag state, and we can group by this to see if <code>vitest</code> is faster than <code>jest</code> and what effect it had on test count etc.</p>
+]]></content:encoded></item><item><title>Feature Flags in a CI Pipeline</title><link>https://andydote.co.uk/2023/01/16/feature-flags-ci/</link><pubDate>Mon, 16 Jan 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/01/16/feature-flags-ci/</guid><description>Feature flags are a great tool for helping software development; they provide controlled feature rollouts, facilitate A/B testing, and help decouple deployment from release. So when it comes to building our software, why do we treat the CI pipeline without the same level of engineering as the production code?
 So, why not use feature flags in your CI pipeline?
-TLDR Reduce the risk of breaking a CI pipeline for all of a project&amp;rsquo;s developers by using the flagon CLI to query Feature Flags, opting developers into and out of new CI features and processes by targeting groups of developers or branch naming patterns.</description></item><item><title>Changelog Driven Versioning</title><link>https://andydote.co.uk/2022/11/22/changelogs/</link><pubDate>Tue, 22 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/22/changelogs/</guid><description>Versioning is one of the many hard problems when it comes to writing software. There is no one correct way to do it, and all have various tradeoffs.
-After reading keep a changelog, I was inspired to implement this into a couple of CLI tools that I am working on at the moment: Flagon (feature flags on the CLI, for CI usage), and Cas (Content Addressable Storage for Make), but I also wanted to solve my versioning and release process.</description></item><item><title>Deploy != Release</title><link>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</link><pubDate>Wed, 02 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</guid><description>Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.
+TLDR Reduce the risk of breaking a CI pipeline for all of a project&amp;rsquo;s developers by using the flagon CLI to query Feature Flags, opting developers into and out of new CI features and processes by targeting groups of developers or branch naming patterns.</description><content:encoded><![CDATA[<p>Feature flags are a great tool for helping software development; they provide controlled feature rollouts, facilitate A/B testing, and help decouple <a href="/2022/11/02/deploy-doesnt-mean-release/">deployment from release</a>.  So when it comes to building our software, why do we treat the CI pipeline without the same level of engineering as the production code?</p>
+<p>So, why not use feature flags in your CI pipeline?</p>
+<h2 id="tldr">TLDR</h2>
+<p>Reduce the risk of breaking a CI pipeline for all of a project&rsquo;s developers by using the <a href="https://github.com/pondidum/flagon">flagon</a> CLI to query Feature Flags, opting developers into and out of new CI features and processes by targeting groups of developers or branch naming patterns.</p>
+<h2 id="what-would-we-use-them-for">What would we use them for?</h2>
+<p>There are a few things that spring to mind that we could use feature flags for:</p>
+<ul>
+<li>Migrating CI system</li>
+<li>Job migration</li>
+<li>Replacing a step</li>
+<li>Trying a new step</li>
+</ul>
+<h2 id="why-would-using-flags-for-this-help">Why would using flags for this help?</h2>
+<p>The answer is risk reduction.  I don&rsquo;t want to break parts of the build and deployment process for everyone in the project when I make a mistake in the pipelines, and a way to help mitigate that risk is feature flags.</p>
+<p>With a feature flag, I can quickly opt people into or out of changes to the CI system, meaning that if something goes wrong, the impact is minimal.  It also allows me to monitor the effects of new vs old by having the flag states stored in our OTEL traces.  This lets me ask and answer questions like: is it faster?  Is it more reliable?  Does it work?</p>
+<p>One of the most significant risks is migrating from one CI system to another, which is exactly what I have been doing recently.  We are leaving <code>Truly Awful CI</code> and migrating to <code>Github Actions</code>.  Let&rsquo;s see how that goes.</p>
+<h2 id="migrating-from-old-to-new-ci">Migrating From Old to New CI</h2>
+<p>The CI process, on a high level, looks like this.  The three types of deployment are <code>ephemeral</code>, which are short-lived environments named after the branch which created them, <code>development</code>, which is the common development environment, and <code>production</code>, which is the live application.  The <code>production</code> and <code>development</code> environments are deployed to whenever something is merged to <code>main</code>, and <code>ephemeral</code> is for any other branch.</p>
+
+<div class="mermaid" align="left">
+graph LR
+
+    clone --> build --> test --> publish-container
+
+    publish-container --> |$BRANCH != 'main'| trigger-deploy-ephemeral
+    publish-container --> |$BRANCH == 'main'| trigger-deploy-development
+    publish-container --> |$BRANCH == 'main'| trigger-deploy-production
+</div>
+<p>To phase the changeover to GitHub Actions, I am using the <a href="https://github.com/pondidum/flagon">flagon</a> CLI to access our feature flags.  The query uses both the user id (committer email) and branch name so that I can target rollouts based on a group of users or perhaps with a branch name pattern.</p>
+<p>First, I create a duplicate workflow in GitHub Actions.  The docker container is published to a different tag, and all deployments have a feature flag condition added to them:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">jobs</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">flags</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">outputs</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">enable_ephemeral</span>: <span style="color:#ae81ff">${{ steps.query.outputs.enable_ephemeral }}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">steps</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Query Flags</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">id</span>: <span style="color:#ae81ff">query</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">run</span>: |<span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        ephemeral=$(flagon state &#34;ci-enable-gha-deployment&#34; &#34;false&#34; \
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">          --user &#34;${email}&#34; \
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">          --attr &#34;branch=${branch}&#34; \
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">          --output &#34;template={{.Value}}&#34; || true)
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        echo &#34;enable_ephemeral=${ephemeral}&#34; &gt;&gt; &#34;${GITHUB_OUTPUT}&#34;</span>        
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># build, test, etc.</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">deploy_ephemeral</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">./.github/workflows/deploy.yaml</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">needs</span>:
+</span></span><span style="display:flex;"><span>    - <span style="color:#ae81ff">flags</span>
+</span></span><span style="display:flex;"><span>    - <span style="color:#ae81ff">build</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">if</span>: <span style="color:#ae81ff">${{ github.ref_name != &#39;master&#39; &amp;&amp; needs.flags.outputs.enable_ephemeral == &#39;true&#39; }}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">with</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">target_env</span>: <span style="color:#ae81ff">ephemeral</span>
+</span></span></code></pre></div><p>Then update the old CI pipeline to wrap the deployment trigger with a flag query:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> ! flagon <span style="color:#e6db74">&#34;ci-enable-gha-deploy&#34;</span> <span style="color:#e6db74">&#34;true&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --user <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>email<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --attr <span style="color:#e6db74">&#34;environment=ephemeral&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  --attr <span style="color:#e6db74">&#34;BRANCH=</span><span style="color:#e6db74">${</span>branch<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  awful-ci trigger <span style="color:#e6db74">&#34;deploy - ephemeral&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --sha <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>commit<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>    --branch <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>branch<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><p>Note that the two CI systems are both querying the same flag, but the old system defaults to active, and the new system defaults to inactive.  This means that if the flagging service (LaunchDarkly in this case) cannot be reached, only one of the systems will be doing the deployment.</p>
+<h2 id="rolling-out">Rolling out</h2>
+<p>The plan for starting the switchover was as follows:</p>
+<ol>
+<li><code>ephemeral</code> for just me</li>
+<li><code>ephemeral</code> environment for a small group of developers</li>
+<li><code>ephemeral</code> for everyone</li>
+<li><code>development</code> for everyone</li>
+<li><code>production</code> for everyone</li>
+<li>WAIT</li>
+<li>Remove old implementation, remove flags</li>
+</ol>
+<p>During the rollout, the flag was switched on and off for various stages as small bugs were found.</p>
+<p>For example, I discovered that the deployments only looked like they were working in GitHub Actions due to some artefacts still being uploaded to CDN by the old CI system.</p>
+<h2 id="take-away">Take Away</h2>
+<p>Based on my experience of using flags in this migration, it is a technique that I will be using more in the future when updating our CI pipelines.</p>
+]]></content:encoded></item><item><title>Changelog Driven Versioning</title><link>https://andydote.co.uk/2022/11/22/changelogs/</link><pubDate>Tue, 22 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/22/changelogs/</guid><description>Versioning is one of the many hard problems when it comes to writing software. There is no one correct way to do it, and all have various tradeoffs.
+After reading keep a changelog, I was inspired to implement this into a couple of CLI tools that I am working on at the moment: Flagon (feature flags on the CLI, for CI usage), and Cas (Content Addressable Storage for Make), but I also wanted to solve my versioning and release process.</description><content:encoded><![CDATA[<p>Versioning is one of the many hard problems when it comes to writing software.  There is no one correct way to do it, and all have various tradeoffs.</p>
+<p>After reading <a href="https://keepachangelog.com/en/1.0.0/">keep a changelog</a>, I was inspired to implement this into a couple of CLI tools that I am working on at the moment: <a href="https://github.com/pondidum/flagon">Flagon</a> (feature flags on the CLI, for CI usage), and <a href="https://github.com/pondidum/cas">Cas</a> (Content Addressable Storage for Make), but I also wanted to solve my versioning and release process.</p>
+<h2 id="requirements">Requirements</h2>
+<ul>
+<li>Version number should be defined in only one place</li>
+<li>A changelog should be associated with the version number</li>
+<li>The binary should be able to print its version and changelog</li>
+<li>The release (Github Release in this case) should also have the changelog and version</li>
+<li>The commit released should be tagged with the version</li>
+</ul>
+<p>I came up with an idea: <strong>drive everything from the changelog.</strong></p>
+<p>The changelog can be the source of truth: it contains the version number, date of release, and the actual changes within that version.  As the changelog is written in a standardised format it should be fairly easy to parse, and thus be handled by the binary itself.</p>
+<h2 id="the-format">The Format</h2>
+<p>I decided to follow the format from <a href="https://keepachangelog.com/en/1.0.0/">keep a changelog</a> as it is pretty minimal, in markdown, and easily parsable with a regex.  As an example, here is one of the versions lifted from <a href="https://github.com/Pondidum/Flagon/blob/main/changelog.md">flagon&rsquo;s changelog</a>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-markdown" data-lang="markdown"><span style="display:flex;"><span># Changelog
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## [0.0.1] - 2022-11-14
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">### Added
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">-</span> Exit with code <span style="color:#e6db74">`0`</span> if a flag is <span style="color:#e6db74">`true`</span>, and <span style="color:#e6db74">`1`</span> otherwise
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">-</span> Add <span style="color:#e6db74">`--silent`</span> flag, to suppress console information
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">### Changed
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">-</span> Expand what information is written to traces
+</span></span></code></pre></div><p>Each version entry follows the same format, which is parsable by a regex:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">sectionRegex</span> = <span style="color:#a6e22e">regexp</span>.<span style="color:#a6e22e">MustCompile</span>(<span style="color:#e6db74">`## \[(?P&lt;version&gt;.*)\]\s*-\s*(?P&lt;date&gt;.*)`</span>)</span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/flagon/blob/master/version/changelog.go">Source</a></small>
+</footer>
+
+<p>The parser itself is very short, and the result is an array of <code>ChangelogEntry</code>, giving the <code>version</code>, <code>date</code>, and text of the changes.</p>
+<h2 id="using-the-changelog-from-the-application">Using the changelog from the application</h2>
+<p>The changelog is embedded in the binary using the go <code>embed</code> package, and can then be exposed as CLI commands.  The application&rsquo;s <code>version</code> command exposes this information with several flags:</p>
+<ul>
+<li>
+<p>no flags: print the version number and git short sha</p>
+</li>
+<li>
+<p><code>--short</code>: only print the version number</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>./flagon version --short
+</span></span><span style="display:flex;"><span>0.0.1
+</span></span></code></pre></div></li>
+<li>
+<p><code>--changelog</code>: pretty print the current version&rsquo;s changelog entry</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>./flagon version --changelog
+</span></span></code></pre></div><p><img loading="lazy" src="flagon-changelog.png" alt="flagon changelog as prettified markdown"  />
+</p>
+</li>
+<li>
+<p><code>--raw</code>: causes <code>--changelog</code> to print the markdown as written in the <code>changelog.md</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>./flagon version --changelog
+</span></span><span style="display:flex;"><span>0.0.1 - local
+</span></span><span style="display:flex;"><span><span style="color:#75715e">### Added</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>- Exit with code <span style="color:#e6db74">`</span>0<span style="color:#e6db74">`</span> <span style="color:#66d9ef">if</span> a flag is <span style="color:#e6db74">`</span>true<span style="color:#e6db74">`</span>, and <span style="color:#e6db74">`</span>1<span style="color:#e6db74">`</span> otherwise
+</span></span><span style="display:flex;"><span>- Add <span style="color:#e6db74">`</span>--silent<span style="color:#e6db74">`</span> flag, to suppress console information
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">### Changed</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>- Expand what information is written to traces
+</span></span></code></pre></div></li>
+</ul>
+<h2 id="using-the-changelog-for-releases">Using the changelog for Releases</h2>
+<p>In github actions when building the <code>main</code> branch, I use this to generate a version number, and write the current changelog entry to a temporary file:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>- <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Generate Release Notes</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">if</span>: <span style="color:#ae81ff">github.ref_name == &#39;main&#39;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">run</span>: |<span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    echo &#34;FLAGON_VERSION=$(./flagon version --short)&#34; &gt;&gt; &#34;${GITHUB_ENV}&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    ./flagon version --changelog --raw &gt; release-notes.md</span>    
+</span></span></code></pre></div><p>Which are then passed to the <code>action-gh-release</code> step:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span>- <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Release</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">if</span>: <span style="color:#ae81ff">github.ref_name == &#39;main&#39;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">softprops/action-gh-release@v1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">with</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">${{ env.FLAGON_VERSION }}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">tag_name</span>: <span style="color:#ae81ff">${{ env.FLAGON_VERSION }}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">body_path</span>: <span style="color:#ae81ff">release-notes.md</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">files</span>: <span style="color:#ae81ff">flagon</span>
+</span></span></code></pre></div><p>Which makes my releases match the version number of the binary, and have the correct release notes.</p>
+<h2 id="further-work">Further Work</h2>
+<p>This system isn&rsquo;t perfect (yet), but it works well for my projects.  I&rsquo;ve considered extracting it into its own package, but so far with only two applications using it I haven&rsquo;t hit the <a href="https://en.wikipedia.org/wiki/Rule_of_three_(computer_programming)">rule of 3 yet</a>.</p>
+]]></content:encoded></item><item><title>Deploy != Release</title><link>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</link><pubDate>Wed, 02 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</guid><description>Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.
 also deploy != release
 —Andy, baiting discussion in Slack This turned out to be somewhat controversial until we discussed what I specifically meant by deploy and release.
-As with all things, agreeing on definitions or understanding what someone means when they use a specific term is essential, so I thought I would write down a short blog post on it.</description></item><item><title>Content based change detection with Make</title><link>https://andydote.co.uk/2022/09/19/make-content-hash/</link><pubDate>Mon, 19 Sep 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/09/19/make-content-hash/</guid><description>On several occasions when building complex projects, I have been tempted to set up Bazel to help speed up the build process; after all, it has a lot to offer: only building what has changed, caching built artifacts, and sharing that cache between machines for even more speed.
-TLDR We can use Make and a couple of short shell scripts to implement file content-based caching and read/write that cache to remote storage, such as S3.</description></item><item><title>Against SemVer</title><link>https://andydote.co.uk/2018/12/16/against-semver/</link><pubDate>Sun, 16 Dec 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/12/16/against-semver/</guid><description>Well, for Applications &amp;amp; Services at least. For libraries, SemVer is the way to go, assuming you can agree on what a breaking change is defined as.
+As with all things, agreeing on definitions or understanding what someone means when they use a specific term is essential, so I thought I would write down a short blog post on it.</description><content:encoded><![CDATA[<p>Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.</p>
+<blockquote>
+<p>also <code>deploy</code> != <code>release</code></p>
+</blockquote>
+<figcaption>—Andy, <cite>baiting discussion in Slack</cite></figcaption>
+<p>This turned out to be somewhat controversial until we discussed what I specifically meant by <code>deploy</code> and <code>release</code>.</p>
+<p>As with all things, agreeing on definitions or understanding what someone means when they use a specific term is essential, so I thought I would write down a short blog post on it.</p>
+<p>To start with, a picture helps in my experience:</p>
+<p><img loading="lazy" src="definitions.jpg" alt="definitons"  />
+</p>
+<h2 id="tldr">TLDR</h2>
+<p><strong>Deploy</strong> is the act of moving software into an environment and running it.</p>
+<p><strong>Release</strong> is the process of making a feature visible to a user or subset of users.</p>
+<p>Read on for longer descriptions.</p>
+<h2 id="build">Build</h2>
+<p>A build is a process, usually run in a central CI system, which produces one or many <strong>artefacts</strong>.  A build process can consist of testing, linting, compilation, transpilation, or any other number of steps.</p>
+<h2 id="artefact">Artefact</h2>
+<p>An <strong>artefact</strong> is the result of the <strong>build</strong>.  It has a <strong>version</strong>, and can be <strong>deployed</strong> to an <strong>environment</strong>.  An artefact can contain many features which can be uniquely controlled.</p>
+<p>It should also have metadata embedded in it to link it back to the build which produced it and also to the source it was built from.</p>
+<p>If a build is producing multiple different versioned artefacts, having a way to link them all to the same process is important.</p>
+<h2 id="version">Version</h2>
+<p>A <strong>version</strong> is an identifier which uniquely labels an artefact.   This can be a chosen format such as SemVer, a datestamp, or a commit hash.  It could also be an auto-incrementing build counter.</p>
+<h2 id="deploy">Deploy</h2>
+<p>The process of getting an <strong>artifact</strong> into an <strong>environment</strong>.  Doesn&rsquo;t necessarily cause any visible changes to a user or client of the application.</p>
+<h2 id="environment">Environment</h2>
+<p>A location running the application.  An environment may have multiple applications running, making up one complete product.</p>
+<h2 id="release">Release</h2>
+<p><strong>Release</strong> is switching on (or off) a feature to users, independent of <strong>deploy</strong>.  This is usually done with Feature Flags, and can mean releasing to all users, or just a subset (either a random sample or specific users.)</p>
+<p>You can also automate feature rollout by combining it with your observability data, rolling out to more users over time if, for example, error rates don&rsquo;t increase.</p>
+]]></content:encoded></item><item><title>Content based change detection with Make</title><link>https://andydote.co.uk/2022/09/19/make-content-hash/</link><pubDate>Mon, 19 Sep 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/09/19/make-content-hash/</guid><description>On several occasions when building complex projects, I have been tempted to set up Bazel to help speed up the build process; after all, it has a lot to offer: only building what has changed, caching built artifacts, and sharing that cache between machines for even more speed.
+TLDR We can use Make and a couple of short shell scripts to implement file content-based caching and read/write that cache to remote storage, such as S3.</description><content:encoded><![CDATA[<p>On several occasions when building complex projects, I have been tempted to set up <a href="https://bazel.build/">Bazel</a> to help speed up the build process; after all, it has a lot to offer: only building what has changed, caching built artifacts, and sharing that cache between machines for even more speed.</p>
+<h2 id="tldr">TLDR</h2>
+<p>We can use <a href="https://www.gnu.org/software/make/">Make</a> and a couple of short shell scripts to implement file content-based caching and read/write that cache to remote storage, such as S3.  The <a href="https://github.com/Pondidum/make-cas">demo repository</a> contains a version using <a href="https://min.io/">minio</a> for ease of demonstration.</p>
+<h2 id="bazel">Bazel</h2>
+<p>However, Bazel has quite a high barrier to entry; there are two drawbacks: a specialised build language and the need to host extra components.  While the specialised language is not much of a drawback, the hosting side is more of an issue.  If you wish to have a shared cache (which is required to get fast builds), you need to either run <code>bazel-remote</code>, which is not actually part of the Bazel project, and requires some shared storage such as S3, or Nginx, which again requires some shared storage somewhere.</p>
+<p>It boils down to not wanting to have to maintain a lot of infrastructure on top of all the usual CI bits just to have fast builds.</p>
+<h2 id="so-what-about-make">So what about Make?</h2>
+<p>Whereas Bazel&rsquo;s caching method is based on a hash of the input artifacts, <a href="https://www.gnu.org/software/make/">Make</a>&rsquo;s is based on the input sources and output artifacts&rsquo; <code>lastModified</code> times.</p>
+<p>I tried adding distributed caching to Make by copying the output artifacts to S3, and on the next build (on a different agent), restoring them to the working directory, and seeing what would happen.</p>
+<p>As both Git and S3 set the file <code>lastModified</code> dates to the time they ran, the build process either never ran (artifacts are newer than source), or always ran (sources are newer than artifacts).</p>
+<p>This sent me on a relatively short journey to see if I could add hash-based change detection to Make, without recompiling Make.</p>
+<p>Spoiler: it is!</p>
+<h2 id="hashing">Hashing</h2>
+<p>The first question is how to hash all our source files reliably.  It turns out you can do all of this with <code>sha256sum</code> in a one-liner:</p>
+<div class="highlight"><div style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">
+<table style="border-spacing:0;padding:0;margin:0;border:0;"><tr><td style="vertical-align:top;padding:0;margin:0;border:0;">
+<pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#7f7f7f">5
+</span></code></pre></td>
+<td style="vertical-align:top;padding:0;margin:0;border:0;;width:100%">
+<pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>find src -iname <span style="color:#e6db74">&#34;*.ts&#34;</span> -print0 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | xargs -0 sha256sum <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | LC_ALL<span style="color:#f92672">=</span>C sort <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | sha256sum <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | cut -d<span style="color:#e6db74">&#34; &#34;</span> -f <span style="color:#ae81ff">1</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>This does the following:</p>
+<ol>
+<li>Find all typescript files (for example)</li>
+<li>Sort all the files <a href="https://unix.stackexchange.com/a/87763">using the &ldquo;simple&rdquo; locale</a></li>
+<li>generate a hash of the content of each file</li>
+<li>generate a hash of all the path+hash pairs</li>
+<li>trim the output to only the hash</li>
+</ol>
+<p>Now that I have a hash for the files, its time to figure out how to use that with Make.</p>
+<p>We&rsquo;ll be trying to make this totally legitimate build target in a <code>Makefile</code> run only when content changes, regardless of file edit dates:</p>
+<pre tabindex="0"><code>dist/index.js: $(shell find src -iname &#34;*.ts&#34; -not -iname &#34;*.test.ts&#34;)
+	@echo &#34;==&gt; Building&#34;
+	@sleep 3s
+	@mkdir -p &#34;dist&#34;
+	@echo &#34;compiled at $(shell date)&#34; &gt; &#34;$@&#34;
+	@echo &#34;==&gt; Done&#34;</code></pre><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/40e26dde9973479a861e4521e2a55d8222451b28/makefile">Source</a></small>
+</footer>
+
+<p>All this build step does is write the current date to a file called <code>dist/index.js</code>.  To make this more realistic, you could change the <code>sleep 3s</code> to <code>sleep 10m</code> ;)</p>
+<p>The idea I have to make this hashing work is to use a file that I control and mess with its edit date:</p>
+<ol>
+<li>Check if a file called <code>${current_hash}</code> exists</li>
+<li>If it doesn&rsquo;t exist, write the current timestamp to a new file called <code>${current_hash}</code></li>
+<li>If it does exist, set the file <code>${current_hash}</code>&rsquo;s modified date to the timestamp stored inside the file</li>
+<li><code>echo</code> the filename so that it can be consumed by Make</li>
+</ol>
+<p>This way, the file&rsquo;s edit date will change whenever the hash changes,  and if the hash doesn&rsquo;t change, we leave the edit date as is (which fixes the S3 file edit date being wrong.)</p>
+<p>Code wise, it&rsquo;s a few lines of shell script:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>STORE_PATH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_STORE_PATH<span style="color:#66d9ef">:-</span>.state<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>mkdir -p <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>STORE_PATH<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>now<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>date <span style="color:#e6db74">&#34;+%s&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>current_hash<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$@<span style="color:#e6db74">&#34;</span> | xargs -n <span style="color:#ae81ff">1</span> | LC_ALL<span style="color:#f92672">=</span>C sort | xargs sha256sum | sha256sum | cut -d<span style="color:#e6db74">&#34; &#34;</span> -f 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>current_hash<span style="color:#e6db74">}</span><span style="color:#e6db74">.sha256&#34;</span>
+</span></span><span style="display:flex;"><span>state_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>STORE_PATH<span style="color:#e6db74">}</span><span style="color:#e6db74">/</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># this hash is in the state store, re-apply it&#39;s date to the state file (as something like s3</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># sync might have changed the file&#39;s modified date.</span>
+</span></span><span style="display:flex;"><span>  last_date<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>sed -n <span style="color:#e6db74">&#39;s/date:\s*\(.*\)/\1/p&#39;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  touch -d <span style="color:#e6db74">&#34;@</span><span style="color:#e6db74">${</span>last_date<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># this is a new hash</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;date: </span>$now<span style="color:#e6db74">&#34;</span> &gt; <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/1f88779e38c44f4b3af4155de5d864354863e05a/build/cas.sh">Source</a></small>
+</footer>
+
+<p>And the usage inside the <code>makefile</code> is only adding an extra <code>$(shell ./build/cas.sh .... )</code> around our dependency list:</p>
+<pre tabindex="0"><code>dist/index.js: $(shell ./build/cas.sh $(shell find src -iname &#34;*.ts&#34; -not -iname &#34;*.test.ts&#34;))
+	@echo &#34;==&gt; Building&#34;
+	@sleep 3s
+	@mkdir -p &#34;dist&#34;
+	@echo &#34;compiled at $(shell date)&#34; &gt; &#34;$@&#34;
+	@echo &#34;==&gt; Done&#34;</code></pre><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/1f88779e38c44f4b3af4155de5d864354863e05a/makefile">Source</a></small>
+</footer>
+
+<h2 id="testing">Testing</h2>
+<p>We have a few test cases to cover:</p>
+<ol>
+<li>Entirely blank repository; after all, it should work when you first run <code>git clone</code>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span></code></pre></div></li>
+<li>Files have not changed at all; it should have the same behaviour as normal make, i.e. nothing happens
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  make: Nothing to be <span style="color:#66d9ef">done</span> <span style="color:#66d9ef">for</span> <span style="color:#e6db74">&#39;build&#39;</span>.
+</span></span></code></pre></div></li>
+<li>File <code>lastModified</code> date has changed; this should cause nothing to happen also, as the content of the files hasn&rsquo;t changed:
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span><span style="display:flex;"><span>$ touch src/index.ts
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  make: Nothing to be <span style="color:#66d9ef">done</span> <span style="color:#66d9ef">for</span> <span style="color:#e6db74">&#39;build&#39;</span>.
+</span></span></code></pre></div></li>
+<li>File content has changed (but <code>lastModified</code> hasn&rsquo;t); forcing a file to have different content with the same <code>lastModified</code> to show that its only content that matters:
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span><span style="display:flex;"><span>$ set old_date <span style="color:#f92672">(</span>date -r src/index.ts <span style="color:#e6db74">&#34;+%s&#34;</span><span style="color:#f92672">)</span>
+</span></span><span style="display:flex;"><span>$ echo <span style="color:#e6db74">&#34;// change&#34;</span> &gt;&gt; src/index.ts
+</span></span><span style="display:flex;"><span>$ touch -d @$old_date src/index.ts
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span></code></pre></div></li>
+</ol>
+<h2 id="collecting-assets">Collecting Assets</h2>
+<p>Before we can implement remote caching, we need to be able to mark what assets should be included for the given source hash.</p>
+<p>I initially tried to achieve this by passing the name of the make target into the <code>cas.sh</code> script, but this involves a lot of repetition as the special &ldquo;target name&rdquo; make variable (<code>$@</code>) doesn&rsquo;t work if it&rsquo;s included in the source list:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-make" data-lang="make"><span style="display:flex;"><span><span style="color:#a6e22e">dist/index.js</span><span style="color:#f92672">:</span> <span style="color:#66d9ef">$(</span>shell ./build/cas.sh <span style="color:#66d9ef">$</span>@ <span style="color:#66d9ef">$(</span>shell find src -iname &#34;*.ts&#34; -not -iname &#34;*.test.ts&#34;<span style="color:#66d9ef">))</span>
+</span></span><span style="display:flex;"><span>  @echo <span style="color:#e6db74">&#34;==&gt; Building&#34;</span>
+</span></span></code></pre></div><p>Besides not working, this is also not very flexible; what happens if you have other artifacts to store, other than the one acting as your make target?  What happens if you are using a sentinel file instead of actual output as a make target?  or a <code>.PHONY</code> target?</p>
+<p>The answer to these questions is an extra script to store artifacts, called <code>artifact.sh</code>, which writes the path of an artifact to the hash file with a prefix of <code>artifact: </code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>artifact<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span>$CAS_VERBOSE<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Storing </span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;artifact: </span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> &gt;&gt; <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e0889484bd55e1098a85f4b15f2c81a8798321e9/build/artifact.sh">Source</a></small>
+</footer>
+
+<p>Which is used in the <code>makefile</code>, utilising some of Make&rsquo;s magic variables: the <code>$&lt;</code> is the filepath to the first dependency (which is the hash file produced by <code>cas.sh</code>), and usually, we use <code>$@</code>, which is the name of the target being built.  In this example, a second invocation marks another file as an artifact of the make rule:</p>
+<pre tabindex="0"><code>	@./build/artifact.sh &#34;$&lt;&#34; &#34;$@&#34;
+	@./build/artifact.sh &#34;$&lt;&#34; &#34;artifacts/coverage.json&#34;
+</code></pre><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e0889484bd55e1098a85f4b15f2c81a8798321e9/makefile">Source</a></small>
+</footer>
+
+<h2 id="remote-caching">Remote Caching</h2>
+<p>As mentioned earlier, I want to manage as little infrastructure for this as possible, so cloud object storage such as S3 is ideal.  For local testing, we&rsquo;ll use a <a href="https://min.io/">minio</a> docker container.</p>
+<p>First up, as I want this to be reasonably extensible, rather than hardcode s3 logic into the scripts, I check for an environment variable <code>CAS_REMOTE</code>, and execute that with specific arguments if it exists, both in <code>cas.sh</code> and <code>artifact.sh</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;display:grid;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>STORE_PATH<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_STORE_PATH<span style="color:#66d9ef">:-</span>.state<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>mkdir -p <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>STORE_PATH<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>now<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>date <span style="color:#e6db74">&#34;+%s&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>current_hash<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$@<span style="color:#e6db74">&#34;</span> | xargs -n <span style="color:#ae81ff">1</span> | LC_ALL<span style="color:#f92672">=</span>C sort | xargs sha256sum | sha256sum | cut -d<span style="color:#e6db74">&#34; &#34;</span> -f 1<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>current_hash<span style="color:#e6db74">}</span><span style="color:#e6db74">.sha256&#34;</span>
+</span></span><span style="display:flex;"><span>state_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>STORE_PATH<span style="color:#e6db74">}</span><span style="color:#e6db74">/</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span> fetch-state <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># this hash is in the state store, re-apply it&#39;s date to the state file (as something like s3</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># sync might have changed the file&#39;s modified date.</span>
+</span></span><span style="display:flex;"><span>  last_date<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>sed -n <span style="color:#e6db74">&#39;s/date:\s*\(.*\)/\1/p&#39;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  touch -d <span style="color:#e6db74">&#34;@</span><span style="color:#e6db74">${</span>last_date<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    artifacts<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>sed -n <span style="color:#e6db74">&#39;s/artifact:\s*\(.*\)/\1/p&#39;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>      echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> | xargs <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> fetch-artifacts <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>      echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> | xargs touch -d <span style="color:#e6db74">&#34;@</span><span style="color:#e6db74">${</span>last_date<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e"># this is a new hash</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;date: </span>$now<span style="color:#e6db74">&#34;</span> &gt; <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>    <span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span> store-state <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/cas.sh">Source</a></small>
+</footer>
+
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;display:grid;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/sh
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>artifact<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span>$CAS_VERBOSE<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;Storing </span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">fi</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;artifact: </span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> &gt;&gt; <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  hash<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>basename <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span> store-artifact <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>hash<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifact<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span>  <span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span> store-state <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>hash<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex; background-color:#3c3d38"><span><span style="color:#66d9ef">fi</span>
+</span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/artifact.sh">Source</a></small>
+</footer>
+
+<p>The main point is keeping how state and artifacts are copied around separate from the logic of how their <code>lasModified</code> dates are manipulated.  In the case of the <code>fetch-artifacts</code> call, we first pull all the artifacts using the remote script, and then update their <code>lastModified</code> dates to match the state&rsquo;s <code>lastModified</code> date:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>    artifacts<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>sed -n <span style="color:#e6db74">&#39;s/artifact:\s*\(.*\)/\1/p&#39;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span>
+</span></span><span style="display:flex;"><span>      echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> | xargs <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> fetch-artifacts <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>      echo <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>artifacts<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> | xargs touch -d <span style="color:#e6db74">&#34;@</span><span style="color:#e6db74">${</span>last_date<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/cas.sh">Source</a></small>
+</footer>
+
+<h2 id="s3-remote-cache">S3 Remote Cache</h2>
+<p>The S3 remote script implements four functions: <code>fetch-state</code>, <code>fetch-artifacts</code>, <code>store-state</code>, and <code>store-artifact</code>, with the convention that the first parameter is always the key - e.g. the state file name.</p>
+<p>In this demo, the actual S3 command is defaulted to use the local minio endpoint, unless <code>CAS_S3_CMD</code> is specified, as I cannot find a way to set the <code>--endpoint-url</code> via an environment variable directly:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>s3<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_S3_CMD<span style="color:#66d9ef">:-</span><span style="color:#e6db74">&#34;aws --endpoint-url http://localhost:9000 s3&#34;</span><span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/remote_s3.sh">Source</a></small>
+</footer>
+
+<p>This is used in each of the four functions to interact with S3.  For example, to fetch the state; note how we use both <code>--quiet</code> and <code>&gt;&amp;2</code> to redirect all output to <code>stderr</code>, as anything on <code>stdout</code> make will pick up as a filename, causing issues.  We also use <code>|| true</code> for fetching state, as it might not exist:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>fetch_state<span style="color:#f92672">()</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  key<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$1<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  state_path<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$2<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>  log <span style="color:#e6db74">&#34;</span>$key<span style="color:#e6db74">: Fetching remote state to </span>$state_path<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  $s3 cp <span style="color:#e6db74">&#34;s3://</span><span style="color:#e6db74">${</span>bucket<span style="color:#e6db74">}</span><span style="color:#e6db74">/state/</span><span style="color:#e6db74">${</span>key<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>state_path<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> --quiet &gt;&amp;<span style="color:#ae81ff">2</span> <span style="color:#f92672">||</span> true
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/e3c00c7924d24a1aba6bdd2fad7996a3428ee530/build/remote_s3.sh">Source</a></small>
+</footer>
+
+<h2 id="testing-remote-caching">Testing Remote Caching</h2>
+<p>First, we need to start our minio container and configure the environment:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>docker-compose up -d
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;AWS_ACCESS_KEY_ID=minio&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;AWS_SECRET_ACCESS_KEY=password&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;CAS_REMOTE=./build/remote_s3.sh&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;CAS_S3_BUCKET_PATH=makestate/cas-demo/&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;CAS_READ_ONLY=0&#34;</span>
+</span></span><span style="display:flex;"><span>export <span style="color:#e6db74">&#34;CAS_VERBOSE=1&#34;</span>
+</span></span></code></pre></div><p>Also, we need to create the S3 bucket using the AWS cli:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>aws --endpoint-url http://localhost:9000 s3 mb s3://makestate
+</span></span></code></pre></div><p>We&rsquo;re now ready to try a build:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Fetching remote state to .state/c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Storing state from .state/c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256
+</span></span><span style="display:flex;"><span>  977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256: Fetching remote state to .state/977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256
+</span></span><span style="display:flex;"><span>  977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256: Storing state from .state/977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Building
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">==</span>&gt; Done
+</span></span><span style="display:flex;"><span>  Storing dist/index.js
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Storing artifact dist/index.js
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Storing state from .state/c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256
+</span></span><span style="display:flex;"><span>$ cat dist/index.js
+</span></span><span style="display:flex;"><span>  compiled at la 17.9.2022 13.16.48 +0300
+</span></span></code></pre></div><p>If we now clean the repository and build again, we should end up with all the artifacts from the original build but no build process actually running:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>$ git clean -dxf
+</span></span><span style="display:flex;"><span>$ make build
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Fetching remote state to .state/c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256
+</span></span><span style="display:flex;"><span>  c2bac686e507434398d9bf4e33f63f275dfd3bfecfe851d698f8f17672eeccbe.sha256: Fetching dist/index.js
+</span></span><span style="display:flex;"><span>  977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256: Fetching remote state to .state/977e50e9421f0a2749587de6a887ba63f2ddf9109d27ab7cae895a6664b2711a.sha256
+</span></span><span style="display:flex;"><span>  make: Nothing to be <span style="color:#66d9ef">done</span> <span style="color:#66d9ef">for</span> <span style="color:#e6db74">&#39;build&#39;</span>.
+</span></span><span style="display:flex;"><span>$ cat dist/index.js
+</span></span><span style="display:flex;"><span>  compiled at la 17.9.2022 13.16.48 +0300
+</span></span></code></pre></div><h2 id="extra-features">Extra Features</h2>
+<p>I added a <code>CAS_READ_ONLY</code> environment variable, which by default prevents the scripts from pushing state and artifacts to remote storage but does allow fetching from storage.  The idea of this is that local development can make use of the caches, but only CI machines can write to the cache:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#f92672">[</span> -f <span style="color:#e6db74">&#34;</span><span style="color:#e6db74">${</span>CAS_REMOTE<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;</span>$CAS_READ_ONLY<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;0&#34;</span> <span style="color:#f92672">]</span>; <span style="color:#66d9ef">then</span></span></span></code></pre></div><footer style="margin: 10px auto;">
+  <small><a href="https://github.com/Pondidum/make-cas/blob/b40aabf2affa88a4d8f143ac5895354d4e932bad/build/artifact.sh">Source</a></small>
+</footer>
+
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>Overall, I am very happy with how this has gone; it all works, and hopefully I&rsquo;ll be testing it in parallel to normal build processes over the coming weeks.</p>
+]]></content:encoded></item><item><title>Against SemVer</title><link>https://andydote.co.uk/2018/12/16/against-semver/</link><pubDate>Sun, 16 Dec 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/12/16/against-semver/</guid><description>Well, for Applications &amp;amp; Services at least. For libraries, SemVer is the way to go, assuming you can agree on what a breaking change is defined as.
 But when it comes to Applications (or SaaS products, websites, etc.) SemVer starts to break down. The problem starts with the most obvious: What is a breaking change? How about a minor change?
-What&amp;rsquo;s in a change? For example, if we were to change the UI of a web application, which caused no backend changes, from the user perspective it is probably a breaking change, but not from the developers perspective.</description></item><item><title>Branching and Red Builds</title><link>https://andydote.co.uk/2018/08/10/red-builds/</link><pubDate>Fri, 10 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/10/red-builds/</guid><description>So this is a bit of a rant&amp;hellip;but hopefully with some solutions and workarounds too. So let&amp;rsquo;s kick things off with a nice statement:
+What&amp;rsquo;s in a change? For example, if we were to change the UI of a web application, which caused no backend changes, from the user perspective it is probably a breaking change, but not from the developers perspective.</description><content:encoded><![CDATA[<p>Well, for Applications &amp; Services at least.  For libraries, SemVer is the way to go, assuming you can agree on what a breaking change is defined as.</p>
+<p>But when it comes to Applications (or SaaS products, websites, etc.) SemVer starts to break down.  The problem starts with the most obvious:  What is a breaking change? How about a minor change?</p>
+<h2 id="whats-in-a-change">What&rsquo;s in a change?</h2>
+<p>For example, if we were to change the UI of a web application, which caused no backend changes, from the user perspective it is probably a breaking change, but not from the developers perspective.
+What about changing a backend process, for example, the way the service is billed?  How about adding a new step in the middle of an existing process?</p>
+<p>These are all hard questions to answer, and I imagine there are many many edge cases and things which are not clear as to what level of change they are.</p>
+<h2 id="clash-of-the-versions">Clash of the Versions</h2>
+<p>The next problem stems from the fact that we don&rsquo;t (often) do Trunk Based Development for applications.  We have a long-lived (1-2 weeks) feature branch, which might get pushed to a test environment multiple times as tasks are completed.  If we SemVer these deployments, when a bug fix happens on the master branch, we can end up with a version clash, and can&rsquo;t deploy.</p>
+<p><img loading="lazy" src="semver-clash.png" alt="branching, showing a clash of SemVer by having concurrent branches"  />
+</p>
+<p>While this is a problem, we can solve it easily - we can use the <code>-pre</code> or <code>-beta</code> suffix for the feature branch, and then remove the suffix and increment the version number when the feature is fully deployed.  This, however, is adding a little more complexity to the process - mostly on the human side of things this time.</p>
+<p>I would rather avoid the complexity (machine and human) entirely so instead opt for a different solution: Dates.</p>
+<h2 id="how-about-a-date">How about a Date?</h2>
+<p>Date stamps to the rescue! Our builds now use the following format:</p>
+<pre tabindex="0"><code>&lt;year&gt;.&lt;month&gt;.&lt;day&gt;.&lt;build_number&gt;
+</code></pre><p>We did consider using the time (represented as <code>.hhmm</code>) instead of the <code>build_number</code>, but it would have been possible to clash if two builds triggered at the same minute, and the <code>build_number</code> is guaranteed uniqueness.  By using an automatic format, we gain a few advantages:</p>
+<ul>
+<li>No confusion on whether a change is a major, minor, or patch</li>
+<li>No clashes on multiple branches</li>
+<li>No human input required (marking things as <code>pre</code> or <code>beta</code>)</li>
+<li>Answers the &ldquo;when was this built&rdquo; question</li>
+</ul>
+<h2 id="what-about-the-libraries">What about the libraries?</h2>
+<p>The libraries have a very different set of requirements, and one versioning scheme doesn&rsquo;t seem to fit both very well, so there is no point trying to force the matter.</p>
+]]></content:encoded></item><item><title>Branching and Red Builds</title><link>https://andydote.co.uk/2018/08/10/red-builds/</link><pubDate>Fri, 10 Aug 2018 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2018/08/10/red-builds/</guid><description>So this is a bit of a rant&amp;hellip;but hopefully with some solutions and workarounds too. So let&amp;rsquo;s kick things off with a nice statement:
 I hate broken builds.
 So everyone basically agrees on this point I think. The problem is that I mean all builds, including ones on shared feature branches.
-Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description></item><item><title>CI: Thoughts on CC.Net and Hudson</title><link>https://andydote.co.uk/2009/07/14/ci-thoughts-on-ccnet-and-hudson/</link><pubDate>Tue, 14 Jul 2009 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2009/07/14/ci-thoughts-on-ccnet-and-hudson/</guid><description>I have been a fan of CI (Continuous Integration) for a long time now, and ever since I started with CI I have been using CruiseControl.Net. CCNet is incredibly powerful; you can make to do practically anything, and writing plugins for it is a breeze.
-However, I do find that the config files get rather messy. I have tried many things and the current best solution seems to be to have one &amp;lsquo;master&amp;rsquo; config file with a set of includes to other files.</description></item></channel></rss>
+Currently, I work on a number of projects which uses small(ish) feature branches. The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.</description><content:encoded><![CDATA[<p>So this is a bit of a rant&hellip;but hopefully with some solutions and workarounds too. So let&rsquo;s kick things off with a nice statement:</p>
+<p>I hate broken builds.</p>
+<p>So everyone basically agrees on this point I think.  The problem is that I mean <em>all</em> builds, including ones on shared feature branches.</p>
+<p>Currently, I work on a number of projects which uses small(ish) feature branches.  The way this works is that the team agrees on a new feature to work on creates a branch, and then each developer works on tasks, committing on their own branches, and Pull-Requesting to the feature branch.  Once the feature branch is completed, it&rsquo;s deployed and merged to master.  We&rsquo;ll ignore the fact that Trunk Based Development is just better for now.</p>
+<p><img loading="lazy" src="branching-features.png" alt="branching, developers working on small tasks being merged into a feature branch"  />
+</p>
+<p>The problem occurs when one of the first tasks to be completed is writing behaviour (or acceptance) tests.  These are written in something like SpecFlow, and call out to stubbed methods which throw <code>NotImplementedException</code> s.  When this gets merged, the feature branch build goes red and stays red until all other tasks are done.  And probably for a little while afterwards too.  Nothing like &ldquo;red-green-refactor&rdquo; when your light can&rsquo;t change away from red!</p>
+<h2 id="the-problems">The Problems</h2>
+<ul>
+<li>Local tests are failing, no matter how much you implement</li>
+<li>PullRequests to the feature branch don&rsquo;t have passing build checks</li>
+<li>The failing build is failing because:
+<ul>
+<li>Not everything is implemented yet</li>
+<li>A developer has introduced an error, and no one has noticed yet</li>
+<li>The build machine is playing up</li>
+</ul>
+</li>
+</ul>
+<p><img loading="lazy" src="branching-features-builds.png" alt="branching, developers working on small tasks being merged into a feature branch showing everything as failed builds"  />
+</p>
+<h2 id="bad-solutions">Bad Solutions</h2>
+<p>The first thing we could do is to not run the acceptance tests on a Task branch&rsquo;s build, and only when a feature branch build runs.  This is a bad idea, as someone will have forgotten to check if their task&rsquo;s acceptance tests pass, and will require effort later to fix the broken acceptance tests.</p>
+<p>We could also implement the acceptance file and not call any stubbed methods, making the file a text file and non-executable.  This is also a pretty bad idea - how much would you like to bet that it stays non-executable?</p>
+<h2 id="the-solution">The Solution</h2>
+<p>Don&rsquo;t have the acceptance tests as a separate task.  Instead, split the criteria among the implementation tasks.  This does mean that your other tasks should be Vertical Slices rather than Horizontal, which can be difficult to do depending on the application&rsquo;s architecture.</p>
+<h2 id="an-example">An Example</h2>
+<p>So let&rsquo;s dream up a super simple Acceptance Criteria:</p>
+<ul>
+<li>When a user signs up with a valid email which has not been used, they receive a welcome email with an activation link.</li>
+<li>When a user signs up with an invalid email, they get a validation error.</li>
+<li>When a user signs up with an in-use email, they get an error</li>
+</ul>
+<p>Note how this is already pretty close to being the tasks for the feature?  Our tasks are pretty much:</p>
+<ul>
+<li>implement the happy path</li>
+<li>implement other scenarios</li>
+</ul>
+<p>Of course, this means that not everything can be done in parallel - I imagine you&rsquo;d want the happy path task to be done first, and then the other scenarios are probably parallelisable.</p>
+<p>So our trade-off here is that we lose some parallelisation, but gain feedback. While this may seem insignificant, it has a significant impact on the overall delivery rate - everyone knows if their tasks are complete or not, and when the build goes red, you can be sure of what introduced the problem.</p>
+<p>Not to mention that features are rarely this small - you probably have various separate acceptance criteria, such as being able to view an account page.</p>
+<p>Oh, and once you can split your tasks correctly, there is only a small step to getting to do Trunk Based Development.  Which would make me happy.</p>
+<p>And developer happiness is important.</p>
+]]></content:encoded></item><item><title>CI: Thoughts on CC.Net and Hudson</title><link>https://andydote.co.uk/2009/07/14/ci-thoughts-on-ccnet-and-hudson/</link><pubDate>Tue, 14 Jul 2009 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2009/07/14/ci-thoughts-on-ccnet-and-hudson/</guid><description>I have been a fan of CI (Continuous Integration) for a long time now, and ever since I started with CI I have been using CruiseControl.Net. CCNet is incredibly powerful; you can make to do practically anything, and writing plugins for it is a breeze.
+However, I do find that the config files get rather messy. I have tried many things and the current best solution seems to be to have one &amp;lsquo;master&amp;rsquo; config file with a set of includes to other files.</description><content:encoded><![CDATA[<p>I have been a fan of CI (Continuous Integration) for a long time now, and ever since I started with CI I have been using <a href="http://confluence.public.thoughtworks.org/display/CCNET">CruiseControl.Net</a>. CCNet is incredibly powerful; you can make to do practically anything, and writing plugins for it is a breeze.</p>
+<p>However, I do find that the config files get rather messy.  I have tried many things and the current best solution seems to be to have one &lsquo;master&rsquo; config file with a set of includes to other files.  While this splits it all out nicely I find my config files are all very similar especially for projects which I build in Debug mode and in Release mode.  These configs are identical bar Build Location, and the <code>/p:Configuration=Debug</code> flag passed to MSBuild.  I have been reading about <a href="http://confluence.public.thoughtworks.org/display/CCNET/Dynamic+Parameters">Dynamic Parameters</a> and I think I can solve the problems with that, however time is a little short at work, so that is defiantly on the back burner.</p>
+<p>I have also been reading a lot of good things about <a href="https://hudson.dev.java.net/">Hudson</a> which while being a Java aimed CI Server, can be used with MSBuild through Nant, or plugins to let you use MSBuild directly (a nice guide is at [redsolo&rsquo;s blog]).  While I also have not had the time to have a proper play with it, I must say it does look very good.</p>
+<p>It may still have messy configs (I don&rsquo;t know yet, haven&rsquo;t really looked), but as everything is done through a nice web interface rather than a CLI, who cares?  I was very impressed with how quick it was to get running too: <code>java -DHUDSON_HOME=data -jar hudson.war</code>. It uncompressed itself, and got going straight away. No messing with installers. Very nice.</p>
+<p>The only thing I dislike so far is the background picture in the web interface.  So I deleted it.  Other than that (very) minor niggle, I think I like Hudson a lot, and look forward to playing around with it in the future.</p>
+]]></content:encoded></item></channel></rss>

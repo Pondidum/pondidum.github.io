@@ -1,2 +1,68 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>uml on Andy Dote</title><link>https://andydote.co.uk/tags/uml/</link><description>Recent content in uml on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 11 Sep 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/uml/rss.xml" rel="self" type="application/rss+xml"/><item><title>The reports of UML's death are greatly exaggerated</title><link>https://andydote.co.uk/2022/09/11/uml-isnt-dead/</link><pubDate>Sun, 11 Sep 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/09/11/uml-isnt-dead/</guid><description>This is in response to the recent posts about the death of UML; while I think some parts of UML have fallen ill, the remaining parts are still alive, and useful to this day.
-TLDR Out of 14 types of diagram there are 3 that I use on a regular basis: Activity Diagram, State Machine Diagram, and Sequence Diagram. I think the Timing Diagram is borderline, but I can only think of a couple of occasions when it has been useful.</description></item></channel></rss>
+TLDR Out of 14 types of diagram there are 3 that I use on a regular basis: Activity Diagram, State Machine Diagram, and Sequence Diagram. I think the Timing Diagram is borderline, but I can only think of a couple of occasions when it has been useful.</description><content:encoded><![CDATA[<p>This is in response to the <a href="https://buttondown.email/hillelwayne/archive/why-uml-really-died/">recent</a> <a href="https://garba.org/posts/2021/uml/">posts</a> about the death of UML;  while I think some parts of UML have fallen ill, the remaining parts are still alive, and useful to this day.</p>
+<h2 id="tldr">TLDR</h2>
+<p>Out of <a href="https://creately.com/blog/diagrams/uml-diagram-types-examples/">14 types of diagram</a> there are 3 that I use on a regular basis: <strong>Activity Diagram</strong>, <strong>State Machine Diagram</strong>, and <strong>Sequence Diagram</strong>.  I think the Timing Diagram is borderline, but I can only think of a couple of occasions when it has been useful.</p>
+<p>Writing the diagrams in text and rendering them with <a href="https://mermaid-js.github.io/mermaid/#/">Mermaid</a> makes including them in documentation and websites painless, and the project is under active development.</p>
+<h2 id="what-i-use-often">What I use often</h2>
+<p>The diagram I use the most is the <strong>Sequence Diagram</strong>;  It&rsquo;s a great way to document how multiple systems (or micro services) will interact with each other.  This diagram type has worked really well on both physical whiteboards, and in documentation.  For example, part of a diagram I used to help design a system recently:</p>
+
+<div class="mermaid" align="left">
+sequenceDiagram
+    participant api
+    participant cas
+    participant storage
+
+    api ->>+cas: dependencies
+
+    alt exists
+        cas ->>+storage: get key
+        storage ->>-cas: key, date
+    else doesn't exist
+        cas ->>+storage: get key
+        storage ->>-cas: [not found]
+        cas ->>+storage: write key, now()
+        storage ->>-cas: [ok]
+    end
+
+    cas ->>-api: key path
+</div>
+<p>Next most used is the <strong>Activity Diagram</strong>, also more commonly known as a <strong>Flow Chart</strong>.  This is mostly used when discribing an algorithm or process without needing to indicate different participants in the algorithm.</p>
+
+<div class="mermaid" align="left">
+graph LR
+    deps[key Dependencies]
+    in_store{key in Storage?}
+    write_to_store[key + current date to storage]
+    update_date[Update store date from file]
+    return[return key path]
+
+    deps --> in_store
+    in_store -->|Yes| update_date --> return
+    in_store -->|No| write_to_store --> return
+</div>
+<p>The last type that I use often is the <strong>State Machine Diagram</strong>;  I think that State Machines themselves are an under utilised design pattern, and that a lot of complex problems can be rendered into the state pattern quite easily.</p>
+<p>In a previous job there was a state machine with around 34 different states; being able to render this in a diagram made understanding the process much more approachable; even our support staff used the diagram to answer user questions.</p>
+<p>For example, a line processor could be represented as follows, where depending on the kind of error the process will either terminate, or skip the line and wait for the next:</p>
+
+<div class="mermaid" align="left">
+stateDiagram
+    state "Wait for Line" as wait
+    state "Process Line" as process
+
+    [*] --> wait
+    wait --> process
+    process --> wait
+    process --> Error
+    Error --> wait
+    Error --> [*]
+</div>
+<h2 id="who-else-is-using-uml">Who else is using UML?</h2>
+<p>The <a href="https://mermaid-js.github.io/mermaid/#/">Mermaid</a> library to render these kind of diagrams is being integrated all over the place:  Github uses it to handle any <code>```mermaid</code> blocks in your markdown files.</p>
+<p>Likewise, <a href="https://gohugo.io/">Hugo</a> uses it when rendering your markdown content too (which is what has drawn these nice diagrams here.)</p>
+<p>There are <a href="https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid">extensions for vscode</a> to render them too.</p>
+<h2 id="why-should-i-care">Why should I care?</h2>
+<p>Because explaining concepts is hard; and pictures often help.  The old phrase of a picture being worth a thousand words is applicable here; its far easier to glance over a diagram than read a few paragraphs of prose.</p>
+<p>This being the case, it is a good idea to have some common formats, standards or symbols to use, making the diagrams even clearer to people who already know the symbols (and don&rsquo;t forget to explain them if they don&rsquo;t know, and perhaps include a legend in your diagram.)</p>
+<p>When creating these diagrams was done in tools like Visio, and then screenshots embedded in documents (usually buried in a wiki where no one will find them), the barrier to making a useful diagram was high.  Being able to embed them in the markdown in your repo, <em>so they can be read from code even if they aren&rsquo;t rendered</em> lowers that barrier to making useful diagrams considerably.</p>
+<p>So do your co-workers, contributors, and your future-self a favour, and add some simple diagrams to your docs.</p>
+]]></content:encoded></item></channel></rss>

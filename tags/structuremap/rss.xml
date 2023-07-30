@@ -1,10 +1,482 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>structuremap on Andy Dote</title><link>https://andydote.co.uk/tags/structuremap/</link><description>Recent content in structuremap on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Wed, 04 Oct 2017 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/structuremap/rss.xml" rel="self" type="application/rss+xml"/><item><title>Composite Decorators with StructureMap</title><link>https://andydote.co.uk/2017/10/04/structuremap-composite-decorator/</link><pubDate>Wed, 04 Oct 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/10/04/structuremap-composite-decorator/</guid><description>While I was developing my Crispin project, I ended up needing to create a bunch of implementations of a single interface, and then use all those implementations at once (for metrics logging).
 The interface looks like so:
 public interface IStatisticsWriter { Task WriteCount(string format, params object[] parameters); } And we have a few implementations already:
-LoggingStatisticsWriter - writes to an ILogger instance StatsdStatisticsWriter - pushes metrics to StatsD InternalStatisticsWriter - aggregates metrics for exposing via Crispin&amp;rsquo;s api To make all of these be used together, I created a fourth implementation, called CompositeStatisticsWriter (a name I made up, but apparently matches the Gang of Four definition of a composite!</description></item><item><title>Testing Containers or Test Behaviour, Not Implementation</title><link>https://andydote.co.uk/2017/09/17/testing-containers/</link><pubDate>Sun, 17 Sep 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/09/17/testing-containers/</guid><description>The trouble with testing containers is that usually the test ends up very tightly coupled to the implementation.
+LoggingStatisticsWriter - writes to an ILogger instance StatsdStatisticsWriter - pushes metrics to StatsD InternalStatisticsWriter - aggregates metrics for exposing via Crispin&amp;rsquo;s api To make all of these be used together, I created a fourth implementation, called CompositeStatisticsWriter (a name I made up, but apparently matches the Gang of Four definition of a composite!</description><content:encoded><![CDATA[<p>While I was developing my <a href="https://github.com/pondidum/crispin">Crispin</a> project, I ended up needing to create a bunch of implementations of a single interface, and then use all those implementations at once (for metrics logging).</p>
+<p>The interface looks like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IStatisticsWriter</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Task WriteCount(<span style="color:#66d9ef">string</span> format, <span style="color:#66d9ef">params</span> <span style="color:#66d9ef">object</span>[] parameters);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And we have a few implementations already:</p>
+<ul>
+<li>LoggingStatisticsWriter - writes to an <code>ILogger</code> instance</li>
+<li>StatsdStatisticsWriter - pushes metrics to <a href="https://github.com/etsy/statsd">StatsD</a></li>
+<li>InternalStatisticsWriter - aggregates metrics for exposing via Crispin&rsquo;s api</li>
+</ul>
+<p>To make all of these be used together, I created a fourth implementation, called <code>CompositeStatisticsWriter</code> (a name I made up, but apparently matches the <a href="https://en.wikipedia.org/wiki/Composite_pattern">Gang of Four definition</a> of a composite!)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">CompositeStatisticsWriter</span> : IStatisticsWriter
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IStatisticsWriter[] _writers;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> CompositeStatisticsWriter(IEnumerable&lt;IStatisticsWriter&gt; writers)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _writers = writers.ToArray();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">async</span> Task WriteCount(<span style="color:#66d9ef">string</span> format, <span style="color:#66d9ef">params</span> <span style="color:#66d9ef">object</span>[] parameters)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">await</span> Task.WhenAll(_writers
+</span></span><span style="display:flex;"><span>            .Select(writer =&gt; writer.WriteCount(format, parameters))
+</span></span><span style="display:flex;"><span>            .ToArray());
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The problem with doing this is that StructureMap throws an error about a bi-directional dependency:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>StructureMap.Building.StructureMapBuildException : Bi-directional dependency relationship detected!
+</span></span><span style="display:flex;"><span>Check the StructureMap stacktrace below:
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">1.</span>) Instance of Crispin.Infrastructure.Statistics.IStatisticsWriter (Crispin.Infrastructure.Statistics.CompositeStatisticsWriter)
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">2.</span>) All registered children <span style="color:#66d9ef">for</span> IEnumerable&lt;IStatisticsWriter&gt;
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">3.</span>) Instance of IEnumerable&lt;IStatisticsWriter&gt;
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">4.</span>) <span style="color:#66d9ef">new</span> CompositeStatisticsWriter(*Default of IEnumerable&lt;IStatisticsWriter&gt;*)
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">5.</span>) Crispin.Infrastructure.Statistics.CompositeStatisticsWriter
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">6.</span>) Instance of Crispin.Infrastructure.Statistics.IStatisticsWriter (Crispin.Infrastructure.Statistics.CompositeStatisticsWriter)
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">7.</span>) Container.GetInstance&lt;Crispin.Infrastructure.Statistics.IStatisticsWriter&gt;()
+</span></span></code></pre></div><p>After attempting to solve this myself in a few different ways (you can even <a href="https://www.youtube.com/watch?v=2N6cgMBN7ZA">watch the stream</a> of my attempts), I asked in the StructreMap gitter chat room, and received this answer:</p>
+<blockquote>
+<p>This has come up a couple times, and yeah, you’ll either need a custom convention or a policy that adds the other <code>ITest</code>’s to the instance for <code>CompositeTest</code> as inline dependencies so it doesn’t try to make Composite a dependency of itself
+&ndash; <cite>Jeremy D. Miller</cite></p>
+</blockquote>
+<p>Finally, Babu Annamalai provided a simple implementation when I got stuck (again).</p>
+<p>The result is the creation of a custom convention for registering the composite, which provides all the implementations I want it to wrap:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">CompositeDecorator</span>&lt;TComposite, TDependents&gt; : IRegistrationConvention
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">where</span> TComposite : TDependents
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> ScanTypes(TypeSet types, Registry registry)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> dependents = types
+</span></span><span style="display:flex;"><span>            .FindTypes(TypeClassification.Concretes)
+</span></span><span style="display:flex;"><span>            .Where(t =&gt; t.CanBeCastTo&lt;TDependents&gt;() &amp;&amp; t.HasConstructors())
+</span></span><span style="display:flex;"><span>            .Where(t =&gt; t != <span style="color:#66d9ef">typeof</span>(TComposite))
+</span></span><span style="display:flex;"><span>            .ToList();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        registry
+</span></span><span style="display:flex;"><span>            .For&lt;TDependents&gt;()
+</span></span><span style="display:flex;"><span>            .Use&lt;TComposite&gt;()
+</span></span><span style="display:flex;"><span>            .EnumerableOf&lt;TDependents&gt;()
+</span></span><span style="display:flex;"><span>            .Contains(x =&gt; dependents.ForEach(t =&gt; x.Type(t)));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To use this the StructureMap configuration changes from this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> CrispinRestRegistry()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Scan(a =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        a.AssemblyContainingType&lt;Toggle&gt;();
+</span></span><span style="display:flex;"><span>        a.WithDefaultConventions();
+</span></span><span style="display:flex;"><span>        a.AddAllTypesOf&lt;IStatisticsWriter&gt;();
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> store = BuildStorage();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    For&lt;IStorage&gt;().Use(store);
+</span></span><span style="display:flex;"><span>    For&lt;IStatisticsWriter&gt;().Use&lt;CompositeStatisticsWriter&gt;();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>To this version:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> CrispinRestRegistry()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Scan(a =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        a.AssemblyContainingType&lt;Toggle&gt;();
+</span></span><span style="display:flex;"><span>        a.WithDefaultConventions();
+</span></span><span style="display:flex;"><span>        a.Convention&lt;CompositeDecorator&lt;CompositeStatisticsWriter, IStatisticsWriter&gt;&gt;();
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> store = BuildStorage();
+</span></span><span style="display:flex;"><span>    For&lt;IStorage&gt;().Use(store);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And now everything works successfully, and I have Pull Request open on StructureMap&rsquo;s repo with an update to the documentation about this.</p>
+<p>Hopefully this helps someone else too!</p>
+]]></content:encoded></item><item><title>Testing Containers or Test Behaviour, Not Implementation</title><link>https://andydote.co.uk/2017/09/17/testing-containers/</link><pubDate>Sun, 17 Sep 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/09/17/testing-containers/</guid><description>The trouble with testing containers is that usually the test ends up very tightly coupled to the implementation.
 Let&amp;rsquo;s see an example. If we start off with an interface and implementation of a &amp;ldquo;cache&amp;rdquo;, which in this case is just going to store a single string value.
-public interface ICache { string Value { get; set; } } public class Cache { public string Value { get; set; } } We then setup our container (StructureMap in this case) to return the same instance of the cache whenever an ICache is requested:</description></item><item><title>Serilog LogContext with StructureMap and SimpleInjector</title><link>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</link><pubDate>Fri, 28 Jul 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</guid><description>This article has been updated after feedback from .Net Junkie (Godfather of SimpleInjector). I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)
-Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.</description></item><item><title>Preventing MicroService Boilerplate</title><link>https://andydote.co.uk/2016/07/17/preventing-microservice-boilerplate/</link><pubDate>Sun, 17 Jul 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/07/17/preventing-microservice-boilerplate/</guid><description>One of the downsides to microservices I have found is that I end up repeating the same blocks of code over and over for each service. Not only that, but the project setup is repetitive, as all the services use the Single Project Service and Console method.
-What do we do in every service? Initialise Serilog. Add a Serilog sink to ElasticSearch for Kibana (but only in non-local config.) Hook/Unhook the AppDomain.</description></item><item><title>Using StructureMap Registries for better separation</title><link>https://andydote.co.uk/2014/05/19/using-structuremap-registries/</link><pubDate>Mon, 19 May 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/05/19/using-structuremap-registries/</guid><description>When it comes to configuring StructureMap, it supports the use of Registries. Registries support everything that the standard configure method does(new Container(c =&amp;gt; { /* */});).
+public interface ICache { string Value { get; set; } } public class Cache { public string Value { get; set; } } We then setup our container (StructureMap in this case) to return the same instance of the cache whenever an ICache is requested:</description><content:encoded><![CDATA[<p>The trouble with testing containers is that usually the test ends up very tightly coupled to the implementation.</p>
+<p>Let&rsquo;s see an example.  If we start off with an interface and implementation of a &ldquo;cache&rdquo;, which in this case is just going to store a single string value.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ICache</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">string</span> Value { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Cache</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Value { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We then setup our container (<a href="http://structuremap.github.io">StructureMap</a> in this case) to return the same instance of the cache whenever an <code>ICache</code> is requested:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> container = <span style="color:#66d9ef">new</span> Container(_ =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    _.For&lt;ICache&gt;().Use&lt;Cache&gt;().Singleton();
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>The following test is fairly typical of how this behaviour gets verified - it just compares that the same instance was returned by the container:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> first = container.GetInstance&lt;ICache&gt;();
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> second = container.GetInstance&lt;ICache&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>first.ShouldBe(second);
+</span></span></code></pre></div><p>But this is a very brittle test, as it is assuming that <code>ICache</code> will actually be the singleton.  However in the future, we might add in a decorator, or make the cache a totally different style of implementation which isn&rsquo;t singleton based.</p>
+<p>For example, if we were to include a decorator class, which just logs reads and writes to the console:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">LoggingCache</span> : ICache
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Cache _backingCache;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> LoggingCache(Cache backingCache)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _backingCache = backingCache;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">string</span> Value
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">get</span>
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            Console.WriteLine(<span style="color:#e6db74">&#34;Value fetched&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> _backingCache.Value;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">set</span>
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            Console.Write(<span style="color:#e6db74">$&#34;Value changed from {_backingCache.Value} to {value}&#34;</span>);
+</span></span><span style="display:flex;"><span>            _backingCache.Value = <span style="color:#66d9ef">value</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Which will change our container registration:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> container = <span style="color:#66d9ef">new</span> Container(_ =&gt; {
+</span></span><span style="display:flex;"><span>    _.ForSingletonOf&lt;Cache&gt;();
+</span></span><span style="display:flex;"><span>    _.For&lt;ICache&gt;().Use&lt;LoggingCache&gt;();
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>The test will now fail, or need changing to match the new implementation.  This shows two things:</p>
+<ul>
+<li>Tests are tightly coupled to the implementation</li>
+<li>Tests are testing the implementation, not the intent.</li>
+</ul>
+<h2 id="testing-intent-not-implementation">Testing intent, not implementation</h2>
+<p>Instead of checking if we get the same class instances back from the container, it would make for more sense to check the classes <em>behave</em> as expected.  For my &ldquo;super stupid cache&rdquo; example this could take the following form:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> first = container.GetInstance&lt;ICache&gt;();
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> second = container.GetInstance&lt;ICache&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>first.Value = <span style="color:#e6db74">&#34;testing&#34;</span>;
+</span></span><span style="display:flex;"><span>second.Value.ShouldBe(<span style="color:#e6db74">&#34;testing&#34;</span>);
+</span></span></code></pre></div><p>Not only does this test validate the behaviour of the classes, but it is far less brittle - we can change what the container returns entirely for <code>ICache</code>, as long as it behaves the same.</p>
+<p>But what do you think? How do you go about testing behaviour?</p>
+]]></content:encoded></item><item><title>Serilog LogContext with StructureMap and SimpleInjector</title><link>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</link><pubDate>Fri, 28 Jul 2017 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2017/07/28/serilog-context-with-structuremap-and-simpleinjector/</guid><description>This article has been updated after feedback from .Net Junkie (Godfather of SimpleInjector). I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)
+Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.</description><content:encoded><![CDATA[<p><em>This article has been updated after feedback from <a href="https://twitter.com/dot_NET_Junkie">.Net Junkie</a> (Godfather of SimpleInjector).  I now have a working SimpleInjector implementation of this, and am very appreciative of him for taking the time to help me :)</em></p>
+<p>Serilog is one of the main set of libraries I use on a regular basis, and while it is great at logging, it does cause something in our codebase that I am less happy about.  Take the following snippet for example:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Something</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">readonly</span> ILogger Log = Log.ForContext(<span style="color:#66d9ef">typeof</span>(Something));
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>There are two things I don&rsquo;t like about this.  The first is the static field access:  We have tests which assert on log content for disallowed information, or to include a correlationid etc.  Having a static field means that if tests run in parallel, we end up with flaky tests due to multiple log messages being written.  The second thing I don&rsquo;t like is less about the line itself, but the repetition of this line throughout the codebase.  Nearly every class which does logging has the same line, but with the type parameter changed.</p>
+<p>I set out to see if I could remedy both problems at once.</p>
+<h2 id="fixing-the-static-field">Fixing the Static Field</h2>
+<p>The first fix is to inject the logger in via a constructor argument, which will allow tests to use their own version of the logger:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Something</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> ILogger _log;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Something(ILogger logger)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _log = logger.ForContext(<span style="color:#66d9ef">typeof</span>(Something));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>That was easy! Now on to the hard part; removing the repeated <code>.ForContext</code> call.</p>
+<h2 id="fixing-the-forcontext-repetition">Fixing the ForContext Repetition</h2>
+<p>Most (if not all) the applications I build use a dependency injection container to build objects.  In my opinion there are only two containers which are worth considering in the .net space:  <a href="http://structuremap.github.io/">StructureMap</a>, and <a href="https://simpleinjector.org">SimpleInjector</a>.  If you like convention based registration, use StructureMap.  If you like to get a safety net that prevents and detects common misconfigurations, use SimpleInjector.</p>
+<h3 id="tests">Tests</h3>
+<p>We can use the same tests to verify the behaviour both when using StructureMap and SimpleInjector&rsquo;s.  We have a couple of test classes, and an interface to allow for more generic testing:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">ILogOwner</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    ILogger Logger { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Something</span> : ILogOwner
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ILogger Logger { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Something(ILogger logger)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Logger = logger;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Everything</span> : ILogOwner
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> ILogger Logger { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Everything(ILogger logger)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Logger = logger;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And then a single parameterised test method for verification:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Tests</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Container _container;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> Tests()
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        Log.Logger = <span style="color:#66d9ef">new</span> LoggerConfiguration()
+</span></span><span style="display:flex;"><span>            .MinimumLevel.Debug()
+</span></span><span style="display:flex;"><span>            .WriteTo.Console()
+</span></span><span style="display:flex;"><span>            .CreateLogger();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// _container = new ...</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [Theory]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [InlineData(typeof(Something))]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">    [InlineData(typeof(Everything))]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Types_get_their_own_context(Type type)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> instance = (ILogOwner)_container.GetInstance(type);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> context = GetContextFromLogger(instance);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        context.ShouldBe(type.FullName);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">string</span> GetContextFromLogger(ILogOwner owner)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> logEvent = CreateLogEvent();
+</span></span><span style="display:flex;"><span>        owner.Logger.Write(logEvent);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> logEvent.Properties[<span style="color:#e6db74">&#34;SourceContext&#34;</span>].ToString().Trim(<span style="color:#e6db74">&#39;&#34;&#39;</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> LogEvent CreateLogEvent() =&gt; <span style="color:#66d9ef">new</span> LogEvent(
+</span></span><span style="display:flex;"><span>        DateTimeOffset.Now,
+</span></span><span style="display:flex;"><span>        LogEventLevel.Debug,
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">null</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">new</span> MessageTemplate(<span style="color:#e6db74">&#34;&#34;</span>, Enumerable.Empty&lt;MessageTemplateToken&gt;()),
+</span></span><span style="display:flex;"><span>        Enumerable.Empty&lt;LogEventProperty&gt;());
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="structuremap">StructureMap</h3>
+<p>The StructureMap initialisation just requires a single line change to use the construction context when creating a logger:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_container = <span style="color:#66d9ef">new</span> Container(_ =&gt;
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    _.Scan(a =&gt;
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        a.TheCallingAssembly();
+</span></span><span style="display:flex;"><span>        a.WithDefaultConventions();
+</span></span><span style="display:flex;"><span>    });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// original:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// _.For&lt;ILogger&gt;().Use(context =&gt; Log.Logger);</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// contextual</span>
+</span></span><span style="display:flex;"><span>    _.For&lt;ILogger&gt;().Use(context =&gt; Log.ForContext(context.ParentType));
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><h3 id="simpleinjector">SimpleInjector</h3>
+<p>SimpleInjector does a lot of verification of your container configuration, and as such deals mostly with Types, rather than instances, or types which have multiple mappings as we are doing.  This makes it slightly harder to support the behaviour we had with StructureMap, but not impossible.  A huge thanks to .Net Junkie for assisting with this!</p>
+<p>First we need to create an implementation of  <code>IDependencyInjectionBehavior</code>, which will handle our <code>ILogger</code> type requests, and pass all other types requests to the standard implementation:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">SerilogContextualLoggerInjectionBehavior</span> : IDependencyInjectionBehavior
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> IDependencyInjectionBehavior _original;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">readonly</span> Container _container;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> SerilogContextualLoggerInjectionBehavior(ContainerOptions options)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        _original = options.DependencyInjectionBehavior;
+</span></span><span style="display:flex;"><span>        _container = options.Container;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Verify(InjectionConsumerInfo consumer) =&gt; _original.Verify(consumer);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> InstanceProducer GetInstanceProducer(InjectionConsumerInfo i, <span style="color:#66d9ef">bool</span> t) =&gt;
+</span></span><span style="display:flex;"><span>        i.Target.TargetType == <span style="color:#66d9ef">typeof</span>(ILogger)
+</span></span><span style="display:flex;"><span>            ? GetLoggerInstanceProducer(i.ImplementationType)
+</span></span><span style="display:flex;"><span>            : _original.GetInstanceProducer(i, t);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> InstanceProducer&lt;ILogger&gt; GetLoggerInstanceProducer(Type type) =&gt;
+</span></span><span style="display:flex;"><span>        Lifestyle.Transient.CreateProducer(() =&gt; Log.ForContext(type), _container);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This can then be set in our container setup:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span>_ontainer = <span style="color:#66d9ef">new</span> Container();
+</span></span><span style="display:flex;"><span>_container.Options.DependencyInjectionBehavior = <span style="color:#66d9ef">new</span> SerilogContextualLoggerInjectionBehavior(_container.Options);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>_container.Register&lt;Something&gt;();
+</span></span><span style="display:flex;"><span>_container.Register&lt;Everything&gt;();
+</span></span></code></pre></div><p>And now our tests pass!</p>
+<h2 id="outcomes">Outcomes</h2>
+<p>Thanks to this container usage, I no longer have to have the <code>.ForContext(typeof(Something))</code> scattered throughout my codebases.</p>
+<p>Hopefully this shows how taking away just some of the little tasks makes life easier - I now no longer have to remember to do the <code>.ForContext</code> on each class, and don&rsquo;t need to have tests to validate it is done on each class (I have one test in my container configuration tests which validates this behaviour instead).</p>
+]]></content:encoded></item><item><title>Preventing MicroService Boilerplate</title><link>https://andydote.co.uk/2016/07/17/preventing-microservice-boilerplate/</link><pubDate>Sun, 17 Jul 2016 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2016/07/17/preventing-microservice-boilerplate/</guid><description>One of the downsides to microservices I have found is that I end up repeating the same blocks of code over and over for each service. Not only that, but the project setup is repetitive, as all the services use the Single Project Service and Console method.
+What do we do in every service? Initialise Serilog. Add a Serilog sink to ElasticSearch for Kibana (but only in non-local config.) Hook/Unhook the AppDomain.</description><content:encoded><![CDATA[<p>One of the downsides to microservices I have found is that I end up repeating the same blocks of code over and over for each service.  Not only that, but the project setup is repetitive, as all the services use the <a href="/2015/08/30/single-project-service-and-console/">Single Project Service and Console</a> method.</p>
+<h1 id="what-do-we-do-in-every-service">What do we do in every service?</h1>
+<ul>
+<li>Initialise Serilog.</li>
+<li>Add a Serilog sink to ElasticSearch for Kibana (but only in non-local config.)</li>
+<li>Hook/Unhook the <code>AppDomain.Current.UnhandledException</code> handler.</li>
+<li>Register/UnRegister with Consul.</li>
+<li>Setup StructureMap, if using an IOC Container.</li>
+<li>Run as a Console if the <code>Environment.UserInteractive</code> flag is true.</li>
+<li>Run as a Service otherwise</li>
+</ul>
+<p>The only task with potential to have variance each time is the setting up of StructureMap, the rest are almost identical every time.</p>
+<h1 id="how-to-solve-all-this-repetition">How to solve all this repetition?</h1>
+<p>To rectify this, I created a nuget project which encapsulates all of this logic, and allows us to create a Console project with the following startup:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> Main(<span style="color:#66d9ef">string</span>[] args)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	ServiceHost.Run&lt;Startup&gt;(<span style="color:#e6db74">&#34;TestService&#34;</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This requires one class implementing the <code>IStartup</code> interface, and there are some optional interfaces which can be implemented too:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Startup</span> : IStartup, IDisposable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Startup()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Console.WriteLine(<span style="color:#e6db74">&#34;starting up&#34;</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Execute(ServiceArgs service)
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		File.AppendAllLines(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, <span style="color:#e6db74">&#34;log.txt&#34;</span>), <span style="color:#66d9ef">new</span>[] { <span style="color:#e6db74">&#34;boot!&#34;</span> });
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">while</span> (service.CancelRequested == <span style="color:#66d9ef">false</span>)
+</span></span><span style="display:flex;"><span>			Thread.Sleep(<span style="color:#ae81ff">500</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> Dispose()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Console.WriteLine(<span style="color:#e6db74">&#34;shutting down&#34;</span>);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Optionally, the project can implement two interfaces to control Consul and ElasticSearch configuration:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Config</span> : ILogConfig, IConsulRegistration
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">bool</span> EnableKibana { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> Uri LoggingEndpoint { <span style="color:#66d9ef">get</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> CatalogRegistration CreateRegistration()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> CatalogRegistration() { Service = <span style="color:#66d9ef">new</span> AgentService
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			Address = <span style="color:#e6db74">&#34;http://localhost&#34;</span>,
+</span></span><span style="display:flex;"><span>			Port = <span style="color:#ae81ff">8005</span>,
+</span></span><span style="display:flex;"><span>			Service = <span style="color:#e6db74">&#34;TestService&#34;</span>
+</span></span><span style="display:flex;"><span>		}};
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> CatalogDeregistration CreateDeregistration()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">new</span> CatalogDeregistration { ServiceID = <span style="color:#e6db74">&#34;TestService&#34;</span> };
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>By implementing these interfaces, the <code>ServiceHost</code> class can use StructureMap to find the implementations (if any) at run time.</p>
+<p>Talking of StructureMap, if we wish to configure the container in the host application, all we need to do is create a class which inherits <code>Registry</code>, and the ServiceHost&rsquo;s StructureMap configuration will find it.</p>
+<h1 id="how-do-we-support-other-tools">How do we support other tools?</h1>
+<p>Well we could implment some kind of stage configuration steps, so your startup might change to look like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> Main(<span style="color:#66d9ef">string</span>[] args)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	ServiceHost.Stages(<span style="color:#66d9ef">new</span> LoggingStage(), <span style="color:#66d9ef">new</span> ConsulStage(), <span style="color:#66d9ef">new</span> SuperAwesomeThingStage());
+</span></span><span style="display:flex;"><span>	ServiceHost.Run&lt;Startup&gt;(<span style="color:#e6db74">&#34;TestService&#34;</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The reason I haven&rsquo;t done this is that on the whole, we tend to use the same tools for each job in every service; StructureMap for IOC, Serilog for logging, Consul for discovery.  So rather than having to write some boilerplate for every service (e.g. specifying all the stages), I just bake the options in to <code>ServiceHost</code> directly.</p>
+<p>This means that if you want your own version of this library with different tooling support, you need to write it yourself.  As a starting point, I have the code for the <a href="https://github.com/pondidum/ServiceContainer"><code>ServiceContainer</code> project up on Github</a>.</p>
+<p>It is not difficult to create new stages for the pipeline - all the different tasks the <code>ServiceHost</code> can perform are implemented in a pseudo Russian-Doll model - they inherit <code>Stage</code>, which looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Stage</span> : IDisposable
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> IContainer Container { <span style="color:#66d9ef">get</span>; <span style="color:#66d9ef">set</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">void</span> Execute();
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">void</span> Dispose();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Anything you want to your stage to do before the <code>IStartup.Execute()</code> call is made is done in <code>Execute()</code>, similarly anything to be done afterwards is in <code>Dispose()</code>.  For example, the <code>ConsulStage</code> is implemented like so:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ConsulStage</span> : Stage
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Execute()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> registration = Container.TryGetInstance&lt;IConsulRegistration&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (registration != <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">var</span> client = <span style="color:#66d9ef">new</span> ConsulClient();
+</span></span><span style="display:flex;"><span>			client.Catalog.Register(registration.CreateRegistration());
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">void</span> Dispose()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">var</span> registration = Container.TryGetInstance&lt;IConsulRegistration&gt;();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (registration != <span style="color:#66d9ef">null</span>)
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">var</span> client = <span style="color:#66d9ef">new</span> ConsulClient();
+</span></span><span style="display:flex;"><span>			client.Catalog.Deregister(registration.CreateDeregistration());
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Finally you just need to add the stage to the <code>ServiceWrapper</code> constructor:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c#" data-lang="c#"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> ServiceWrapper(<span style="color:#66d9ef">string</span> name, Type entryPoint)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// snip...</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	_stages = <span style="color:#66d9ef">new</span> Stage[]
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">new</span> LoggingStage(name),
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">new</span> ConsulStage()
+</span></span><span style="display:flex;"><span>	};
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h1 id="get-started">Get started!</h1>
+<p>That&rsquo;s all there is to it!  Hopefully this gives you a good starting point for de-boilerplating your microservices :)</p>
+]]></content:encoded></item><item><title>Using StructureMap Registries for better separation</title><link>https://andydote.co.uk/2014/05/19/using-structuremap-registries/</link><pubDate>Mon, 19 May 2014 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2014/05/19/using-structuremap-registries/</guid><description>When it comes to configuring StructureMap, it supports the use of Registries. Registries support everything that the standard configure method does(new Container(c =&amp;gt; { /* */});).
 There are two main reasons that I use the registries rather then doing all my configuration in the Container&amp;rsquo;s lambda: separation of concerns (one registry per area of code) and easier testing (which we will go into shortly).
-The only down side I can see to using registries is that it can scatter your configuration across your codebase - but if you have ReSharper, doing a &amp;lsquo;Find Implementations&amp;rsquo; on Registry will find them all for you, so it really isn&amp;rsquo;t much of a down side.</description></item></channel></rss>
+The only down side I can see to using registries is that it can scatter your configuration across your codebase - but if you have ReSharper, doing a &amp;lsquo;Find Implementations&amp;rsquo; on Registry will find them all for you, so it really isn&amp;rsquo;t much of a down side.</description><content:encoded><![CDATA[<p>When it comes to configuring StructureMap, it supports the use of <a href="http://fubuworld.com/structuremap/registration/registry-dsl/">Registries</a>.  Registries support everything that the standard configure method does(<code>new Container(c =&gt; { /* */});</code>).</p>
+<p>There are two main reasons that I use the registries rather then doing all my configuration in the Container&rsquo;s lambda:  separation of concerns (one registry per area of code) and easier testing (which we will go into shortly).</p>
+<p>The only down side I can see to using registries is that it can scatter your configuration across your codebase - but if you have ReSharper, doing a &lsquo;Find Implementations&rsquo; on <code>Registry</code> will find them all for you, so it really isn&rsquo;t much of a down side.</p>
+<h2 id="separation-of-concerns">Separation of Concerns</h2>
+<p>Taking <a href="https://github.com/Pondidum/NuCache">NuCache</a> as an example, in our app start we have <a href="https://github.com/Pondidum/NuCache/blob/master/NuCache/App_Start/ConfigureContainer.cs">ConfigureContainer.cs</a>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> Register(HttpConfiguration config)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> container = <span style="color:#66d9ef">new</span> Container(c =&gt; c.Scan(a =&gt;
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		a.TheCallingAssembly();
+</span></span><span style="display:flex;"><span>		a.WithDefaultConventions();
+</span></span><span style="display:flex;"><span>		a.LookForRegistries();
+</span></span><span style="display:flex;"><span>	}));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	config.DependencyResolver = <span style="color:#66d9ef">new</span> StructureMapDependencyResolver(container);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This snippet of code gets called as part of the AppStart, and tells StructureMap to use the default conventions (eg: <code>IFileSystem =&gt; FileSystem</code>), and to process any registries it finds.  The app then has multiple Registries with the actual configuration in (usually one per namespace, although not all namespaces have a registry).</p>
+<p>For example, we have these two registries:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">InfrastructureRegistry</span> : Registry
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> InfrastructureRegistry()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		For&lt;IPackageCache&gt;()
+</span></span><span style="display:flex;"><span>			.Use&lt;FileSystemPackageCache&gt;()
+</span></span><span style="display:flex;"><span>			.OnCreation(c =&gt; c.Initialise())
+</span></span><span style="display:flex;"><span>			.Singleton();
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ProxyBehaviourRegistry</span> : Registry
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">public</span> ProxyBehaviourRegistry ()
+</span></span><span style="display:flex;"><span>	{
+</span></span><span style="display:flex;"><span>		Scan(a =&gt;
+</span></span><span style="display:flex;"><span>		{
+</span></span><span style="display:flex;"><span>			a.TheCallingAssembly();
+</span></span><span style="display:flex;"><span>			a.AddAllTypesOf&lt;IProxyBehaviour&gt;();
+</span></span><span style="display:flex;"><span>		});
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <a href="https://github.com/Pondidum/NuCache/blob/master/NuCache/Infrastructure/InfrastructureRegistry.cs">InfrastructureRegistry</a> just specifies how to resolve an <code>IPackageCache</code>, as it has requires some extra initialisation and to be treated as a singleton.</p>
+<p>The <a href="https://github.com/Pondidum/NuCache/blob/master/NuCache/ProxyBehaviour/ProxyBehaviourRegistry.cs">ProxyBehaviourRegistry</a> tells StructureMap to add all implementations of <code>IProxyBehaviour</code>, so that when we construct as <code>ProxyBehaviourSet</code>, which has a constructor parameter of <code>IEnumerable&lt;IProxyBehaviour&gt;</code> all the implementations are passed in for us.</p>
+<h2 id="easier-testing">Easier Testing</h2>
+<p>We can use the Registry feature of StructureMap to allow us to test parts of code as they would be in production.  This mostly applies to acceptance style testing, for example when I am testing the XmlRewriter, I want it to behave exactly as it would in production, with the same <code>IXElementTransform</code>s passed in.</p>
+<p>To do this, we can use the <code>RewriterRegistry</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> container = <span style="color:#66d9ef">new</span> Container(<span style="color:#66d9ef">new</span> RewriterRegistry());
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">var</span> rewriter = container.GetInstance&lt;XmlRewriter&gt;();
+</span></span></code></pre></div><p>Here we create a new container with the <code>RewriterRegistry</code> passed directly into the constructor.  This gives us access to a container completely configured for using the <code>XmlRewriter</code>.  We can then fake the inputs and outputs to the method under test, keeping the whole system in a known production-like state.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-csharp" data-lang="csharp"><span style="display:flex;"><span><span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> inputStream = GetType().Assembly.GetManifestResourceStream(<span style="color:#e6db74">&#34;NuCache.Tests.Packages.xml&#34;</span>))
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">using</span> (<span style="color:#66d9ef">var</span> outputStream = <span style="color:#66d9ef">new</span> MemoryStream())
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	rewriter.Rewrite(targetUri, inputStream, outputStream);
+</span></span><span style="display:flex;"><span>	outputStream.Position = <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	_result = XDocument.Load(outputStream);
+</span></span><span style="display:flex;"><span>	_namespace = _result.Root.Name.Namespace;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Hopefully this shows how useful and powerful feature StructureMap&rsquo;s Registries are.</p>
+]]></content:encoded></item></channel></rss>

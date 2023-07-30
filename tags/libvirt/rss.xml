@@ -1,2 +1,79 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>libvirt on Andy Dote</title><link>https://andydote.co.uk/tags/libvirt/</link><description>Recent content in libvirt on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 22 Dec 2019 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/libvirt/rss.xml" rel="self" type="application/rss+xml"/><item><title>Libvirt Hostname Resolution</title><link>https://andydote.co.uk/2019/12/22/libvirt-hostname-resolution/</link><pubDate>Sun, 22 Dec 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/12/22/libvirt-hostname-resolution/</guid><description>I use Vagrant when testing new machines and experimenting locally with clusters, and since moving (mostly) to Linux, I have been using the LibVirt Plugin to create the virtual machines. Not only is it significantly faster than Hyper-V was on windows, but it also means I don&amp;rsquo;t need to use Oracle products, so it&amp;rsquo;s win-win really.
-The only configuration challenge I have had with it is setting up VM hostname resolution, and as I forget how to do it each time, I figured I should write about it.</description></item></channel></rss>
+The only configuration challenge I have had with it is setting up VM hostname resolution, and as I forget how to do it each time, I figured I should write about it.</description><content:encoded><![CDATA[<p>I use <a href="http://vagrantup.com/">Vagrant</a> when testing new machines and experimenting locally with clusters, and since moving (mostly) to Linux, I have been using the <a href="https://github.com/vagrant-libvirt/vagrant-libvirt">LibVirt Plugin</a> to create the virtual machines. Not only is it significantly faster than Hyper-V was on windows, but it also means I don&rsquo;t need to use Oracle products, so it&rsquo;s win-win really.</p>
+<p>The only configuration challenge I have had with it is setting up VM hostname resolution, and as I forget how to do it each time, I figured I should write about it.</p>
+<h2 id="setup">Setup</h2>
+<p>First I install the plugin so Vagrant can talk to Libvirt.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant plugin install vagrant-libvirt
+</span></span></code></pre></div><p>I also created a single <code>vagrantfile</code> with two virtual machines defined in it, so that I can check that the machines can resolve each other, as well as the host being able to resolve the guests.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#e6db74">&#34;2&#34;</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span> config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;elastic/ubuntu-16.04-x86_64&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span> config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;one&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>n1<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span> n1<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;one&#34;</span>
+</span></span><span style="display:flex;"><span> <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span> config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;two&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>n1<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span> n1<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;two&#34;</span>
+</span></span><span style="display:flex;"><span> <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>Once running <code>vagrant up</code> has finished (either with <code>--provider libvirt</code> or setting <code> VAGRANT_DEFAULT_PROVIDER=libvirt</code>), connect to one of the machines, and try to ping the other:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>andy@karhu$ vagrant ssh one
+</span></span><span style="display:flex;"><span>vagrant@one$ ping two
+</span></span><span style="display:flex;"><span>ping: unknown host two
+</span></span><span style="display:flex;"><span>vagrant@one$ exit
+</span></span></code></pre></div><p>Now that we can see they can&rsquo;t resolve each other let&rsquo;s move on to fixing it.</p>
+<h2 id="custom-domain">Custom Domain</h2>
+<p>The solution is to configure the libvirt network to have a domain name, and then to set the host machine to send requests for that domain to the virtual network.</p>
+<p>First, I picked a domain. It doesn&rsquo;t matter what it is, but I gather using <code>.local</code> will cause problems with other services, so instead, I picked <code>$HOSTNAME.xyz</code>, which is <code>karhu.xyz</code> in this case.</p>
+<p>Vagrant-libvirt by default creates a network called <code>vagrant-libvirt</code>, so we can edit it to include the domain name configuration by running the following command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>virsh net-edit --network vagrant-libvirt
+</span></span></code></pre></div><p>And adding the `<domain name='karhu.xyz' localOnly='yes' /> line to the xml which is displayed:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>&lt;network ipv6=&#39;yes&#39;&gt;
+</span></span><span style="display:flex;"><span> &lt;name&gt;vagrant-libvirt&lt;/name&gt;
+</span></span><span style="display:flex;"><span> &lt;uuid&gt;d265a837-96fd-41fc-b114-d9e076462051&lt;/uuid&gt;
+</span></span><span style="display:flex;"><span> &lt;forward mode=&#39;nat&#39;/&gt;
+</span></span><span style="display:flex;"><span> &lt;bridge name=&#39;virbr1&#39; stp=&#39;on&#39; delay=&#39;0&#39;/&gt;
+</span></span><span style="display:flex;"><span> &lt;mac address=&#39;52:54:00:a0:ae:fd&#39;/&gt;
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+ &lt;domain name=&#39;karhu.xyz&#39; localOnly=&#39;yes&#39;/&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span> &lt;ip address=&#39;192.168.121.1&#39; netmask=&#39;255.255.255.0&#39;&gt;
+</span></span><span style="display:flex;"><span> &lt;dhcp&gt;
+</span></span><span style="display:flex;"><span> &lt;range start=&#39;192.168.121.1&#39; end=&#39;192.168.121.254&#39;/&gt;
+</span></span><span style="display:flex;"><span> &lt;/dhcp&gt;
+</span></span><span style="display:flex;"><span> &lt;/ip&gt;
+</span></span><span style="display:flex;"><span>&lt;/network&gt;
+</span></span></code></pre></div><p>To make the changes take effect, we need to destroy and re-create the network, so first I destroy the vagrant machines, then destroy and restart the network:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant destroy -f
+</span></span><span style="display:flex;"><span>virsh net-destroy --network vagrant-libvirt
+</span></span><span style="display:flex;"><span>virsh net-start --network vagrant-libvirt
+</span></span></code></pre></div><p>Finally, we can re-create the machines, and log in to one to check that they can resolve each other:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>andy@karhu$ vagrant up
+</span></span><span style="display:flex;"><span>andy@karhu$ vagrant ssh one
+</span></span><span style="display:flex;"><span>vagrant@one$ ping two
+</span></span><span style="display:flex;"><span>PING two.karhu.xyz <span style="color:#f92672">(</span>192.168.121.243<span style="color:#f92672">)</span> 56<span style="color:#f92672">(</span>84<span style="color:#f92672">)</span> bytes of data.
+</span></span><span style="display:flex;"><span>vagrant@one$ exit
+</span></span></code></pre></div><p>You can also check that the host can resolve the machine names when querying the virtual network&rsquo;s DNS server:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>andy@karhu$ dig @192.168.121.1 +short one
+</span></span><span style="display:flex;"><span>&gt; 192.168.121.50
+</span></span></code></pre></div><h2 id="host-dns-forwarding">Host DNS Forwarding</h2>
+<p>The host cant talk to the machines by name still, so we need to tweak the host&rsquo;s DNS, which means fighting with SystemD. Luckily, we only need to forward requests to a DNS server running on port <code>53</code> - if it was on another port then replacing systemd-resolved like <a href="/2019/09/24/consul-ubuntu-dns-revisited/">my post on Consul DNS forwarding</a> would be necessary.</p>
+<p>Edit <code>/etc/systemd/resolved.conf</code> on the host, to add two lines which instruct it to send DNS requests for the domain picked earlier to the DNS server run by libvirt (dnsmasq):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>[Resolve]
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-#DNS=
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+DNS=192.168.121.1
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>#FallbackDNS=
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-#Domains=
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+Domains=~karhu.xyz
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>#LLMNR=no
+</span></span><span style="display:flex;"><span>#MulticastDNS=no
+</span></span><span style="display:flex;"><span>#DNSSEC=no
+</span></span><span style="display:flex;"><span>#DNSOverTLS=no
+</span></span><span style="display:flex;"><span>#Cache=yes
+</span></span><span style="display:flex;"><span>#DNSStubListener=yes
+</span></span><span style="display:flex;"><span>#ReadEtcHosts=yes
+</span></span></code></pre></div><p>Lastly, restart systemd-resolved for the changes to take effect:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemctl restart systemd-resolved
+</span></span></code></pre></div><p>Now we can resolve the guest machines by hostname at the domain we picked earlier:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>andy@karhu$ ping one.karhu.xyz
+</span></span><span style="display:flex;"><span>PING one.karhu.xyz <span style="color:#f92672">(</span>192.168.121.50<span style="color:#f92672">)</span> 56<span style="color:#f92672">(</span>84<span style="color:#f92672">)</span> bytes of data.
+</span></span></code></pre></div><p>Done!</p>
+]]></content:encoded></item></channel></rss>

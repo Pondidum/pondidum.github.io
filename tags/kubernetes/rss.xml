@@ -1,5 +1,319 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>kubernetes on Andy Dote</title><link>https://andydote.co.uk/tags/kubernetes/</link><description>Recent content in kubernetes on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Mon, 22 Nov 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/kubernetes/rss.xml" rel="self" type="application/rss+xml"/><item><title>The Operator Pattern in Nomad</title><link>https://andydote.co.uk/2021/11/22/nomad-operator-pattern/</link><pubDate>Mon, 22 Nov 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/11/22/nomad-operator-pattern/</guid><description>The Operator Pattern from Kubernetes is an excellent way of handling tasks in a cluster in an automated way, for example, provisioning applications, running backups, requesting certificates, and injecting chaos testing.
-As a Nomad user, I wanted to do something similar for my clusters, so I set about seeing how it would be possible. It turns out; it is much easier than I expected! While Nomad doesn&amp;rsquo;t support the idea of Custom Resource Definitions, we can achieve an operator by utilising a regular Nomad job and the nomad HTTP API.</description></item><item><title>The Problem with CPUs and Kubernetes</title><link>https://andydote.co.uk/2021/06/02/os-cpus-and-kubernetes/</link><pubDate>Wed, 02 Jun 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/06/02/os-cpus-and-kubernetes/</guid><description>Key Takeaway: os .cpus() returns the number of cores on a Kubernetes host, not the number of cores assigned to a pod.
-Investigating excessive memory usage Recently, when I was looking through a cluster health dashboard for a Kubernetes cluster, I noticed that one of the applications deployed was using a considerable amount of RAM - way more than I thought could be reasonable. Each instance (pod) of the application used approximately 8 GB of RAM, which was definitely excessive for a reasonably simple NodeJS webserver.</description></item><item><title>Nomad Good, Kubernetes Bad</title><link>https://andydote.co.uk/2019/11/21/nomad-good-kubernetes-bad/</link><pubDate>Thu, 21 Nov 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/11/21/nomad-good-kubernetes-bad/</guid><description>I will update this post as I learn more (both positive and negative), and is here to be linked to when people ask me why I don&amp;rsquo;t like Kubernetes, and why I would pick Nomad in most situations if I chose to use an orchestrator at all.
+As a Nomad user, I wanted to do something similar for my clusters, so I set about seeing how it would be possible. It turns out; it is much easier than I expected! While Nomad doesn&amp;rsquo;t support the idea of Custom Resource Definitions, we can achieve an operator by utilising a regular Nomad job and the nomad HTTP API.</description><content:encoded><![CDATA[<p>The <a href="https://kubernetes.io/docs/concepts/extend-kubernetes/operator/">Operator Pattern</a> from Kubernetes is an excellent way of handling tasks in a cluster in an automated way, for example, provisioning applications, running backups, requesting certificates, and injecting chaos testing.</p>
+<p>As a Nomad user, I wanted to do something similar for my clusters, so I set about seeing how it would be possible.  It turns out; it is much easier than I expected!  While Nomad doesn&rsquo;t support the idea of Custom Resource Definitions, we can achieve an operator by utilising a regular Nomad job and the nomad HTTP API.</p>
+<h2 id="the-setup">The Setup</h2>
+<p>We&rsquo;re going to build an automated backup operator!  We&rsquo;ll use the  <a href="https://www.nomadproject.io/api-docs/events">Nomad Streaming API</a> to watch for jobs being registered and deregistered.  If a job has some metadata for auto backup, we&rsquo;ll create (or update) a backup job.  If a job is deregistered or doesn&rsquo;t have any auto backup metadata, we&rsquo;ll try to delete a backup job if it exists.</p>
+<p>The complete source code is available in the <a href="https://github.com/Pondidum/nomad-operator">Nomad-Operator</a> repo on my GitHub.</p>
+<h2 id="consuming-the-nomad-streaming-api">Consuming the Nomad Streaming API</h2>
+<p>The <a href="https://pkg.go.dev/github.com/hashicorp/nomad/api">Nomad Go API library</a> makes it easy to consume the streaming API, handling all the details, such as deserialisation for us.</p>
+<p>The client is created with no additional parameters, as the <code>Address</code> and <code>SecretID</code> will be populated from environment variables automatically (<code>NOMAD_ADDR</code> and <code>NOMAD_TOKEN</code> respectively):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#a6e22e">client</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">NewClient</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">Config</span>{})
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As we want to only listen to jobs that have been modified after our application deploys, we need to query what the current job index is at startup:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">index</span> <span style="color:#66d9ef">uint64</span> = <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">meta</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">Jobs</span>().<span style="color:#a6e22e">List</span>(<span style="color:#66d9ef">nil</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">==</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">index</span> = <span style="color:#a6e22e">meta</span>.<span style="color:#a6e22e">LastIndex</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Next, we use the <code>EventStream</code> API and subscribe to all job event types (in practice, this means <code>JobRegistered</code>, <code>JobDeregistered</code>, and <code>JobBatchDeregistered</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#a6e22e">topics</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">map</span>[<span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">Topic</span>][]<span style="color:#66d9ef">string</span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">TopicJob</span>: {<span style="color:#e6db74">&#34;*&#34;</span>},
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">eventsClient</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">EventStream</span>()
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">eventCh</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">eventsClient</span>.<span style="color:#a6e22e">Stream</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">topics</span>, <span style="color:#a6e22e">index</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">QueryOptions</span>{})
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>Stream(...)</code> call itself returns a channel which we can loop over forever consuming events, ignoring the heartbeat events:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">select</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">case</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Done</span>():
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">case</span> <span style="color:#a6e22e">event</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">eventCh</span>:
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">IsHeartbeat</span>() {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">continue</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">handleEvent</span>(<span style="color:#a6e22e">event</span>)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Finally, this operator only cares about jobs being registered and deregistered, so we loop through all the events and only handle the <code>JobRegistered</code> and <code>JobDeregistered</code> events:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">e</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Events</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">Type</span> <span style="color:#f92672">!=</span> <span style="color:#e6db74">&#34;JobRegistered&#34;</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">Type</span> <span style="color:#f92672">!=</span> <span style="color:#e6db74">&#34;JobDeregistered&#34;</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">job</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">Job</span>()
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">onJob</span>(<span style="color:#a6e22e">e</span>.<span style="color:#a6e22e">Type</span>, <span style="color:#a6e22e">job</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="handling-jobs">Handling Jobs</h2>
+<p>When we see jobs, we need to handle a few different cases:</p>
+<ul>
+<li>Jobs which are backup jobs themselves should be ignored</li>
+<li>Jobs without backup settings should have their backup job removed (if it exists)</li>
+<li>Jobs with backup settings should have their job created (or updated if it exists)</li>
+<li>Deregistered jobs should have their backup job removed (if it exists)</li>
+</ul>
+<p>We&rsquo;re using the job level <code>meta</code> stanza in the <code>.nomad</code> files for our settings, which looks something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-hcl" data-lang="hcl"><span style="display:flex;"><span><span style="color:#66d9ef">task</span> <span style="color:#e6db74">&#34;server&#34;</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">meta</span> {
+</span></span><span style="display:flex;"><span>    auto-backup <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    backup-schedule <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;@daily&#34;</span>
+</span></span><span style="display:flex;"><span>    backup-target-db <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;postgres&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Backup</span>) <span style="color:#a6e22e">OnJob</span>(<span style="color:#a6e22e">eventType</span> <span style="color:#66d9ef">string</span>, <span style="color:#a6e22e">job</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">Job</span>) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">HasPrefix</span>(<span style="color:#f92672">*</span><span style="color:#a6e22e">job</span>.<span style="color:#a6e22e">ID</span>, <span style="color:#e6db74">&#34;backup-&#34;</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">backupID</span> <span style="color:#f92672">:=</span> <span style="color:#e6db74">&#34;backup-&#34;</span> <span style="color:#f92672">+</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">job</span>.<span style="color:#a6e22e">ID</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">settings</span>, <span style="color:#a6e22e">enabled</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">parseMeta</span>(<span style="color:#a6e22e">job</span>.<span style="color:#a6e22e">Meta</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">eventType</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;JobDeregistered&#34;</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">tryRemoveBackupJob</span>(<span style="color:#a6e22e">backupID</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> !<span style="color:#a6e22e">enabled</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">tryRemoveBackupJob</span>(<span style="color:#a6e22e">backupID</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">createBackupJob</span>(<span style="color:#a6e22e">backupID</span>, <span style="color:#a6e22e">settings</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Attempting to remove the job is straightforward as we don&rsquo;t care if it fails - it could be that the job doesn&rsquo;t exist, or is already stopped, or any other number of reasons, so we can use the <code>Deregister()</code> call and discard the output:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Backup</span>) <span style="color:#a6e22e">tryRemoveBackupJob</span>(<span style="color:#a6e22e">jobID</span> <span style="color:#66d9ef">string</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">Jobs</span>().<span style="color:#a6e22e">Deregister</span>(<span style="color:#a6e22e">jobID</span>, <span style="color:#66d9ef">false</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">WriteOptions</span>{})
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Creating the backup job involves rendering a go template of the nomad file we will use, and then calling <code>Register</code> to submit the job to Nomad.  We&rsquo;re using the fact that our backup IDs are stable, so re-running the same backup ID will replace the job with a new version.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Backup</span>) <span style="color:#a6e22e">createBackupJob</span>(<span style="color:#a6e22e">id</span> <span style="color:#66d9ef">string</span>, <span style="color:#a6e22e">s</span> <span style="color:#a6e22e">settings</span>) <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">template</span>.<span style="color:#a6e22e">New</span>(<span style="color:#e6db74">&#34;&#34;</span>).<span style="color:#a6e22e">Delims</span>(<span style="color:#e6db74">&#34;[[&#34;</span>, <span style="color:#e6db74">&#34;]]&#34;</span>).<span style="color:#a6e22e">Parse</span>(<span style="color:#a6e22e">backupHcl</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">var</span> <span style="color:#a6e22e">buffer</span> <span style="color:#a6e22e">bytes</span>.<span style="color:#a6e22e">Buffer</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Execute</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">buffer</span>, <span style="color:#a6e22e">s</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">backup</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">jobspec</span>.<span style="color:#a6e22e">Parse</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">buffer</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> = <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">Jobs</span>().<span style="color:#a6e22e">Register</span>(<span style="color:#a6e22e">backup</span>, <span style="color:#66d9ef">nil</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The nomad file is embedded using the Go <a href="https://pkg.go.dev/embed">embed</a> package to store the <code>.nomad</code> file in the binary, so we still have a single artefact to deploy:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//go:embed backup.nomad
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">backupHcl</span> <span style="color:#66d9ef">string</span>
+</span></span></code></pre></div><p>And the <code>backup.nomad</code> file itself is a go template with custom delimiters (<code>[[</code> and <code>]]</code>) for fields, as the <code>.nomad</code> file, can contain <code>{{ }}</code> when using the inbuilt templating for populating secrets, amongst other things:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>job <span style="color:#e6db74">&#34;[[ .JobID ]]&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  datacenters <span style="color:#f92672">=</span> <span style="color:#f92672">[</span><span style="color:#e6db74">&#34;dc1&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;batch&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  periodic <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    cron             <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;[[ .Schedule ]]&#34;</span>
+</span></span><span style="display:flex;"><span>    prohibit_overlap <span style="color:#f92672">=</span> true
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  group <span style="color:#e6db74">&#34;backup&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    task <span style="color:#e6db74">&#34;backup&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>      driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;docker&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      config <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>        image   <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;alpine:latest&#34;</span>
+</span></span><span style="display:flex;"><span>        command <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;echo&#34;</span>
+</span></span><span style="display:flex;"><span>        args    <span style="color:#f92672">=</span> <span style="color:#f92672">[</span> <span style="color:#e6db74">&#34;backing up [[ .SourceJobID ]]&#39;s [[ .TargetDB ]] database&#34;</span> <span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      env <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>        PGHOST     <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;postgres.service.consul&#34;</span>
+</span></span><span style="display:flex;"><span>        PGDATABASE <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;[[ .TargetDB ]]&#34;</span>
+</span></span><span style="display:flex;"><span>        AWS_REGION <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;eu-west-1&#34;</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><h2 id="testing-manual">Testing (Manual)</h2>
+<p>The great thing about developing against Nomad is that testing is straightforward.  We can start a local copy by running <code>nomad agent -dev</code>, and then run our application locally to check it works properly, <em>before</em> needing to package it up into a Docker container and deploying it to a real cluster.  It also doesn&rsquo;t need to be packaged in a container for Nomad; we could use <a href="https://www.nomadproject.io/docs/drivers/exec">Isolated Exec</a> or <a href="https://www.nomadproject.io/docs/drivers/raw_exec">Raw Exec</a> too.)</p>
+<p>There is a <code>start.sh</code> script in the repository which will use <code>tmux</code> to start 3 terminals, one to run a Nomad agent in dev mode (<code>nomad agent -dev</code>), one to build and run the operator (<code>go build &amp;&amp; ./operator</code>), and one to register and deregister nomad jobs.</p>
+<p>When all is ready, submit the example job with the following command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nomad job run example.nomad
+</span></span></code></pre></div><p>Will cause the following output in the operator&rsquo;s terminal:</p>
+<pre tabindex="0"><code>==&gt; JobRegistered: example (pending)...
+    Registering backup job
+    Backup created: backup-example
+--&gt; Done
+==&gt; JobRegistered: backup-example (running)...
+    Job is a backup, skipping
+</code></pre><p>We can also check the Nomad UI, running on http://localhost:4646, which shows our two jobs:</p>
+<p><img loading="lazy" src="nomad-backup-jobs.png" alt="nomad jobs showing the example service and the backup periodic job"  />
+</p>
+<p>Note how the <code>example</code> job is a <code>service</code>, which continuously runs, and the <code>backup-example</code> is a <code>periodic</code> job, scheduled to run daily.</p>
+<p>Removing the example job  with the following command:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nomad job stop example
+</span></span></code></pre></div><p>This will be seen by the operator, which will remove the backup job:</p>
+<pre tabindex="0"><code>==&gt; JobDeregistered: example (running)...
+    Trying to remove a backup, if any
+==&gt; JobDeregistered: backup-example (dead)...
+    Job is a backup, skipping
+</code></pre><p>Note how it also sees the <code>backup-example</code> job being deregistered and ignores it as, in our case, backups don&rsquo;t have backups!</p>
+<h2 id="testing-automated">Testing (Automated)</h2>
+<p>We can also write automated tests in two ways for this operator; Tests that run against a saved or synthetic event stream, and tests that work in the same way as the manual test; start Nomad, run a test suite; stop Nomad.</p>
+<p>Reading from a file of known events, we can test the <code>handleEvent</code> function directly:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#a6e22e">seenEvents</span> <span style="color:#f92672">:=</span> []<span style="color:#66d9ef">string</span>{}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">c</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">NewConsumer</span>(<span style="color:#66d9ef">nil</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">eventType</span> <span style="color:#66d9ef">string</span>, <span style="color:#a6e22e">job</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">Job</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">seenEvents</span> = append(<span style="color:#a6e22e">seenEvents</span>, <span style="color:#a6e22e">eventType</span>)
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">line</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">Split</span>(<span style="color:#a6e22e">eventsJson</span>, <span style="color:#e6db74">&#34;\n&#34;</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">var</span> <span style="color:#a6e22e">events</span> <span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">Events</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">json</span>.<span style="color:#a6e22e">Unmarshal</span>([]byte(<span style="color:#a6e22e">line</span>), <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">events</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">handleEvent</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">events</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Len</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">seenEvents</span>, <span style="color:#ae81ff">2</span>)
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Equal</span>(<span style="color:#a6e22e">t</span>, []<span style="color:#66d9ef">string</span>{<span style="color:#e6db74">&#34;JobRegistered&#34;</span>, <span style="color:#e6db74">&#34;JobDeregistered&#34;</span>}, <span style="color:#a6e22e">seenEvents</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The other way of testing is running a nomad instance in dev mode next to the application and registering jobs to it.  Usually, when doing this, I would start the Nomad application before running the tests and then stop it after, to save the time of waiting for Nomad to start between each test:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#a6e22e">wait</span> <span style="color:#f92672">:=</span> make(<span style="color:#66d9ef">chan</span> <span style="color:#66d9ef">bool</span>, <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">client</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">NewClient</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">Config</span>{})
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">NoError</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">seenJobID</span> <span style="color:#f92672">:=</span> <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">c</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">NewConsumer</span>(<span style="color:#a6e22e">client</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">eventType</span> <span style="color:#66d9ef">string</span>, <span style="color:#a6e22e">job</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">Job</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">seenJobID</span> = <span style="color:#f92672">*</span><span style="color:#a6e22e">job</span>.<span style="color:#a6e22e">ID</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">wait</span> <span style="color:#f92672">&lt;-</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">go</span> <span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">Start</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">//register a job
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">job</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">jobspec</span>.<span style="color:#a6e22e">Parse</span>(<span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">NewReader</span>(<span style="color:#a6e22e">withBackupHcl</span>))
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">NoError</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">Jobs</span>().<span style="color:#a6e22e">Register</span>(<span style="color:#a6e22e">job</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">WriteOptions</span>{})
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// block until the job handler has run once
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">wait</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Equal</span>(<span style="color:#a6e22e">t</span>, <span style="color:#f92672">*</span><span style="color:#a6e22e">job</span>.<span style="color:#a6e22e">ID</span>, <span style="color:#a6e22e">seenJobID</span>)
+</span></span></code></pre></div><p>As this is running against a real copy of Nomad, we need to wait for jobs to be registered and only stop our test once things have been processed; hence we use a <code>bool</code> channel to block until our job handler has seen a job.</p>
+<p>In a real test suite, you would need to make the job handler filter to the specific job it is looking for; as this would prevent shared state issues (currently this will stop after <em>any</em> job is seen), and thus allow you to run the tests in parallel.</p>
+<h2 id="deployment">Deployment</h2>
+<p>No operator pattern would be complete without pushing the operator itself into the Nomad cluster, and while we <em>could</em> just run the binary directly in Nomad (utilising the <a href="https://www.nomadproject.io/docs/job-specification/artifact">Artifact Stanza</a> and <a href="https://www.nomadproject.io/docs/drivers/exec">Isolated Exec</a>), its probably easier to create a docker container.</p>
+<p>We have a single <code>Dockerfile</code> with a multistage build so that our output container only contains the binary itself, rather than all the layers and intermediate artefacts from the build process:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-dockerfile" data-lang="dockerfile"><span style="display:flex;"><span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> golang:1.16.10-alpine3.14 as builder</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">WORKDIR</span><span style="color:#e6db74"> /app</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> go.mod go.sum ./<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> go mod download<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> . ./<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">RUN</span> go build<span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">FROM</span><span style="color:#e6db74"> alpine:3.14 as output</span><span style="color:#960050;background-color:#1e0010">
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010"></span><span style="color:#66d9ef">COPY</span> --from<span style="color:#f92672">=</span>builder /app/operator /usr/local/bin/operator<span style="color:#960050;background-color:#1e0010">
+</span></span></span></code></pre></div><p>Once the container is built and tagged:</p>
+<pre tabindex="0"><code>docker build -t operator:local .
+</code></pre><p>We can verify it works as intended by running the container directly; <code>--net=host</code> is passed to the <code>run</code> command so that the operator can connect to Nomad on <code>localhost:4646</code>, rather than having to pass in our host IP through an environment variable.  If you want to do this, add <code>-e NOMAD_ADDR=http://SOME_IP_OR_HOST:4646</code> to the <code>docker run</code> command:</p>
+<pre tabindex="0"><code>docker run --rm -it --net=host operator:local
+</code></pre><p>Assuming we&rsquo;re happy, we can run the Operator container in our local Nomad instance without pushing it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>task <span style="color:#e6db74">&#34;operator&#34;</span> <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>  driver <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;docker&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    image <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;operator:latest&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  template <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    data <span style="color:#f92672">=</span> <span style="color:#e6db74">&lt;&lt;EOF
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    {{ with secret &#34;nomad/creds/operator-job&#34; }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    NOMAD_TOKEN={{ .Data.secret_id  | toJSON }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    {{ end }}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span>    destination <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;secrets/db.env&#34;</span>
+</span></span><span style="display:flex;"><span>    env <span style="color:#f92672">=</span> true
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  env <span style="color:#f92672">{</span>
+</span></span><span style="display:flex;"><span>    NOMAD_ADDR <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;nomad.service.consul&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">}</span>
+</span></span></code></pre></div><h2 id="wrapping-up">Wrapping Up</h2>
+<p>The Operator Pattern is a great way to handle everyday tasks that a cluster operator would normally, and I have used it to handle things like automatic backups, certificate generation (at least until Vault supports LetEncrypt), and job cleanup (for example, developer branch builds only stay in the cluster for 3 days.)</p>
+]]></content:encoded></item><item><title>The Problem with CPUs and Kubernetes</title><link>https://andydote.co.uk/2021/06/02/os-cpus-and-kubernetes/</link><pubDate>Wed, 02 Jun 2021 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2021/06/02/os-cpus-and-kubernetes/</guid><description>Key Takeaway: os .cpus() returns the number of cores on a Kubernetes host, not the number of cores assigned to a pod.
+Investigating excessive memory usage Recently, when I was looking through a cluster health dashboard for a Kubernetes cluster, I noticed that one of the applications deployed was using a considerable amount of RAM - way more than I thought could be reasonable. Each instance (pod) of the application used approximately 8 GB of RAM, which was definitely excessive for a reasonably simple NodeJS webserver.</description><content:encoded><![CDATA[<h2 id="key-takeaway">Key Takeaway:</h2>
+<blockquote>
+<p><code>os .cpus()</code> returns the number of cores on a Kubernetes host, not the number of cores assigned to a pod.</p>
+</blockquote>
+<h2 id="investigating-excessive-memory-usage">Investigating excessive memory usage</h2>
+<p>Recently, when I was looking through a cluster health dashboard for a Kubernetes cluster, I noticed that one of the applications deployed was using a considerable amount of RAM - way more than I thought could be reasonable.  Each instance (pod) of the application used approximately 8 GB of RAM, which was definitely excessive for a reasonably simple NodeJS webserver.  Combined with the application running 20-30 replicas or so, it makes the total RAM usage between 160 GB and 240 GB.</p>
+<p>One of the first things I noticed was that the deployment manifest in Kubernetes had the <code>NODE_MAX_MEM</code> environment variable specified and set to 250 MB:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">environment</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">NODE_MAX_MEM</span>: <span style="color:#ae81ff">250</span>
+</span></span></code></pre></div><p><em>Interesting</em>.  So how is a single container using more RAM than that?</p>
+<p>The application used to be deployed to EC2 machines and to fully utilise the multiple cores in the machines, the <a href="https://www.npmjs.com/package/cluster">cluster</a> library was used.</p>
+<p>This library essentially forks the node process into <code>n</code> child processes, and in this case, <code>n</code> was set to <code>os.cpus()</code>, which returns the number of cores available on the machine in NodeJS.</p>
+<p>While this works for direct virtual machine usage, when the application was containerised and deployed to Kubernetes, it used about the same amount of ram as before, so no one realised there was a problem.</p>
+<h2 id="oscpus-and-kubernetes">os.cpus() and Kubernetes</h2>
+<p>The interesting thing about <code>os.cpus()</code> when called in a container in Kubernetes is that it reports the number of cores available on the host machine, not the amount of CPU assigned to the container (e.g. through resource requests and limits).</p>
+<p>So every replica for the application spawns 32 child processes, as our EC2 hosts have that many cores.  As they had a limited per-pod CPU budget, was there any benefit to doing this?</p>
+<p>So I did what seemed natural - I replaced <code>os.cpus()</code> with <code>1</code>, and deployed the application to production, and watched the performance metrics to see what happened.</p>
+<p>And what do you know? No difference in request performance <em>at all</em> - and the memory usage dropped by 7.75 GB per pod.</p>
+<p>This means overall, we have saved 155 GB to 232.5 GB of RAM, with no performance difference!</p>
+]]></content:encoded></item><item><title>Nomad Good, Kubernetes Bad</title><link>https://andydote.co.uk/2019/11/21/nomad-good-kubernetes-bad/</link><pubDate>Thu, 21 Nov 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/11/21/nomad-good-kubernetes-bad/</guid><description>I will update this post as I learn more (both positive and negative), and is here to be linked to when people ask me why I don&amp;rsquo;t like Kubernetes, and why I would pick Nomad in most situations if I chose to use an orchestrator at all.
 TLDR: I don&amp;rsquo;t like complexity, and Kubernetes has more complexity than benefits.
-Operational Complexity Operating Nomad is very straight forward. There are very few moving parts, so the number of things which can go wrong is significantly reduced.</description></item></channel></rss>
+Operational Complexity Operating Nomad is very straight forward. There are very few moving parts, so the number of things which can go wrong is significantly reduced.</description><content:encoded><![CDATA[<p>I will update this post as I learn more (both positive and negative), and is here to be linked to when people ask me why I don&rsquo;t like Kubernetes, and why I would pick Nomad in most situations if I chose to use an orchestrator <em>at all</em>.</p>
+<p>TLDR: I don&rsquo;t like complexity, and Kubernetes has more complexity than benefits.</p>
+<h3 id="operational-complexity">Operational Complexity</h3>
+<p>Operating Nomad is very straight forward.  There are very few moving parts, so the number of things which can go wrong is significantly reduced.  No external dependencies are required to run it, and there is only one binary to use.  You run 3-5 copies in Server mode to manage the cluster and as many as you want running in Client mode to do the actual work.  You can add Consul if you want service discovery, but it&rsquo;s optional.  More on that later.</p>
+<p>Compare this to operating a Kubernetes cluster.  There are multiple Kubernetes orchestration projects, tools, and companies to get clusters up and running, which should be an indication of the level of complexity involved.  Once you have the cluster set up, you need to keep it running.  There are so many moving parts (Controller Manager, Scheduler, API Server, Etcd, Kubelets) that it quickly becomes a full-time job to keep the cluster up and running.  Use a cloud service to run Kubernetes, and if you must use your own infrastructure, pay someone else to manage it.  It&rsquo;s cheaper in the long run. Trust me.</p>
+<h3 id="deployment">Deployment</h3>
+<p>Nomad, being a single binary, is easy to deploy.  If you want to use <a href="https://www.terraform.io/">Terraform</a> to create a cluster, Hashicorp provides modules for both <a href="https://github.com/hashicorp/terraform-aws-nomad">AWS</a> and <a href="https://github.com/hashicorp/terraform-azurerm-nomad">Azure</a>.  Alternatively, you can do everything yourself, as it&rsquo;s just keeping one binary running on hosts, and a bit of network/DNS config to get them talking to each other.</p>
+<p>By comparison, Kubernetes has a multitude of tools to help you deploy a cluster. Still, while it gives you a lot of flexibility in choice, you also have to hope that the tool continues to exist and that there is enough community/company/documentation about that specific tool to help you when something goes wrong.</p>
+<h3 id="upgrading-the-cluster">Upgrading The Cluster</h3>
+<p>Upgrading Nomad involves doing a rolling deployment of the Servers and Clients.  If you are using the Hashicorp Terraform module, you re-apply the module with the new AMI ID to use, and then delete nodes (gracefully!) from the cluster and let the AutoScaleGroup take care of bringing new nodes up.  If you need to revert to an older version of Nomad, you follow the same process.</p>
+<p>When it comes to Kubernetes, please pay someone else to do it.  It&rsquo;s not a fun process.  The process will differ depending on which cluster management tool you are using, and you also need to think about updates to etcd and managing state in the process.  There is a <a href="https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/">nice long document</a> on how to upgrade etcd.</p>
+<h3 id="debugging-a-cluster">Debugging a Cluster</h3>
+<p>As mentioned earlier, Nomad has a small number of moving parts.  There are three ports involved (HTTP, RPC and Gossip), so as long as those ports are open and reachable, Nomad should be operable.  Then you need to keep the Nomad agents alive.  That&rsquo;s pretty much it.</p>
+<p>Where to start for Kubernetes? As many <a href="https://github.com/hjacobs/kubernetes-failure-stories">Kubernetes Failure Stories</a> point out: it&rsquo;s always DNS. Or etcd. Or Istio. Or networking. Or Kubelets. Or all of these.</p>
+<h3 id="local-development">Local Development</h3>
+<p>To run Nomad locally, you use the same binary as the production clusters, but in dev mode: <code>nomad agent -dev</code>.  To get a local cluster, you can spin up some Vagrant boxes instead.  I use my <a href="https://github.com/pondidum/hashibox">Hashibox</a> Vagrant box to do this when I do conference talks and don&rsquo;t trust the wifi to work.</p>
+<p>To run Kubernetes locally to test things, you need to install/deploy MiniKube, K3S, etc.  The downside to this approach is that the environment is significantly different to your real Kubernetes cluster, and you can end up where a deployment works in one, but not the other, which makes debugging issues much harder.</p>
+<h3 id="features--choice">Features &amp; Choice</h3>
+<p>Nomad is relatively light on built-in features, which allows you the choice of what features to add, and what implementations of the features to use.  For example, it is pretty popular to use Consul for service discovery, but if you would rather use <a href="https://github.com/Netflix/eureka">Eureka</a>, or Zookeeper, or even etcd, that is fine, but you lose out on the seamless integration with Nomad that other Hashicorp tools have.  Nomad also supports <a href="https://www.nomadproject.io/docs/internals/plugins/index.html">Plugins</a> if you want to add support for your favourite tool.</p>
+<p>By comparison, Kubernetes does everything, but like the phrase &ldquo;Jack of all trades, master of none&rdquo;, often you will have to supplement the inbuilt features.  The downside to this is that you can&rsquo;t switch off Kubernetes features you are not using, or don&rsquo;t want.  So if you add Vault for secret management, the Kubernetes Secrets are still available, and you have to be careful that people don&rsquo;t use them accidentally.  The same goes for all other features, such as Load Balancing, Feature Toggles, Service Discovery, DNS, etc.</p>
+<h3 id="secret-management">Secret Management</h3>
+<p>Nomad doesn&rsquo;t provide a Secret Management solution out of the box, but it does have seamless Vault integration, and you are also free to use any other Secrets As A Service tool you like.  If you do choose Vault, you can either use it directly from your tasks or use Nomad&rsquo;s integration to provide the secrets to your application.  It can even send a signal (e.g. <code>SIGINT</code> etc.) to your process when the secrets need re-reading.</p>
+<p>Kubernetes, on the other hand, provides &ldquo;Secrets&rdquo;.  I put the word &ldquo;secrets&rdquo; in quotes because they are not secrets at all. The values are stored encoded in base64 in etcd, so anyone who has access to the etcd cluster has access to <em>all</em> the secrets.  The <a href="https://kubernetes.io/docs/concepts/configuration/secret/#risks">official documentation</a> suggests making sure only administrators have access to the etcd cluster to solve this.  Oh, and if you can deploy a container to the same namespace as a secret, you can reveal it by writing it to stdout.</p>
+<blockquote>
+<p>Kubernetes secrets are not secret, just &ldquo;slightly obscured.&rdquo;</p>
+</blockquote>
+<p>If you want real Secrets, you will almost certainly use Vault.  You can either run it inside or outside of Kubernetes, and either use it directly from containers via it&rsquo;s HTTPS API or use it to populate Kubernetes Secrets.  I&rsquo;d avoid populating Kubernetes Secrets if I were you.</p>
+<h3 id="support">Support</h3>
+<p>If Nomad breaks, you can either use community support or if you are using the Enterprise version, you have Hashicorp&rsquo;s support.</p>
+<p>When Kubernetes breaks, you can either use community support or find and buy support from a Kubernetes management company.</p>
+<p>The main difference here is &ldquo;when Kubernetes breaks&rdquo; vs &ldquo;if Nomad breaks&rdquo;.  The level of complexity in Kubernetes makes it far more likely to break, and that much harder to debug.</p>
+]]></content:encoded></item></channel></rss>

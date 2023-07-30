@@ -1,5 +1,129 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>communication on Andy Dote</title><link>https://andydote.co.uk/tags/communication/</link><description>Recent content in communication on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 10 Nov 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/communication/rss.xml" rel="self" type="application/rss+xml"/><item><title>QA and Continuous Delivery</title><link>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</link><pubDate>Thu, 10 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</guid><description>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.
-While doing continuous delivery does change the QA process, when done well, it improves everyone&amp;rsquo;s lives and makes the software better quality. Are silver bullets incoming? Not quite, but we don&amp;rsquo;t have to make someone&amp;rsquo;s life worse to improve other people&amp;rsquo;s lives.</description></item><item><title>Deploy != Release</title><link>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</link><pubDate>Wed, 02 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</guid><description>Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.
+While doing continuous delivery does change the QA process, when done well, it improves everyone&amp;rsquo;s lives and makes the software better quality. Are silver bullets incoming? Not quite, but we don&amp;rsquo;t have to make someone&amp;rsquo;s life worse to improve other people&amp;rsquo;s lives.</description><content:encoded><![CDATA[<p>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.</p>
+<p>While doing continuous delivery does change the QA process, when done well, it improves everyone&rsquo;s lives and makes the software <em>better</em> quality.  Are silver bullets incoming?  Not quite, but we don&rsquo;t have to make someone&rsquo;s life worse to improve other people&rsquo;s lives.</p>
+<p>This article is going to rely heavily on <a href="/tags/feature-flags/">Feature Flags</a>, so a passing familiarity is useful.  In summary, feature flags are the ability to switch features on and off at runtime of the application without requiring re-deployment.  Feature flags can also be used to switch on features for specific users or groups of users.</p>
+<blockquote>
+<p>Aside; this post is a bit different from my usual style.  This time I have written a story about a fictional dev team and QA team and how they move towards continuous delivery together.</p>
+</blockquote>
+<h2 id="tldr">TLDR</h2>
+<p>Move your QA Engineers inside the dev teams; DevOps is a way of working in a cross-functional team; this should include everyone who can contribute.</p>
+<p>Test things early.  Involve QA with features hidden behind flags.  De-couple your deployments from your releases.</p>
+<h2 id="setting-the-scene">Setting The Scene</h2>
+<p>A team has gotten to the point where they want to switch from deploying at the end of each sprint to deployments happening as often as needed, be that 5 minutes for a text change or a few days for a bigger feature.</p>
+<p>When they happily announce this to the rest of their organisation, the QA Team reacts with dismay; how are they going to manage to do full testing before every deployment if the team is constantly deploying?  They object; this is ludicrous.</p>
+<p>Being level-headed people, everyone decides to sit down and talk through their concerns and what to do next.  The key points are written down:</p>
+<ul>
+<li>The development team wants to ship faster</li>
+<li>The QA team wants to test everything before it is deployed</li>
+<li>The management team doesn&rsquo;t want to hire 10 more QAs to try and keep up</li>
+</ul>
+<p>So what to do?</p>
+<h2 id="the-first-step">The first step</h2>
+<p>It is important to realise that while we want quality, not all changes are created equal; some need much closer scrutiny than others.  For example, fixing some spelling mistakes probably needs no one else&rsquo;s input (other than a spell-checking tool, perhaps) other than the person doing it.</p>
+<p>The teams agree on this; after some discussion, they write down the following:</p>
+<ul>
+<li>Small fixes can be released without a QA approval</li>
+</ul>
+<p>This raises a few further questions however:</p>
+<ol>
+<li>How big is small?</li>
+<li>If a small fix can be deployed without QA, what about a small feature?</li>
+<li>Why is QA the final authority on what can be released?</li>
+</ol>
+<h2 id="changing-perspective">Changing Perspective</h2>
+<p>While we could try and answer these questions (and spend countless hours deciding how many lines of code &ldquo;small&rdquo; is.  Does it depend on line length too?), a better tactic is to investigate why the QA process is happening <em>so late in the process</em>.</p>
+<p>We agree that features need QA testing, but what happens if features can be hidden?  What happens if we can move the testing from &ldquo;before deployment&rdquo; to &ldquo;before release&rdquo;?  Because as I have written before <a href="deploy-not-release"><code>deploy doesn't mean release</code></a>.</p>
+<p>The team realises that they have a Feature Flagging tool available.  Currently, they are not really using it, but they have been meaning to for a while.  What if new features were developed behind flags?  It could be deployed to production without affecting anyone, and QA could test at their leisure by enabling the flag for just one tester or for the whole team.</p>
+<p>The QA team thinks this could work in principle, but how do they know a change is <em>really</em> isolated behind a flag?  What happens if it escapes?</p>
+<p>Let&rsquo;s look at the process they came up with, with an example.</p>
+<h2 id="the-new-feature">The New Feature</h2>
+<p>The current web application has a notification system.  It&rsquo;s nothing glamorous; it&rsquo;s an icon in the app which gets a small dot when there is a new notification.  Currently, only notifications from the system itself are supported, but there has been a request to have other parts of the system send notifications there too, along with feature requests for being able to remove read notifications and mark notifications to trigger again later.</p>
+<p>This seems like the ideal candidate for a feature flag, so the development team writes down their next steps:</p>
+<ol>
+<li>create a flag <code>enable-rich-notifications</code></li>
+<li>develop all the capabilities (API, UI)</li>
+<li>deploy</li>
+<li>QA can test it with the flag</li>
+<li>release it to the world</li>
+</ol>
+<p>Someone points out that Step 2 looks like several weeks of work on its own, and that isn&rsquo;t very continuous.  They break down the tasks a bit further:</p>
+<ol>
+<li>create a flag <code>enable-rich-notifications</code></li>
+<li>update the API with a new <code>/rich</code> endpoint, which can only be queried if you have the flag.</li>
+<li>create some fake data for the <code>/rich</code> endpoint to return</li>
+<li>create a new UI component which uses the new endpoint</li>
+<li>update the application to use the new component if you have the flag and the old component otherwise</li>
+</ol>
+<p>With implicit &ldquo;Deploy&rdquo; steps after each step.  This seems reasonable to the development team, but the QA team still have questions: when should they test the UI?  once it is fully complete?  And how do they know it is working?</p>
+<p>The development team also realises that the new notifications system will be using the same data model as the old system, and they need to make sure the old system continues to work correctly.  Come to think of it, QA involvement would be useful here too&hellip;</p>
+<h2 id="moving-qa-earlier">Moving QA Earlier</h2>
+<blockquote>
+<p>As an aside, I find it much better to have a QA Engineer be part of the development team.  The whole DevOps thing is about working in one cross-functional team, and why should QA, Security, or anyone else be excluded from this?  Regrettably, this is a slow organisational change to make, so we come up with ways to make it work as best we can and iterate towards the embedded QA model.</p>
+</blockquote>
+<p>When the new notifications feature is being designed, the development team requests someone from QA be involved from the start; there are things which they should be aware of, and have useful input on.</p>
+<ol>
+<li>Update the data model in place with the new design</li>
+<li>QA to test it in an isolated environment; no changes expected</li>
+<li>Deploy</li>
+</ol>
+<p>The QA points out that as far as they are aware, there aren&rsquo;t any tests for the old notifications system; it was so barebones and unused that no one bothered.  The QA also points out that they have been evaluating switching to a more code-first UI automation tool, and this might be the ideal candidate to start with, and could they put the UI testing code in the repo alongside the feature?</p>
+<p>This is well received by the dev team; this might help the regressions they keep causing when a selector is updated, and the UI tests break; if it&rsquo;s all in the same repository, <code>grep</code> can find all the instances at once!  It&rsquo;s win-win again.</p>
+<p>The again updated list of actions is now:</p>
+<ol>
+<li>QA creates UI tests for the current system (and verifies against isolated environment)</li>
+<li>Devs Update the data model</li>
+<li>QA verifies nothing has changed in a staging environment</li>
+<li>Deploy</li>
+</ol>
+<p>Note there are no flags involved yet!</p>
+<p>The team goes ahead and makes all the discussed changes; however, when the new UI tests are run against the environment with the new data model, they break, and it isn&rsquo;t apparent why.  The QA and the developer sit down and dig around until they find the problem; the format of a field has changed slightly, and the UI tests are catching the problem.</p>
+<p>They fix the issue, test again, and this time deploy into production.</p>
+<h2 id="the-new-api-and-ui">The New API and UI</h2>
+<p>Now that involving QA earlier has been tried and seems to work, the team decide to move forward with the API changes and the feature flag for the original version and the rich version of notifications.</p>
+<p>The flag is created, the API is wrapped with a check for the flag, the developers test it works, and deployment is done.  No problems so far.</p>
+<p>The UI is up next; as this is early on in the process, the dev team, designer, and QA engineer are all sitting together to figure out exactly how it will work.  As the QA is present, they can start writing outlines for UI testing.  As the code for tests is alongside the application code, the developers can help keep the tests working as they flesh out the UI, and they might even write a test themselves too.</p>
+<p>The interesting realisation comes that with a feature flag, two QAs can be involved at once; one is running tests for the flag off, and one is running the tests for the flag on.  It isn&rsquo;t required to be like this of course, but it does mean you can spread the work further.</p>
+<p>Features are developed, tests are written, and deployments are done.</p>
+<h2 id="ready-for-release">Ready for Release</h2>
+<p>The team, which now includes the QA by default, is getting close to being ready to release their new rich notifications to the world.  They have one more test they would like to conduct: what is the load like when users are re-notifying themselves?  How do they even go about testing this?</p>
+<p>The answer, perhaps unsurprisingly, is a feature flag.  In this case, a new feature flag called <code>load-generator-rich-notifications</code>.  When this flag is enabled, the rich notifications system is still hidden, but a small piece of code randomly activates notifications for re-notifying and varying intervals.  The team can switch it on for a few percent of users and then watch their traces and monitoring systems to keep an eye on the health of the system.</p>
+<p>They can add more and more users to the test until they are happy.  Then disable the load generator and clean up all the mess it has left.</p>
+<blockquote>
+<p>Aside; this is how Facebook Messenger was load tested before the public saw anything!</p>
+</blockquote>
+<h2 id="wrapping-up">Wrapping Up</h2>
+<p>The key takeaway from this is that QA is an important part of the delivery lifecycle.  Your QA Engineers are smart people who want to make things better, so involve them early and see what conversations and ideas can happen when you put smart people together and task them with making things better.</p>
+<p>This was a lot longer than it sounded in my head when I thought this up while cycling home, but I like how it&rsquo;s gone.  I might even turn this into a talk to give to clients if it is well received.</p>
+]]></content:encoded></item><item><title>Deploy != Release</title><link>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</link><pubDate>Wed, 02 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/02/deploy-doesnt-mean-release/</guid><description>Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.
 also deploy != release
 —Andy, baiting discussion in Slack This turned out to be somewhat controversial until we discussed what I specifically meant by deploy and release.
-As with all things, agreeing on definitions or understanding what someone means when they use a specific term is essential, so I thought I would write down a short blog post on it.</description></item></channel></rss>
+As with all things, agreeing on definitions or understanding what someone means when they use a specific term is essential, so I thought I would write down a short blog post on it.</description><content:encoded><![CDATA[<p>Recently we were having a debate about release processes, and I wrote that deployments are not always equal to releases.</p>
+<blockquote>
+<p>also <code>deploy</code> != <code>release</code></p>
+</blockquote>
+<figcaption>—Andy, <cite>baiting discussion in Slack</cite></figcaption>
+<p>This turned out to be somewhat controversial until we discussed what I specifically meant by <code>deploy</code> and <code>release</code>.</p>
+<p>As with all things, agreeing on definitions or understanding what someone means when they use a specific term is essential, so I thought I would write down a short blog post on it.</p>
+<p>To start with, a picture helps in my experience:</p>
+<p><img loading="lazy" src="definitions.jpg" alt="definitons"  />
+</p>
+<h2 id="tldr">TLDR</h2>
+<p><strong>Deploy</strong> is the act of moving software into an environment and running it.</p>
+<p><strong>Release</strong> is the process of making a feature visible to a user or subset of users.</p>
+<p>Read on for longer descriptions.</p>
+<h2 id="build">Build</h2>
+<p>A build is a process, usually run in a central CI system, which produces one or many <strong>artefacts</strong>.  A build process can consist of testing, linting, compilation, transpilation, or any other number of steps.</p>
+<h2 id="artefact">Artefact</h2>
+<p>An <strong>artefact</strong> is the result of the <strong>build</strong>.  It has a <strong>version</strong>, and can be <strong>deployed</strong> to an <strong>environment</strong>.  An artefact can contain many features which can be uniquely controlled.</p>
+<p>It should also have metadata embedded in it to link it back to the build which produced it and also to the source it was built from.</p>
+<p>If a build is producing multiple different versioned artefacts, having a way to link them all to the same process is important.</p>
+<h2 id="version">Version</h2>
+<p>A <strong>version</strong> is an identifier which uniquely labels an artefact.   This can be a chosen format such as SemVer, a datestamp, or a commit hash.  It could also be an auto-incrementing build counter.</p>
+<h2 id="deploy">Deploy</h2>
+<p>The process of getting an <strong>artifact</strong> into an <strong>environment</strong>.  Doesn&rsquo;t necessarily cause any visible changes to a user or client of the application.</p>
+<h2 id="environment">Environment</h2>
+<p>A location running the application.  An environment may have multiple applications running, making up one complete product.</p>
+<h2 id="release">Release</h2>
+<p><strong>Release</strong> is switching on (or off) a feature to users, independent of <strong>deploy</strong>.  This is usually done with Feature Flags, and can mean releasing to all users, or just a subset (either a random sample or specific users.)</p>
+<p>You can also automate feature rollout by combining it with your observability data, rolling out to more users over time if, for example, error rates don&rsquo;t increase.</p>
+]]></content:encoded></item></channel></rss>

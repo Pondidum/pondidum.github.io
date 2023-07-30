@@ -1,3 +1,33 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>networking on Andy Dote</title><link>https://andydote.co.uk/tags/networking/</link><description>Recent content in networking on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Fri, 22 Mar 2019 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/networking/rss.xml" rel="self" type="application/rss+xml"/><item><title>Hyper-V, Docker, and Networking Drama</title><link>https://andydote.co.uk/2019/03/22/hyperv-networking/</link><pubDate>Fri, 22 Mar 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/03/22/hyperv-networking/</guid><description>I had a major problem a few hours before giving my Nomad: Kubernetes Without the Complexity talk this morning: the demo stopped working.
 Now, the first thing to note is the entire setup of the demo is scripted, and the scripts hadn&amp;rsquo;t changed. The only thing I had done was restart the machine, and now things were breaking.
-The Symptoms A docker container started inside the guest VMs with a port mapped to the machine&amp;rsquo;s public IP wasn&amp;rsquo;t resolvable outside the host.</description></item></channel></rss>
+The Symptoms A docker container started inside the guest VMs with a port mapped to the machine&amp;rsquo;s public IP wasn&amp;rsquo;t resolvable outside the host.</description><content:encoded><![CDATA[<p>I had a major problem a few hours before giving my <a href="https://andydote.co.uk/presentations/index.html?nomad">Nomad: Kubernetes Without the Complexity</a> talk this morning: the demo stopped working.</p>
+<p>Now, the first thing to note is the entire setup of the demo <a href="https://github.com/pondidum/nomad-demo">is scripted</a>, and the scripts hadn&rsquo;t changed.  The only thing I had done was restart the machine, and now things were breaking.</p>
+<h2 id="the-symptoms">The Symptoms</h2>
+<p>A docker container started inside the guest VMs with a port mapped to the machine&rsquo;s public IP wasn&rsquo;t resolvable outside the host.</p>
+<p>For example, using a machine based off the <code>bento/ubuntu-16.04</code> base box, provisioned with docker, running this from inside an SSH connection to the machine would work:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant ssh
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># launch a container which can respond to a http get</span>
+</span></span><span style="display:flex;"><span>docker run -d --rm -p 172.127.48.105:5000:5000 registry:latest
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># curl by public ip</span>
+</span></span><span style="display:flex;"><span>curl http://172.127.48.105:5000 --silent -w <span style="color:#e6db74">&#34;%{http_code}&#34;</span>   <span style="color:#75715e"># 200</span>
+</span></span></code></pre></div><p>But running the same <code>curl</code> command on the host would fail:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># container is still running</span>
+</span></span><span style="display:flex;"><span>curl http://172.127.48.105:5000 --silent -w <span style="color:#e6db74">&#34;%{http_code}&#34;</span>   <span style="color:#75715e"># timeout</span>
+</span></span></code></pre></div><h2 id="investigation">Investigation</h2>
+<p>So it&rsquo;s 5 hours before the demo (thankfully it&rsquo;s not 10 minutes before), so let&rsquo;s start digging into what could be causing this.</p>
+<h2 id="docker-networking">Docker Networking</h2>
+<p>I also was searching for Nomad and Docker networking issues - as I figured I could change the Nomad job to bind the container to all interfaces (e.g. <code>-p 5000:5000</code>) instead of just the one IP.  <a href="https://github.com/hashicorp/nomad/issues/209#issuecomment-145313928">This reply</a> mentioned the <code>docker0</code> network, and when I checked the guest machines, I saw that this network is also in the <code>172.*</code> range.</p>
+<p>So my guest machines had public addresses which happened to fall in the same range as a separate network adaptor on that machine.</p>
+<h2 id="hyper-v-ip-addresses">Hyper-V IP Addresses</h2>
+<p>While I was checking the Windows Firewall to see if anything was weird in there, I stumbled across a rule I&rsquo;d added to allow exposure of a NodeJS service from my host to Hyper-v guests (but not anywhere else).  I noticed that the IP range it defined was <code>192.168.*</code>, and I now had machines with <code>172.*</code> addresses.</p>
+<p>So the IP address range for guest machines had changed.</p>
+<h2 id="the-solution">The Solution</h2>
+<p>Luckily, there is a straightforward solution to this:</p>
+<p><strong>Reboot until you get the range you want</strong></p>
+<p>Really.</p>
+<p>The other solution is to use an External Switch in Hyper-V and bridge it with your host&rsquo;s internet connection, which doesn&rsquo;t really help me, as I am on a laptop, on different WiFi networks, and sometimes I use a thunderbolt based network adaptor too.  And having to update/rebuild machines on every network change would be an absolute pain.</p>
+<p>So I rebooted — a lot.</p>
+<p>So if anyone from Microsoft is reading this: Please let us configure the Default Switch.  Or have a way to recreate it without rebooting at least.</p>
+]]></content:encoded></item></channel></rss>

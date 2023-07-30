@@ -1,4 +1,393 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>tls on Andy Dote</title><link>https://andydote.co.uk/tags/tls/</link><description>Recent content in tls on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 06 Oct 2019 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/tls/rss.xml" rel="self" type="application/rss+xml"/><item><title>Creating a Vault instance with a TLS Consul Cluster</title><link>https://andydote.co.uk/2019/10/06/vault-consul-bootstrap/</link><pubDate>Sun, 06 Oct 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/10/06/vault-consul-bootstrap/</guid><description>So we want to set up a Vault instance, and have it&amp;rsquo;s storage be a TLS based Consul cluster. The problem is that the Consul cluster needs Vault to create the certificates for TLS, which is quite the catch-22. Luckily for us, quite easy to solve:
-Start a temporary Vault instance as an intermediate ca Launch Consul cluster, using Vault to generate certificates Destroy temporary Vault instance Start a permanent Vault instance, with Consul as the store Reprovision the Consul cluster with certificates from the new Vault instance There is a repository on Github with all the scripts used, and a few more details on some options.</description></item><item><title>Creating a TLS enabled Consul cluster</title><link>https://andydote.co.uk/2019/09/14/consul-tls-cluster/</link><pubDate>Sat, 14 Sep 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/09/14/consul-tls-cluster/</guid><description>This post is going to go through how to set up a Consul cluster to communicate over TLS. I will be using Vagrant to create three machines locally, which will form my cluster, and in the provisioning step will use Vault to generate the certificates needed.
+Start a temporary Vault instance as an intermediate ca Launch Consul cluster, using Vault to generate certificates Destroy temporary Vault instance Start a permanent Vault instance, with Consul as the store Reprovision the Consul cluster with certificates from the new Vault instance There is a repository on Github with all the scripts used, and a few more details on some options.</description><content:encoded><![CDATA[<p>So we want to set up a <a href="https://www.vaultproject.io/">Vault</a> instance, and have it&rsquo;s storage be a TLS based <a href="https://www.consul.io/">Consul</a> cluster.  The problem is that the Consul cluster needs Vault to create the certificates for TLS, which is quite the catch-22.  Luckily for us, quite easy to solve:</p>
+<ol>
+<li>Start a temporary Vault instance as an intermediate ca</li>
+<li>Launch Consul cluster, using Vault to generate certificates</li>
+<li>Destroy temporary Vault instance</li>
+<li>Start a permanent Vault instance, with Consul as the store</li>
+<li>Reprovision the Consul cluster with certificates from the new Vault instance</li>
+</ol>
+<p><img loading="lazy" src="consul-vault-bootstrap.png" alt="Sequence diagram of the previous numbered list"  />
+</p>
+<p>There is a <a href="https://github.com/Pondidum/vault-consul-bootstrap-demo">repository on Github with all the scripts</a> used, and a few more details on some options.</p>
+<h2 id="assumptions">Assumptions:</h2>
+<p>The Host machine needs the following software available in your <code>PATH</code>:</p>
+<ul>
+<li><a href="https://www.vagrantup.com/">Vagrant</a></li>
+<li><a href="https://www.consul.io/">Consul</a></li>
+<li><a href="https://www.vaultproject.io/">Vault</a></li>
+</ul>
+<p>You have a TLS Certificate you can use to create an intermediate CA with.  See this blog post for <a href="/2019/08/25/vault-development-ca/">How to create a local CA</a></p>
+<h2 id="running">Running</h2>
+<p>The <code>run.sh</code> script will do all of this for you, but an explanation of the steps is below:</p>
+<ol>
+<li>
+<p>Start a Temporary Vault instance</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo <span style="color:#e6db74">&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">storage &#34;inmem&#34; {}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">listener &#34;tcp&#34; {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  address = &#34;0.0.0.0:8200&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  tls_disable = 1
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">}&#39;</span> &gt; <span style="color:#e6db74">&#34;vault/temp_vault.hcl&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault server -config<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;vault/temp_vault.hcl&#34;</span> &amp;
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span>$!<span style="color:#e6db74">&#34;</span> &gt; vault.pid
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>export VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>./configure_vault.sh | tail -n 1<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div></li>
+<li>
+<p>Generate a Vault token for the Consul machines to use to authenticate with Vault</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>export CONSUL_VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>vault write -field<span style="color:#f92672">=</span>token -force auth/token/create<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div></li>
+<li>
+<p>Launch 3 Consul nodes (uses the <code>CONSUL_VAULT_TOKEN</code> variable)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant up
+</span></span></code></pre></div><p>The <code>vagrantfile</code> just declares 3 identical machines:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#ae81ff">2</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;pondidum/hashibox&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;consul&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">type</span>: <span style="color:#e6db74">&#34;shell&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./provision.sh&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">env</span>: {
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;VAULT_TOKEN&#34;</span> <span style="color:#f92672">=&gt;</span> <span style="color:#66d9ef">ENV</span><span style="color:#f92672">[</span><span style="color:#e6db74">&#34;CONSUL_VAULT_TOKEN&#34;</span><span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;c1&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>c1<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    c1<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;consul1&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;c2&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>c2<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    c2<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;consul2&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;c3&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>c3<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    c3<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;consul3&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>The provisioning script just reads a certificate from Vault, and writes out pretty much the same configuration as in the last post on <a href="/2019/09/14/consul-tls-cluster">creating a TLS enabled Consul Cluster</a>, but you can view it in the <a href="https://github.com/Pondidum/vault-consul-bootstrap-demo">repository</a> for this demo too.</p>
+</li>
+<li>
+<p>Create a local Consul server to communicate with the cluster:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>./local_consul.sh
+</span></span></code></pre></div><p>This is done so that the Vault instance can always communicate with the Consul cluster, no matter which Consul node we are reprovisioning later.  In a production environment, you would have this Consul server running on each machine that Vault is running on.</p>
+</li>
+<li>
+<p>Stop the temporary Vault instance now that all nodes have a certificate</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>kill <span style="color:#66d9ef">$(</span>cat vault.pid<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div></li>
+<li>
+<p>Start the persistent Vault instance, using the local Consul agent</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo <span style="color:#e6db74">&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">storage &#34;consul&#34; {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  address = &#34;localhost:8501&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  scheme = &#34;https&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">listener &#34;tcp&#34; {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  address = &#34;0.0.0.0:8200&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">  tls_disable = 1
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">}&#39;</span> &gt; <span style="color:#e6db74">&#34;</span>$config_dir<span style="color:#e6db74">/persistent_vault.hcl&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault server -config<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$config_dir<span style="color:#e6db74">/persistent_vault.hcl&#34;</span> &gt; /dev/null &amp;
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span>$!<span style="color:#e6db74">&#34;</span> &gt; vault.pid
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>export VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>./configure_vault.sh | tail -n 1<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div></li>
+<li>
+<p>Generate a new Vault token for the Consul machines to use to authenticate with Vault (same as step 2)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>export CONSUL_VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>vault write -field<span style="color:#f92672">=</span>token -force auth/token/create<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div></li>
+<li>
+<p>Reprovision the Consul nodes with new certificates</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vagrant provision c1 --provision-with consul
+</span></span><span style="display:flex;"><span>vagrant provision c2 --provision-with consul
+</span></span><span style="display:flex;"><span>vagrant provision c3 --provision-with consul
+</span></span></code></pre></div></li>
+<li>
+<p>Profit</p>
+<p>To clean up the host&rsquo;s copy of Vault and Consul, you can run this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>kill <span style="color:#66d9ef">$(</span>cat vault.pid<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>kill <span style="color:#66d9ef">$(</span>cat consul.pid<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div></li>
+</ol>
+<h2 id="summary--further-actions">Summary &amp; Further Actions</h2>
+<p>Luckily, this is the kind of thing that should only need doing once (or once per isolated environment).  When running in a real environment, you will also want to set up:</p>
+<ul>
+<li>ACL in Consul which locks down the KV storage Vault uses to only be visible/writeable by Vault</li>
+<li>Provisioning the <code>VAULT_TOKEN</code> to the machines in a secure fashion</li>
+<li>Periodic refresh of the Certificates uses in the Consul cluster</li>
+</ul>
+]]></content:encoded></item><item><title>Creating a TLS enabled Consul cluster</title><link>https://andydote.co.uk/2019/09/14/consul-tls-cluster/</link><pubDate>Sat, 14 Sep 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/09/14/consul-tls-cluster/</guid><description>This post is going to go through how to set up a Consul cluster to communicate over TLS. I will be using Vagrant to create three machines locally, which will form my cluster, and in the provisioning step will use Vault to generate the certificates needed.
 How to securely communicate with Vault to get the TLS certificates is out of scope for this post.
-Host Configuration Unless you already have Vault running somewhere on your network, or have another mechanism to generate TLS certificates for each machine, you&amp;rsquo;ll need to start and configure Vault on the Host machine.</description></item><item><title>Using Vault as a Development CA</title><link>https://andydote.co.uk/2019/08/25/vault-development-ca/</link><pubDate>Sun, 25 Aug 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/08/25/vault-development-ca/</guid><description>Often when developing or testing some code, I need (or want) to use SSL, and one of the easiest ways to do that is to use Vault. However, it gets pretty annoying having to generate a new CA for each project, and import the CA cert into windows (less painful in Linux, but still annoying), especially as I forget which cert is in use, and accidentally clean up the wrong ones.</description></item></channel></rss>
+Host Configuration Unless you already have Vault running somewhere on your network, or have another mechanism to generate TLS certificates for each machine, you&amp;rsquo;ll need to start and configure Vault on the Host machine.</description><content:encoded><![CDATA[<p>This post is going to go through how to set up a <a href="https://www.consul.io/">Consul</a> cluster to communicate over TLS.  I will be using <a href="https://www.vagrantup.com/">Vagrant</a> to create three machines locally, which will form my cluster, and in the provisioning step will use Vault to generate the certificates needed.</p>
+<p>How to securely communicate with Vault to get the TLS certificates is out of scope for this post.</p>
+<h2 id="host-configuration">Host Configuration</h2>
+<p>Unless you already have Vault running somewhere on your network, or have another mechanism to generate TLS certificates for each machine, you&rsquo;ll need to start and configure Vault on the Host machine.  I am using my <a href="https://andydote.co.uk/2019/08/25/vault-development-ca/#creating-a-vault-intermediate-ca">Vault Dev Intermediate CA script from my previous post</a>.</p>
+<p>To set this up, all I need to do is run this on the host machine, which starts Vault in a docker container, and configures it as an intermediate certificate authority:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>./run_int.sh
+</span></span></code></pre></div><p>I also have DNS on my network setup for the <code>tecra.xyz</code> domain so will be using that to test with.</p>
+<h2 id="consul-machine-configuration">Consul Machine Configuration</h2>
+<p>The <code>Vagrantfile</code> is very minimal - I am using my <a href="https://app.vagrantup.com/pondidum/boxes/hashibox">Hashibox</a> (be aware the <code>libvirt</code> provider for this might not work, for some reason <code>vagrant package</code> with libvirt produces a non-bootable box).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ruby" data-lang="ruby"><span style="display:flex;"><span><span style="color:#66d9ef">Vagrant</span><span style="color:#f92672">.</span>configure(<span style="color:#ae81ff">2</span>) <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>config<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>box <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;pondidum/hashibox&#34;</span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>provision <span style="color:#e6db74">&#34;consul&#34;</span>, <span style="color:#e6db74">type</span>: <span style="color:#e6db74">&#34;shell&#34;</span>, <span style="color:#e6db74">path</span>: <span style="color:#e6db74">&#34;./provision.sh&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;c1&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>c1<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    c1<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;consul1&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;c2&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>c2<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    c2<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;consul2&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  config<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>define <span style="color:#e6db74">&#34;c3&#34;</span> <span style="color:#66d9ef">do</span> <span style="color:#f92672">|</span>c3<span style="color:#f92672">|</span>
+</span></span><span style="display:flex;"><span>    c3<span style="color:#f92672">.</span>vm<span style="color:#f92672">.</span>hostname <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;consul3&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">end</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">end</span>
+</span></span></code></pre></div><p>The hashibox script already has all the tools we&rsquo;ll need installed already: Consul, Vault, and jq.</p>
+<p>First up, we request a certificate from Vault to use for Consul - How you get this certificate in a secure manner in a production environment is up to you.  There is a catch-22 here for me, in that in a production environment I use Vault with Consul as it&rsquo;s backing store&hellip;but Consul needs Vault to start!  I&rsquo;ll go over how I get around this in a future post.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>export VAULT_ADDR<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;http://vault.tecra.xyz:8200&#34;</span>
+</span></span><span style="display:flex;"><span>export VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;vault&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>response<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>vault write pki/issue/cert -format<span style="color:#f92672">=</span>json common_name<span style="color:#f92672">=</span>$HOSTNAME.tecra.xyz alt_names<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;server.dc1.consul&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>config_dir<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/etc/consul.d&#34;</span>
+</span></span></code></pre></div><p>The first thing to note is that we have specified an <code>alt_names</code> for the certificate - you <em>must</em> have a SAN of <code>server.$DC.$DOMAIN</code> so either <code>server.dc1.consul</code> or <code>server.euwest1.tecra.xyz</code>, and the <code>server</code> prefix is required!.</p>
+<p>Next, we need to take all the certificates from the response and write them to the filesystem.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>mkdir -p <span style="color:#e6db74">&#34;</span>$config_dir<span style="color:#e6db74">/ca&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> <span style="color:#f92672">((</span> i<span style="color:#f92672">=</span>0; i&lt;<span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$response<span style="color:#e6db74">&#34;</span> | jq <span style="color:#e6db74">&#39;.data.ca_chain | length&#39;</span><span style="color:#66d9ef">)</span>; i++ <span style="color:#f92672">))</span>; <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>  cert<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$response<span style="color:#e6db74">&#34;</span> | jq -r <span style="color:#e6db74">&#34;.data.ca_chain[</span>$i<span style="color:#e6db74">]&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  name<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$cert<span style="color:#e6db74">&#34;</span> | openssl x509 -noout -subject -nameopt multiline | sed -n <span style="color:#e6db74">&#39;s/ *commonName *= //p&#39;</span> | sed <span style="color:#e6db74">&#39;s/\s//g&#39;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  echo <span style="color:#e6db74">&#34;</span>$cert<span style="color:#e6db74">&#34;</span> &gt; <span style="color:#e6db74">&#34;</span>$config_dir<span style="color:#e6db74">/ca/</span>$name<span style="color:#e6db74">.pem&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">done</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span>$response<span style="color:#e6db74">&#34;</span> | jq -r .data.private_key &gt; $config_dir/consul.key
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span>$response<span style="color:#e6db74">&#34;</span> | jq -r .data.certificate &gt; $config_dir/consul.crt
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span>$response<span style="color:#e6db74">&#34;</span> | jq -r .data.issuing_ca &gt;&gt; $config_dir/consul.crt
+</span></span></code></pre></div><p>The <code>for</code> loop iterates through all of the certificates returned in the <code>ca_chain</code> and writes them into a <code>ca</code> directory.  We use <code>openssl</code> to get the name of the certificate, so the files are named nicely!</p>
+<p>Finally, it writes the <code>private_key</code> for the node&rsquo;s certificate to <code>consul.key</code>, and both the <code>certificate</code> and <code>issuing_ca</code> to  the <code>consul.crt</code> file.</p>
+<p>Now for the <code>consul.json</code>.  To setup a secure cluster, first of all we need to add the certificate configuration, pointing to the files we wrote earlier:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span><span style="color:#e6db74">&#34;ca_path&#34;</span><span style="color:#960050;background-color:#1e0010">:</span> <span style="color:#e6db74">&#34;$config_dir/ca/&#34;</span><span style="color:#960050;background-color:#1e0010">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#e6db74">&#34;cert_file&#34;</span><span style="color:#960050;background-color:#1e0010">:</span> <span style="color:#e6db74">&#34;$config_dir/consul.crt&#34;</span><span style="color:#960050;background-color:#1e0010">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#e6db74">&#34;key_file&#34;</span><span style="color:#960050;background-color:#1e0010">:</span> <span style="color:#e6db74">&#34;$config_dir/consul.key&#34;</span><span style="color:#960050;background-color:#1e0010">,</span>
+</span></span></code></pre></div><p>We will also disable the HTTP port, and enable the HTTPS port:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span><span style="color:#e6db74">&#34;ports&#34;</span><span style="color:#960050;background-color:#1e0010">:</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;http&#34;</span>: <span style="color:#ae81ff">-1</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;https&#34;</span>: <span style="color:#ae81ff">8501</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Finally, we need to add some security settings.  First is <code>encrypt</code>, which sets that the key that all Consul nodes will use to encrypt their communications.  It must match on all nodes.  The easiest way to generate this is just run <code>consul keygen</code> and use the value that produces.</p>
+<ul>
+<li>
+<p><code>&quot;encrypt&quot;: &quot;oNMJiPZRlaP8RnQiQo9p8MMK5RSJ+dXA2u+GjFm1qx8=&quot;</code>:</p>
+<p>The key the cluster will use to encrypt all it&rsquo;s traffic.  It must be the same on all nodes, and the easiest way to generate the value is to use the output of <code>consul keygen</code>.</p>
+</li>
+<li>
+<p><code>&quot;verify_outgoing&quot;: true</code>:</p>
+<p>All the traffic leaving this node will be encrypted with the TLS certificates.  However, the node will still accept non-TLS traffic.</p>
+</li>
+<li>
+<p><code>&quot;verify_incoming_rpc&quot;: true</code>:</p>
+<p>All the gossip traffic arriving at this node must be signed with an authority in the <code>ca_path</code>.</p>
+</li>
+<li>
+<p><code>&quot;verify_incoming_https&quot;: false</code>:</p>
+<p>We are going to use the Consul Web UI, so we want to allow traffic to hit the API without a client certificate.  If you are using the UI from a non-server node, you can set this to <code>true</code>.</p>
+</li>
+<li>
+<p><code>&quot;verify_server_hostname&quot;: true</code>:</p>
+<p>Set Consul to verify <strong>outgoing</strong> connections have a hostname in the format of <code>server.&lt;datacenter&gt;.&lt;domain&gt;</code>.  From the <a href="https://www.consul.io/docs/agent/options.html#verify_server_hostname">docs</a>: &ldquo;This setting is critical to prevent a compromised client from being restarted as a server and having all cluster state including all ACL tokens and Connect CA root keys replicated to it&rdquo;</p>
+</li>
+</ul>
+<p>The complete config we will use is listed here:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>cat <span style="color:#e6db74">&lt;&lt;-EOF
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">{
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;bootstrap_expect&#34;: 3,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;client_addr&#34;: &#34;0.0.0.0&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;data_dir&#34;: &#34;/var/consul&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;leave_on_terminate&#34;: true,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;rejoin_after_leave&#34;: true,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;retry_join&#34;: [&#34;consul1&#34;, &#34;consul2&#34;, &#34;consul3&#34;],
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;server&#34;: true,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;ui&#34;: true,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;encrypt&#34;: &#34;oNMJiPZRlaP8RnQiQo9p8MMK5RSJ+dXA2u+GjFm1qx8=&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;verify_incoming_rpc&#34;: true,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;verify_incoming_https&#34;: false,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;verify_outgoing&#34;: true,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;verify_server_hostname&#34;: true,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;ca_path&#34;: &#34;$config_dir/ca/&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;cert_file&#34;: &#34;$config_dir/consul.crt&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;key_file&#34;: &#34;$config_dir/consul.key&#34;,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;ports&#34;: {
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        &#34;http&#34;: -1,
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        &#34;https&#34;: 8501
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    }
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">}
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">)</span> | sudo tee $config_dir/consul.json
+</span></span></code></pre></div><p>Lastly, we&rsquo;ll make a systemd service unit to start consul:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#f92672">(</span>
+</span></span><span style="display:flex;"><span>cat <span style="color:#e6db74">&lt;&lt;-EOF
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">[Unit]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Description=consul agent
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Requires=network-online.target
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">After=network-online.target
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">[Service]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Restart=on-failure
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">ExecStart=/usr/bin/consul agent -config-file=$config_dir/consul.json -bind &#39;{{ GetInterfaceIP &#34;eth0&#34; }}&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">ExecReload=/bin/kill -HUP $MAINPID
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">[Install]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">WantedBy=multi-user.target
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">)</span> | sudo tee /etc/systemd/system/consul.service
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo systemctl daemon-reload
+</span></span><span style="display:flex;"><span>sudo systemctl enable consul.service
+</span></span><span style="display:flex;"><span>sudo systemctl start consul
+</span></span></code></pre></div><p>As the machines we are starting also have docker networks (and potentially others), our startup line specifies to bind to the <code>eth0</code> network, using a Consul Template.</p>
+<h2 id="running">Running</h2>
+<p>First, we need to run our intermediate CA, then provision our three machines:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>./run_int.sh
+</span></span><span style="display:flex;"><span>vagrant up
+</span></span></code></pre></div><p>After a few moments, you should be able to <code>curl</code> the consul ui (<code>curl https://consul1.tecra.xyz:8501</code>) or open <code>https://consul1.tecra.xyz:8501</code> in your browser.</p>
+<p>Note, however, the if your root CA is self-signed, like mine is, some browsers (such as FireFox) won&rsquo;t trust it, as they won&rsquo;t use your machine&rsquo;s Trusted Certificate Store, but their own in built store.  You can either accept the warning or add your root certificate to the browser&rsquo;s store.</p>
+<h2 id="testing">Testing</h2>
+<p>Now that we have our cluster seemingly running with TLS, what happens if we try to connect a Consul client <em>without</em> TLS to it?  On the host machine, I just run a single node, and tell it to connect to one of the cluster nodes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>consul agent <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -join consul1.tecra.xyz <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -bind <span style="color:#e6db74">&#39;{{ GetInterfaceIP &#34;eth0&#34; }}&#39;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -data-dir /tmp/consul
+</span></span></code></pre></div><p>The result of this is a refusal to connect, as the cluster has TLS configured, but this instance does not:</p>
+<pre tabindex="0"><code>==&gt; Starting Consul agent...
+==&gt; Log data will now stream in as it occurs:
+==&gt; Joining cluster...
+==&gt; 1 error occurred:
+  * Failed to join 192.168.121.231: Remote state is encrypted and encryption is not configured
+</code></pre><p>Success!</p>
+<p>In the next post, I&rsquo;ll go through how we can set up a Vault cluster which stores its data in Consul, but also provision that same Consul cluster with certificates from the Vault instance!</p>
+]]></content:encoded></item><item><title>Using Vault as a Development CA</title><link>https://andydote.co.uk/2019/08/25/vault-development-ca/</link><pubDate>Sun, 25 Aug 2019 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2019/08/25/vault-development-ca/</guid><description>Often when developing or testing some code, I need (or want) to use SSL, and one of the easiest ways to do that is to use Vault. However, it gets pretty annoying having to generate a new CA for each project, and import the CA cert into windows (less painful in Linux, but still annoying), especially as I forget which cert is in use, and accidentally clean up the wrong ones.</description><content:encoded><![CDATA[<p>Often when developing or testing some code, I need (or want) to use SSL, and one of the easiest ways to do that is to use <a href="https://www.vaultproject.io/">Vault</a>.  However, it gets pretty annoying having to generate a new CA for each project, and import the CA cert into windows (less painful in Linux, but still annoying), especially as I forget which cert is in use, and accidentally clean up the wrong ones.</p>
+<p>My solution has been to generate a single CA certificate and PrivateKey, import this into my Trusted Root Certificate Store, and then whenever I need a Vault instance, I just setup Vault to use the existing certificate and private key.  The documentation for how to do this seems somewhat lacking, so here&rsquo;s how I do it.</p>
+<p>Things you&rsquo;ll need:</p>
+<ul>
+<li>Docker</li>
+<li>Vault cli</li>
+<li>JQ</li>
+</ul>
+<h2 id="generating-the-root-certificate">Generating the Root Certificate</h2>
+<p>First we need to create a Certificate, which we will do using the Vault docker container, and our local Vault CLI.  We start the docker container in the background, and mark it for deletion when it stops (<code>--rm</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>container<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>docker run -d --rm  --cap-add<span style="color:#f92672">=</span>IPC_LOCK -p 8200:8200 -e <span style="color:#e6db74">&#34;VAULT_DEV_ROOT_TOKEN_ID=vault&#34;</span> vault:latest<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>export VAULT_ADDR<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;http://localhost:8200&#34;</span>
+</span></span><span style="display:flex;"><span>export VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;vault&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>certs_dir<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;./ca&#34;</span>
+</span></span><span style="display:flex;"><span>max_ttl<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;87600h&#34;</span> <span style="color:#75715e"># 10 years why not</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mkdir -p $certs_dir
+</span></span><span style="display:flex;"><span>rm -rf $certs_dir/*.*
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault secrets enable pki
+</span></span><span style="display:flex;"><span>vault secrets tune -max-lease-ttl<span style="color:#f92672">=</span>$max_ttl pki
+</span></span></code></pre></div><p>Finally, we generate a certificate by writing to the <code>pki/root/generate/exported</code> path.  If the path ends with <code>exported</code> the Private Key is returned too.  If you specify <code>/internal</code> then the Private Key is stored internally to Vault, and never accessible.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>result<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>vault write -format <span style="color:#e6db74">&#34;json&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  pki/root/generate/exported <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  common_name<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;Local Dev CA&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  alt_names<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;localhost,mshome.net&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  ttl<span style="color:#f92672">=</span>$max_ttl<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span>$result<span style="color:#e6db74">&#34;</span> &gt; $certs_dir/response.json
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span>$result<span style="color:#e6db74">&#34;</span> | jq -r .data.certificate &gt; $certs_dir/ca.crt
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span>$result<span style="color:#e6db74">&#34;</span> | jq -r .data.private_key &gt; $certs_dir/private.key
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker stop $container
+</span></span></code></pre></div><p>We put the entire response into a <code>json</code> file just incase there is something interesting we want out of it later, and store the certificate and private key into the same directory too.  Note for the certificate&rsquo;s <code>alt_names</code> I have specified both <code>localhost</code> and <code>mshome.net</code>, which is the domain that Hyper-V machines use.</p>
+<p>Lastly, we can now import the root CA into our machine/user&rsquo;s Trusted Root Certification Authorities store, meaning our later uses of this certificate will be trusted by our local machine.</p>
+<h2 id="creating-a-vault-ca">Creating a Vault CA</h2>
+<p>As before, we use a Docker container to run the Vault instance, except this time we import the existing CA certificate into the PKI backend.  The first half of the script (<code>run_ca.sh</code>) is pretty much the same as before, except we don&rsquo;t delete the contents of the <code>./ca</code> directory, and our certificate <code>max_ttl</code> is much lower:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker run -d --rm  --cap-add<span style="color:#f92672">=</span>IPC_LOCK -p 8200:8200 -e <span style="color:#e6db74">&#34;VAULT_DEV_ROOT_TOKEN_ID=vault&#34;</span> vault:latest
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>export VAULT_ADDR<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;http://localhost:8200&#34;</span>
+</span></span><span style="display:flex;"><span>export VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;vault&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>certs_dir<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;./ca&#34;</span>
+</span></span><span style="display:flex;"><span>max_ttl<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;72h&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault secrets enable pki
+</span></span><span style="display:flex;"><span>vault secrets tune -max-lease-ttl<span style="color:#f92672">=</span>$max_ttl pki
+</span></span></code></pre></div><p>The last part is to read in the certificate and private key, bundle them together, and configure the <code>pki</code> backend to use them, and add a single role to use for issuing certificates:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>pem<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>cat $certs_dir/ca.crt $certs_dir/private.key<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault write pki/config/ca pem_bundle<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$pem<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault write pki/roles/cert <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  allowed_domains<span style="color:#f92672">=</span>localhost,mshome.net <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  allow_subdomains<span style="color:#f92672">=</span>true <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  max_ttl<span style="color:#f92672">=</span>$max_ttl
+</span></span></code></pre></div><p>Also note how we don&rsquo;t stop the docker container either.  Wouldn&rsquo;t be much of a CA if it stopped the second it was configured&hellip;</p>
+<h2 id="creating-a-vault-intermediate-ca">Creating a Vault Intermediate CA</h2>
+<p>Sometimes, I want to test that a piece of software works when I have issued certificates from an Intermediate CA, rather than directly from the root.  We can configure Vault to do this too, with a modified script which this time we start two PKI secret backends, one to act as the root, and onc as the intermediate:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>set -e
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>docker run -d --rm  --cap-add<span style="color:#f92672">=</span>IPC_LOCK -p 8200:8200 -e <span style="color:#e6db74">&#34;VAULT_DEV_ROOT_TOKEN_ID=vault&#34;</span> vault:latest
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>export VAULT_ADDR<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;http://localhost:8200&#34;</span>
+</span></span><span style="display:flex;"><span>export VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;vault&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># create root ca</span>
+</span></span><span style="display:flex;"><span>certs_dir<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;./ca&#34;</span>
+</span></span><span style="display:flex;"><span>pem<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>cat $certs_dir/ca.crt $certs_dir/private.key<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault secrets enable -path<span style="color:#f92672">=</span>pki_root pki
+</span></span><span style="display:flex;"><span>vault secrets tune -max-lease-ttl<span style="color:#f92672">=</span>87600h pki_root
+</span></span><span style="display:flex;"><span>vault write pki_root/config/ca pem_bundle<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$pem<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># create the intermediate</span>
+</span></span><span style="display:flex;"><span>vault secrets enable pki
+</span></span><span style="display:flex;"><span>vault secrets tune -max-lease-ttl<span style="color:#f92672">=</span>43800h pki
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>csr<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>vault write pki/intermediate/generate/internal <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -format<span style="color:#f92672">=</span>json common_name<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;Spectre Dev Intermdiate CA&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | jq -r .data.csr<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>intermediate<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>vault write pki_root/root/sign-intermediate <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -format<span style="color:#f92672">=</span>json csr<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$csr<span style="color:#e6db74">&#34;</span> format<span style="color:#f92672">=</span>pem_bundle ttl<span style="color:#f92672">=</span>43800h <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  | jq -r .data.certificate<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>chained<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo -e <span style="color:#e6db74">&#34;</span>$intermediate<span style="color:#e6db74">\n</span><span style="color:#66d9ef">$(</span>cat $certs_dir/ca.crt<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault write pki/intermediate/set-signed certificate<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span>$chained<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#34;</span>$intermediate<span style="color:#e6db74">&#34;</span> &gt; intermediate.crt
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault write pki/roles/cert <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  allowed_domains<span style="color:#f92672">=</span>localhost,mshome.net <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  allow_subdomains<span style="color:#f92672">=</span>true <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  max_ttl<span style="color:#f92672">=</span>43800h
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># destroy the temp root</span>
+</span></span><span style="display:flex;"><span>vault secrets disable pki_root
+</span></span></code></pre></div><p>We use the <code>pki_root</code> backend to sign a CSR from the <code>pki</code> (intermediate) backend, and once the signed response is stored in <code>pki</code>, we delete the <code>pki_root</code> backend, as it is no longer needed for our Development Intermediate CA.</p>
+<h2 id="issuing-certificates">Issuing Certificates</h2>
+<p>We can now use the <code>cert</code> role to issue certificates for our applications, which I have in a script called <code>issue.sh</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>export VAULT_ADDR<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;http://localhost:8200&#34;</span>
+</span></span><span style="display:flex;"><span>export VAULT_TOKEN<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;vault&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vault write <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  -format<span style="color:#f92672">=</span>json <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  pki/issue/cert <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>  common_name<span style="color:#f92672">=</span>$1.mshome.net
+</span></span></code></pre></div><p>This script I usually use with <code>jq</code> to do something useful with:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>response<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>./issue.sh consul<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>cert<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$response<span style="color:#e6db74">&#34;</span> | jq -r .data.certificate<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>key<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>echo <span style="color:#e6db74">&#34;</span>$response<span style="color:#e6db74">&#34;</span> | jq -r .data.private_key<span style="color:#66d9ef">)</span>
+</span></span></code></pre></div><h2 id="cleaning-up">Cleaning Up</h2>
+<p>When I have finished with an application or demo, I can just stop the Vault container, and run the <code>run_ca.sh</code> script again if I need Vault for another project.</p>
+]]></content:encoded></item></channel></rss>
