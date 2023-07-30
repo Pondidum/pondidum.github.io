@@ -5,57 +5,58 @@ title = "Andy Dote"
 theme = "PaperMod"
 
 [markup.goldmark.renderer]
-  unsafe = true
+unsafe = true
 
 enableRobotsTXT = true
 
 [outputFormats.RSS]
-  baseName = "rss"
+baseName = "rss"
 
 [permalinks]
-  post = '/:year/:month/:day/:slug/'
+post = '/:year/:month/:day/:slug/'
 
 [frontmatter]
-  date = [":filename", ":default"]
+date = [":filename", ":default"]
 
 [menu]
-  [[menu.main]]
-  name = "Archive"
-  url = "/archive"
-  weight = 100
+[[menu.main]]
+name = "Archive"
+url = "/archive"
+weight = 100
 
-  [[menu.main]]
-  name = "Talks"
-  url = "/talks"
-  weight = 110
+[[menu.main]]
+name = "Talks"
+url = "/talks"
+weight = 110
 
-  [[menu.main]]
-  name = "Notes"
-  url = "/notes"
-  weight = 120
+[[menu.main]]
+name = "Notes"
+url = "/notes"
+weight = 120
 
-  [[menu.main]]
-  name = "Tags"
-  url = "/tags"
-  weight = 130
+[[menu.main]]
+name = "Tags"
+url = "/tags"
+weight = 130
 
-  [[menu.main]]
-  name = "Contact"
-  url = "/contact"
-  weight = 140
+[[menu.main]]
+name = "Contact"
+url = "/contact"
+weight = 140
 
-  [[menu.main]]
-  name = "RSS"
-  url = "/rss.xml"
-  weight = 150
+[[menu.main]]
+name = "RSS"
+url = "/rss.xml"
+weight = 150
 
 
 [params]
-  DefaultTheme = "light"
-  ShowReadingTime = true
-  ShowPostNavLinks = true
-  ShowCodeCopyButtons = true
-  HideFooter = true
+DefaultTheme = "light"
+ShowReadingTime = true
+ShowPostNavLinks = true
+ShowCodeCopyButtons = true
+HideFooter = true
+ShowFullTextinRSS = true
 
 [privacy.youtube]
-  disabled =  false
+disabled = false
