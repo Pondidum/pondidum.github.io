@@ -1,0 +1,37 @@
+{{- $file := .Get "file" -}}
+
+
+{{- $local := $.Page.Resources.GetMatch $file -}}
+
+{{ $all_lines := split $local.Content "\n" -}}
+
+{{- $start := 1 -}}
+{{- if isset .Params "start" -}}
+  {{- $start = (.Get "start") | int -}}
+{{- end -}}
+
+{{- $finish := len $all_lines -}}
+{{- if isset .Params "finish" -}}
+  {{ $finish = (.Get "finish") | int -}}
+{{- end -}}
+
+{{- $start = math.Max $start 1 -}}
+{{- $finish = math.Min $finish (len $all_lines) -}}
+
+{{- $lines := slice -}}
+{{- range $index, $num := (seq (add $start -1) (add $finish -1)) -}}
+  {{- $lines = $lines | append (index $all_lines $num) -}}
+{{- end -}}
+
+
+{{- $lang := strings.TrimPrefix "." (path.Ext $file) -}}
+{{- if isset .Params "lang" -}}
+  {{- $lang = .Get "lang" -}}
+{{- end -}}
+
+{{- $options := "" -}}
+{{- if isset .Params "options" -}}
+  {{- $options = .Get "options" -}}
+{{- end -}}
+
+{{- highlight ( delimit $lines "\n") $lang $options -}}
