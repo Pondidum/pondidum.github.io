@@ -1,5 +1,5 @@
 +++
-tags = ['ci', 'feature flags', 'otel', 'tracing']
+tags = ['ci', 'feature flags', 'opentelemetry', 'tracing']
 title = 'Observability Driven CI'
 
 +++
