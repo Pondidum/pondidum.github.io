@@ -3,7 +3,7 @@ title = 'Tracing: structured logging, but better in every way'
 tags = [ "opentelemetry", "observability", "tracing" ]
 +++
 
-It is no secret that I am not a fan of logs; I've baited (`rapala` in Finnish) discussion in our work chat with things like:
+It is no secret that I am not a fan of logs; I've baited (`rapala` in work lingo.  Rapala is a Finnish brand of fishing lure, and used to mean baiting in this context) discussion in our work chat with things like:
 
 > If you're writing log statements, you're doing it wrong.
 
