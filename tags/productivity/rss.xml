@@ -1,4 +1,117 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>productivity on Andy Dote</title><link>https://andydote.co.uk/tags/productivity/</link><description>Recent content in productivity on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 10 Nov 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/productivity/rss.xml" rel="self" type="application/rss+xml"/><item><title>QA and Continuous Delivery</title><link>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</link><pubDate>Thu, 10 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</guid><description>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>productivity on Andy Dote</title><link>https://andydote.co.uk/tags/productivity/</link><description>Recent content in productivity on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Wed, 15 Nov 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/productivity/rss.xml" rel="self" type="application/rss+xml"/><item><title>Hot Reload for ServerSide Rendering</title><link>https://andydote.co.uk/2023/11/15/hot-reload-for-serverside-rendering/</link><pubDate>Wed, 15 Nov 2023 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2023/11/15/hot-reload-for-serverside-rendering/</guid><description>In one of my too many side projects, I am using htmx and go templates to render a somewhat complicated web UI. I much prefer using htmx for this kind of thing rather than react, as react brings in so much more additional complexity than I need or want. However, there is one thing I miss from the React ecosystem, and that is hot reload.
+Being able to save a file in my editor and see the changes instantly in a web browser is an amazing developer experience, and I want to recreate that for htmx.</description><content:encoded><![CDATA[<p>In one of my too many side projects, I am using <a href="https://htmx.org/">htmx</a> and go templates to render a somewhat complicated web UI.  I much prefer using htmx for this kind of thing rather than react, as react brings in so much more additional complexity than I need or want.  However, there is one thing I miss from the React ecosystem, and that is hot reload.</p>
+<p>Being able to save a file in my editor and see the changes instantly in a web browser is an amazing developer experience, and I want to recreate that for htmx.  I realised the steps to build my own hot reload were actually pretty small.</p>
+<p>On the server side:</p>
+<ul>
+<li>generate a guid on startup</li>
+<li>expose this to the client somehow</li>
+</ul>
+<p>On the client side:</p>
+<ul>
+<li>fetch the guid</li>
+<li>if the guid doesn&rsquo;t match what we have seen before, refresh the page</li>
+</ul>
+<p>Despite my preference for HTMX and html/template in Go, neither the Client nor Server implementations a framework specific.  The server utilises <a href="https://gofiber.io/">Fiber</a> as its host, but it is not a hard requirement.</p>
+<h2 id="the-client">The Client</h2>
+<p>I decided to use a websocket for the transport, as if I decide later to make the server notify the client of changes also.  For the client side, I have a single script that I include in the html template, which connects a websocket, and handles all messages received.  It also handles reconnection if the server disconnects, along with a simple backoff mechanism.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-js" data-lang="js"><span style="display:flex;"><span>(<span style="color:#66d9ef">function</span> () {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">var</span> <span style="color:#a6e22e">lastUuid</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;&#34;</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">var</span> <span style="color:#a6e22e">timeout</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">resetBackoff</span> <span style="color:#f92672">=</span> () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">timeout</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">1000</span>;
+</span></span><span style="display:flex;"><span>  };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">backOff</span> <span style="color:#f92672">=</span> () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">timeout</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">10</span> <span style="color:#f92672">*</span> <span style="color:#ae81ff">1000</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">timeout</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">timeout</span> <span style="color:#f92672">*</span> <span style="color:#ae81ff">2</span>;
+</span></span><span style="display:flex;"><span>  };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">hotReloadUrl</span> <span style="color:#f92672">=</span> () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">hostAndPort</span> <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">location</span>.<span style="color:#a6e22e">hostname</span> <span style="color:#f92672">+</span> (<span style="color:#a6e22e">location</span>.<span style="color:#a6e22e">port</span> <span style="color:#f92672">?</span> <span style="color:#e6db74">&#34;:&#34;</span> <span style="color:#f92672">+</span> <span style="color:#a6e22e">location</span>.<span style="color:#a6e22e">port</span> <span style="color:#f92672">:</span> <span style="color:#e6db74">&#34;&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">location</span>.<span style="color:#a6e22e">protocol</span> <span style="color:#f92672">===</span> <span style="color:#e6db74">&#34;https:&#34;</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;wss://&#34;</span> <span style="color:#f92672">+</span> <span style="color:#a6e22e">hostAndPort</span> <span style="color:#f92672">+</span> <span style="color:#e6db74">&#34;/ws/hotreload&#34;</span>;
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">location</span>.<span style="color:#a6e22e">protocol</span> <span style="color:#f92672">===</span> <span style="color:#e6db74">&#34;http:&#34;</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;ws://&#34;</span> <span style="color:#f92672">+</span> <span style="color:#a6e22e">hostAndPort</span> <span style="color:#f92672">+</span> <span style="color:#e6db74">&#34;/ws/hotreload&#34;</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">function</span> <span style="color:#a6e22e">connectHotReload</span>() {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">socket</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">WebSocket</span>(<span style="color:#a6e22e">hotReloadUrl</span>());
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">socket</span>.<span style="color:#a6e22e">onmessage</span> <span style="color:#f92672">=</span> (<span style="color:#a6e22e">event</span>) =&gt; {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">lastUuid</span> <span style="color:#f92672">===</span> <span style="color:#e6db74">&#34;&#34;</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">lastUuid</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">data</span>;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">lastUuid</span> <span style="color:#f92672">!==</span> <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">data</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">log</span>(<span style="color:#e6db74">&#34;[Hot Reloader] Server Changed, reloading&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">location</span>.<span style="color:#a6e22e">reload</span>();
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">socket</span>.<span style="color:#a6e22e">onopen</span> <span style="color:#f92672">=</span> () =&gt; {
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">resetBackoff</span>();
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">socket</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">&#34;Hello&#34;</span>);
+</span></span><span style="display:flex;"><span>    };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">socket</span>.<span style="color:#a6e22e">onclose</span> <span style="color:#f92672">=</span> () =&gt; {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">timeoutId</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">setTimeout</span>(<span style="color:#66d9ef">function</span> () {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">clearTimeout</span>(<span style="color:#a6e22e">timeoutId</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">backOff</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">connectHotReload</span>();
+</span></span><span style="display:flex;"><span>      }, <span style="color:#a6e22e">timeout</span>);
+</span></span><span style="display:flex;"><span>    };
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">resetBackoff</span>();
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">connectHotReload</span>();
+</span></span><span style="display:flex;"><span>})();
+</span></span></code></pre></div><p>Note this is a pretty dumb hot reload - it just refreshes the current page.</p>
+<h2 id="the-server">The Server</h2>
+<p>The entire implementation is about 20 lines of go, utilising the <code>websocket</code> package for <code>fiber</code>, my web server framework of choice.  There is not a lot to it; just create a UUID, and send that value to any client which connects to the websocket, and sends any message to us.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#f92672">import</span> (
+</span></span><span style="display:flex;"><span>  <span style="color:#e6db74">&#34;github.com/gofiber/contrib/websocket&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#e6db74">&#34;github.com/gofiber/fiber/v2&#34;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#e6db74">&#34;github.com/google/uuid&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">WithHotReload</span>(<span style="color:#a6e22e">app</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">fiber</span>.<span style="color:#a6e22e">App</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">id</span> <span style="color:#f92672">:=</span> []byte(<span style="color:#a6e22e">uuid</span>.<span style="color:#a6e22e">New</span>().<span style="color:#a6e22e">String</span>())
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">app</span>.<span style="color:#a6e22e">Use</span>(<span style="color:#e6db74">&#34;/ws&#34;</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">c</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">fiber</span>.<span style="color:#a6e22e">Ctx</span>) <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">websocket</span>.<span style="color:#a6e22e">IsWebSocketUpgrade</span>(<span style="color:#a6e22e">c</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">Next</span>()
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">fiber</span>.<span style="color:#a6e22e">ErrUpgradeRequired</span>
+</span></span><span style="display:flex;"><span>  })
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">app</span>.<span style="color:#a6e22e">Get</span>(<span style="color:#e6db74">&#34;/ws/hotreload&#34;</span>, <span style="color:#a6e22e">websocket</span>.<span style="color:#a6e22e">New</span>(<span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">c</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">websocket</span>.<span style="color:#a6e22e">Conn</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">ReadMessage</span>(); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">break</span>
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">WriteMessage</span>(<span style="color:#a6e22e">websocket</span>.<span style="color:#a6e22e">TextMessage</span>, <span style="color:#a6e22e">id</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">break</span>
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="how-it-works">How it works</h2>
+<p>I use the <a href="https://github.com/cortesi/modd/">modd</a> tool to restart my go applications when I am developing them: any time I save a file, the app restarts.</p>
+<p>When the app restarts, all websocket connections are aborted.  The client then tries to reconnect, and when it does, it receives a new UUID from the server, causing the entire page to refresh.  As all my apps are serverside rendered, there is usually little, if any, state to keep, so a full page refresh is fine for my development needs.</p>
+<p>In this implementation, the socket is not needed; it would be just as easy to poll an API every x seconds to see if the UUID has changed, but having the client react to the server breaking the connection on restart seems better; there is less random HTTP noise in the network tab too.</p>
+<h2 id="future-modifications">Future modifications</h2>
+<p>I think I could make htmx do the hard work of switching out the page dom when the socket indicates the page has changed, and while that would be cool, it does mean that the client part would become htmx specific, so I probably won&rsquo;t do this.</p>
+]]></content:encoded></item><item><title>QA and Continuous Delivery</title><link>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</link><pubDate>Thu, 10 Nov 2022 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2022/11/10/qa-and-continuous-delivery/</guid><description>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.
 While doing continuous delivery does change the QA process, when done well, it improves everyone&amp;rsquo;s lives and makes the software better quality. Are silver bullets incoming? Not quite, but we don&amp;rsquo;t have to make someone&amp;rsquo;s life worse to improve other people&amp;rsquo;s lives.</description><content:encoded><![CDATA[<p>When migrating to a continuous delivery process, it is often the case that a QA team are worried about what their role is going to be, and how the changes will affect the quality of the software in question.</p>
 <p>While doing continuous delivery does change the QA process, when done well, it improves everyone&rsquo;s lives and makes the software <em>better</em> quality.  Are silver bullets incoming?  Not quite, but we don&rsquo;t have to make someone&rsquo;s life worse to improve other people&rsquo;s lives.</p>
 <p>This article is going to rely heavily on <a href="/tags/feature-flags/">Feature Flags</a>, so a passing familiarity is useful.  In summary, feature flags are the ability to switch features on and off at runtime of the application without requiring re-deployment.  Feature flags can also be used to switch on features for specific users or groups of users.</p>
