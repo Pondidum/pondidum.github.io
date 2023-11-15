@@ -541,17 +541,17 @@ While this post focuses on testing a full machine (both locally in a VM, and rem
 </span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;localEndpoint&#34;</span>: { <span style="color:#f92672">&#34;serviceName&#34;</span>: <span style="color:#e6db74">&#34;FileBeatTest&#34;</span> }
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><p>To enable sending the lines directly to LogStash (rather than needing to use FileBeat), we define an <code>input.conf</code> file, which configures LogStash to read json from stdin:</p>
-<pre tabindex="0"><code class="language-conf" data-lang="conf">input {
-  stdin { codec =&gt; &#34;json_lines&#34; }
-}
-</code></pre><p>And an <code>ouput.conf</code> file which configures LogStash to write the output as json lines a known file path:</p>
-<pre tabindex="0"><code class="language-conf" data-lang="conf">output {
-  file {
-    path =&gt; &#34;/tmp/test/output.log&#34;
-    codec =&gt; &#34;json_lines&#34;
-  }
-}
-</code></pre><p>The tests need to be run inside the machine itself, so I created a script in the <code>./scripts</code> directory which will do all the work, and can be run by the <code>execute</code> method in a Jest test.  The script stops the LogStash service, copies the current configuration from the <code>./src</code> directory and the replacement <code>input.conf</code> and <code>output.conf</code> files to a temporary location, and then runs LogStash once per test case, copying the result file to the test case&rsquo;s directory.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>input {
+</span></span><span style="display:flex;"><span>  stdin { codec <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;json_lines&#34;</span> }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And an <code>ouput.conf</code> file which configures LogStash to write the output as json lines a known file path:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>output {
+</span></span><span style="display:flex;"><span>  file {
+</span></span><span style="display:flex;"><span>    path <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;/tmp/test/output.log&#34;</span>
+</span></span><span style="display:flex;"><span>    codec <span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">&gt;</span> <span style="color:#e6db74">&#34;json_lines&#34;</span>
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The tests need to be run inside the machine itself, so I created a script in the <code>./scripts</code> directory which will do all the work, and can be run by the <code>execute</code> method in a Jest test.  The script stops the LogStash service, copies the current configuration from the <code>./src</code> directory and the replacement <code>input.conf</code> and <code>output.conf</code> files to a temporary location, and then runs LogStash once per test case, copying the result file to the test case&rsquo;s directory.</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e">#! /bin/bash
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
 </span></span><span style="display:flex;"><span>sudo systemctl stop logstash

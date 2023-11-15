@@ -184,14 +184,14 @@ nameserver 192.168.121.1
 <p>Next, we install <code>dhclient</code> so that we can make use of it&rsquo;s hooks feature to generate our additional unbound config file.</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>apk add dhclient
 </span></span></code></pre></div><p>Create a config file for dhclient (<code>/etc/dhcp/dhclient.conf</code>), which again is almost the same as the previous post, but this time doesn&rsquo;t specify <code>prepend domain-name-servers</code>:</p>
-<pre tabindex="0"><code class="language-conf" data-lang="conf">option rfc3442-classless-static-routes code 121 = array of unsigned integer 8;
-send host-name = gethostname();
-request subnet-mask, broadcast-address, time-offset, routers,
- domain-name, domain-name-servers, domain-search, host-name,
- dhcp6.name-servers, dhcp6.domain-search, dhcp6.fqdn, dhcp6.sntp-servers,
- netbios-name-servers, netbios-scope, interface-mtu,
- rfc3442-classless-static-routes, ntp-servers;
-</code></pre><p>Now we can write two hooks. The first is an enter hook, which we can use to write the <code>forward.conf</code> file out.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span><span style="color:#66d9ef">option</span> rfc3442-classless-static-routes code 121 <span style="color:#f92672">=</span> array of unsigned integer 8;
+</span></span><span style="display:flex;"><span>send <span style="color:#66d9ef">host</span>-name <span style="color:#f92672">=</span> <span style="color:#a6e22e">gethostname</span>();
+</span></span><span style="display:flex;"><span>request <span style="color:#66d9ef">subnet</span>-mask, broadcast-address, time-offset, routers,
+</span></span><span style="display:flex;"><span> domain-name, domain-name-servers, domain-search, <span style="color:#66d9ef">host</span>-name,
+</span></span><span style="display:flex;"><span> dhcp6.name-servers, dhcp6.domain-search, dhcp6.fqdn, dhcp6.sntp-servers,
+</span></span><span style="display:flex;"><span> netbios-name-servers, netbios-scope, interface-mtu,
+</span></span><span style="display:flex;"><span> rfc3442-classless-static-routes, ntp-servers;
+</span></span></code></pre></div><p>Now we can write two hooks. The first is an enter hook, which we can use to write the <code>forward.conf</code> file out.</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>touch /etc/dhclient-enter-hooks
 </span></span><span style="display:flex;"><span>chmod +x /etc/dhclient-enter-hooks
 </span></span></code></pre></div><p>The content is a single statement to write the <code>new_domain_name_servers</code> value into a <code>forward-zone</code> for unbound:</p>
@@ -1130,22 +1130,22 @@ The DNS server is listening on port 8600 by default, and you can query both A re
 </span></span><span style="display:flex;"><span>sudo DEBIAN_FRONTEND<span style="color:#f92672">=</span>noninteractive apt install -yq iptables-persistent
 </span></span></code></pre></div><h3 id="2-update-systemd-resolved">2. Update Systemd-Resolved</h3>
 <p>The file to change is <code>/etc/systemd/resolved.conf</code>.  By default it looks like this:</p>
-<pre tabindex="0"><code class="language-conf" data-lang="conf">[Resolve]
-#DNS=
-#FallbackDNS=8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
-#Domains=
-#LLMNR=yes
-#DNSSEC=no
-</code></pre><p>We need to change the <code>DNS</code> and <code>Domains</code> lines - either editing the file by hand, or scripting a replacement with <code>sed</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">[</span>Resolve<span style="color:#960050;background-color:#1e0010">]</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#DNS=
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#FallbackDNS=8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#Domains=
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#LLMNR=yes
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#DNSSEC=no
+</span></span></span></code></pre></div><p>We need to change the <code>DNS</code> and <code>Domains</code> lines - either editing the file by hand, or scripting a replacement with <code>sed</code>:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo sed -i <span style="color:#e6db74">&#39;s/#DNS=/DNS=127.0.0.1/g; s/#Domains=/Domains=~consul/g&#39;</span> /etc/systemd/resolved.conf
 </span></span></code></pre></div><p>The result of which is the file now reading like this:</p>
-<pre tabindex="0"><code class="language-conf" data-lang="conf">[Resolve]
-DNS=127.0.0.1
-#FallbackDNS=8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
-Domains=~consul
-#LLMNR=yes
-#DNSSEC=no
-</code></pre><p>By specifying the <code>Domains</code> as <code>~consul</code>, we are telling resolvd to forward requests for the <code>consul</code> TLD to the server specified in the <code>DNS</code> line.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">[</span>Resolve<span style="color:#960050;background-color:#1e0010">]</span>
+</span></span><span style="display:flex;"><span>DNS<span style="color:#f92672">=</span><span style="color:#ae81ff">127.0.0.1</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#FallbackDNS=8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>Domains<span style="color:#f92672">=</span><span style="color:#960050;background-color:#1e0010">~</span>consul
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#LLMNR=yes
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#DNSSEC=no
+</span></span></span></code></pre></div><p>By specifying the <code>Domains</code> as <code>~consul</code>, we are telling resolvd to forward requests for the <code>consul</code> TLD to the server specified in the <code>DNS</code> line.</p>
 <h3 id="3-configure-resolvconf-too">3. Configure Resolvconf too</h3>
 <p>For compatibility with some applications (e.g. <code>curl</code> and <code>ping</code>), we also need to update <code>/etc/resolv.conf</code> to specify our local nameserver.  You do this <strong>not</strong> by editing the file directly!</p>
 <p>Instead, we need to add <code>nameserver 127.0.0.1</code> to <code>/etc/resolvconf/resolv.conf.d/head</code>.  Again, I will script this, and as we need <code>sudo</code> to write to the file, the easiest way is to use <code>tee</code> to append the line and then run <code>resolvconf -u</code> to apply the change:</p>
@@ -1428,13 +1428,13 @@ RabbitMQ is the centre of a lot of micros service architectures, and while you c
 <li>The <code>RABBITMQ_ERLANG_COOKIE</code> must have the same value</li>
 </ul>
 <p>The <code>rabbitmq_peer_discovery_consul</code> plugin we will use is shipped with RabbitMQ by default but is disabled.  The easiest way to get everything up and running is to create your own docker container, with the plugin enabled, and a small configuration file to set a few options:</p>
-<pre tabindex="0"><code class="language-conf" data-lang="conf">FROM rabbitmq:management-alpine
-COPY rabbitmq.conf /etc/rabbitmq
-RUN rabbitmq-plugins enable --offline rabbitmq_peer_discovery_consul
-</code></pre><p>The <code>rabbitmq.conf</code> only needs a few lines:</p>
-<pre tabindex="0"><code class="language-conf" data-lang="conf">cluster_formation.peer_discovery_backend = rabbit_peer_discovery_consul
-cluster_formation.consul.svc_addr_auto = true
-</code></pre><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build -t rabbitmq:consul .
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>FROM rabbitmq<span style="color:#960050;background-color:#1e0010">:</span>management-alpine
+</span></span><span style="display:flex;"><span>COPY rabbitmq.conf <span style="color:#960050;background-color:#1e0010">/</span>etc<span style="color:#960050;background-color:#1e0010">/</span>rabbitmq
+</span></span><span style="display:flex;"><span>RUN rabbitmq-plugins enable --offline rabbitmq_peer_discovery_consul
+</span></span></code></pre></div><p>The <code>rabbitmq.conf</code> only needs a few lines:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-conf" data-lang="conf"><span style="display:flex;"><span>cluster_formation.peer_discovery_backend <span style="color:#f92672">=</span> rabbit_peer_discovery_consul
+</span></span><span style="display:flex;"><span>cluster_formation.consul.svc_addr_auto <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker build -t rabbitmq:consul .
 </span></span></code></pre></div><p>An image built from this is also available on <a href="https://hub.docker.com/r/pondidum/rabbitmq">docker hub</a>.</p>
 <p>Once we have a custom container built, it&rsquo;s a good idea to test that it actually works, before we start trying to get Nomad to run it.  We&rsquo;ll do this by creating a network in Docker so that all the containers can talk directly to each other on their pre-defined ports.  Don&rsquo;t forget to change <code>CONSUL_HOST</code> to your machine&rsquo;s IP address!</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>docker network create rabbit
