@@ -1,4 +1,104 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>configuration on Andy Dote</title><link>https://andydote.co.uk/tags/configuration/</link><description>Recent content in configuration on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 31 Oct 2024 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/configuration/rss.xml" rel="self" type="application/rss+xml"/><item><title>Too Much Configuration</title><link>https://andydote.co.uk/2024/10/31/too-much-configuration/</link><pubDate>Thu, 31 Oct 2024 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2024/10/31/too-much-configuration/</guid><description>When writing software, you will come across many questions which don&amp;rsquo;t always have a clear answer, and its tempting to not answer the question, and provide it as a configuration option to the user of your software. You might go as far as setting a default value though. This seems good for everyone; you don&amp;rsquo;t have to make a decision, users can change their minds whenever they want.
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>configuration on Andy Dote</title><link>https://andydote.co.uk/tags/configuration/</link><description>Recent content in configuration on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 12 Dec 2024 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/configuration/rss.xml" rel="self" type="application/rss+xml"/><item><title>Outside In Design</title><link>https://andydote.co.uk/2024/12/12/system-design-outside-in/</link><pubDate>Thu, 12 Dec 2024 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2024/12/12/system-design-outside-in/</guid><description>Following on from my previous post about not having too much configuration, I want to talk about how I design software.
+I try and follow what I call &amp;ldquo;outside in design&amp;rdquo;; I try and make something that requires the bare minimum amount of configuration to cover the most common of use-cases. Once this functionality is working, further configuration can be added to cover the next most common use cases.
+API Reduction As A Feature The first example I want to go through is how I removed options from an HTTP rate limiter we use.</description><content:encoded><![CDATA[<p>Following on from my previous post about not having <a href="/2024/10/31/too-much-configuration/">too much configuration</a>, I want to talk about how I design software.</p>
+<p>I try and follow what I call &ldquo;outside in design&rdquo;; I try and make something that requires the bare minimum amount of configuration to cover the most common of use-cases.  Once this functionality is working, further configuration can be added to cover the next most common use cases.</p>
+<h2 id="api-reduction-as-a-feature">API Reduction As A Feature</h2>
+<p>The first example I want to go through is how I removed options from an HTTP rate limiter we use.  There are many teams using rate limiters, and we have noticed that there are often similar mistakes made in how they work and duplication of domain-specific functionality.</p>
+<p>In order to make life easier for <em>most</em> users, a new rate limiter was made which reduced the API surface area, only exposing the bare minimum options.</p>
+<p><strong>Algorithm.</strong> Instead of offering many different types of algorithm (for example <code>Token Bucket</code>, <code>Leaky Bucket</code>, <code>Fixed Window Counter</code>, and <code>Sliding Window</code>), the rate limiter only uses <code>Sliding Window</code>.</p>
+<p><strong>Sizes.</strong>: By forcing the use of a specific algorithm, we eliminate a lot of algorithm specific options, such as bucket capacity, refill/drain rate, and window overlap.  We expose a single option of <code>WindowSeconds</code> with a default vault of <code>60</code>.</p>
+<p><strong>Penalties.</strong> We also decided to not expose how long a ban is, and instead make it a multiple of the <code>WindowSeconds</code> option, in our case <code>WindowSeconds * 3</code>.</p>
+<p><strong>Selection Criteria.</strong> Rate limiters we observed could filter by many different properties, such as IP Address, Headers, Cookies, Path, Query, Status Code, etc.  Our rate limiter has the following rules:</p>
+<ul>
+<li>Account and Path</li>
+<li>Account and (bad) Status</li>
+<li>IP Address and Path</li>
+<li>IP Address and (bad) Status</li>
+<li>Anonymous IP</li>
+</ul>
+<p>The way the account is detected is the same for all services in our domain, so we can centralise the checking code to be identical in all instances.</p>
+<p><strong>Triggering.</strong> For triggering, we went with the simplest thing possible: if any counter&rsquo;s value goes over a threshold, then a ban is issued for the Account or IP address triggering the ban.  The threshold value is exposed as <code>MaxRequests</code> with a default value of <code>100</code></p>
+<p>Finally, we expose one additional configuration: <code>Storage</code>.  This is an optional field which you can set to a Valkey or Redis-compatible client so that if you have many instances of your application, the rate-limiting is shared amongst all instances.</p>
+<p>For most of our teams, using a rate limiter is now this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#a6e22e">limiter</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">org</span>.<span style="color:#a6e22e">NewRateLimiter</span>(
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">org</span>.<span style="color:#a6e22e">WithStorage</span>(<span style="color:#a6e22e">valkey</span>),
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">org</span>.<span style="color:#a6e22e">WithMaxRequests</span>(<span style="color:#ae81ff">80</span>),
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">mux</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">NewServeMux</span>()
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">mux</span>.<span style="color:#a6e22e">Handle</span>(<span style="color:#e6db74">&#34;/&#34;</span>, <span style="color:#a6e22e">limiter</span>(<span style="color:#a6e22e">apiRootHandler</span>))
+</span></span></code></pre></div><p>For teams that need more customisation, we recommend they reach out to us to see what their needs are; the outcome would usually be embedding and customising the rate-limiter, forking the library, or using an off-the-shelf library directly.  So far very few teams have needed extra customisation.</p>
+<p>The downside to this approach is if we want to change some detail about how the rate limiter works; we now have to find all the teams using it to make sure we don&rsquo;t break their workflow.  For Go projects, we typically bump the major version of the library, and have explicit messaging about the differences in the readme.</p>
+<h2 id="organisation-conventions">Organisation Conventions</h2>
+<p>The next example is trying to show off what we can achive when using conventions;  some of these conventions were in place before we wrote this code, and some have become conventions since.</p>
+<p>When it comes to building docker containers, there are a few things that people, in general, want:</p>
+<ul>
+<li>the container to be built</li>
+<li>tests to be run, preventing publishing broken containers</li>
+<li>the (working) container to be published somewhere so it can be used</li>
+<li>extra artifacts from the build to be collected (test reports, coverage, etc.)</li>
+<li>it to be fast</li>
+</ul>
+<p>The problem with all these things is in the details; building itself is fairly straightforward, but publishing requires knowing where to publish, any credentials required, and how to name and version the container.  Likewise, artifact collection requires knowing where the artifacts are to be collected from, and where to publish them to (along with authentication etc.)</p>
+<p>The even bigger issue is &ldquo;to be fast&rdquo;; people don&rsquo;t care about how its fast, they just want fast.  This means not only making a cacheable dockerfile but doing that caching somehow; with ephemeral build agents, that caching becomes harder.</p>
+<p>We can go through our requirements and see what ones we know the answers to already and what we need to get from users:</p>
+<p><strong>Docker Registry.</strong> The internal Secret Management Service (SMS) has a convention for where your docker registry is, and what the credentials are: read from <code>/teams/$team_name/docker/registry</code>.</p>
+<p><strong>Container Path.</strong> We always publish to <code>$registry/$team_name/$repo_name/$container_name</code>.</p>
+<p><strong>Container Name.</strong> A repository can have multiple containers, or the name of the container can differ from the repository.  So for this property, we need the users to supply something.</p>
+<p><strong>Container Version.</strong> We decided that a short git SHA is enough for versioning.</p>
+<p><strong>Caching.</strong> The registry has a second path convention for storing cache contents: <code>$registry/cache/$team_name/$repo_name/$container_name</code>.</p>
+<p><strong>Artifacts.</strong> Artifacts are published to the Github Actions artifacts, so no extra authentication or settings are needed.  We decided that if the <code>.artifacts</code> folder exists and has contents, that is what will get stored.</p>
+<p>Given the above analysis, we decided on 4 configuration options:</p>
+<ol>
+<li><code>team_name</code>: no default.  We will use this value to find the registry information and build container and cache paths.</li>
+<li><code>container_name</code>: no default.  You need to tell us what the name of your container should be.</li>
+<li><code>build_args</code>: default empty.  Supply extra arguments to the <code>docker build</code> command.  Some teams need to inject extra information from the host.</li>
+<li><code>dockerfile</code>: default <code>./Dockerfile</code>.  Some teams have multiple dockerfiles in their repository, or keep the files in subfolders.</li>
+</ol>
+<p>By relying on the <code>team_name</code> parameter, so many other options can be eliminated, and it turns out most people don&rsquo;t care what exact path their containers are uploaded to, as long as they are accessible when it comes to being used in a deployment environment.  This is foreshadowing!</p>
+<p>For most teams, their build workflow becomes just two steps: checkout sourcecode, and build the container:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">steps</span>:
+</span></span><span style="display:flex;"><span>- <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">actions/checkout@v4</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>- <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">org/docker-build@v1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">with</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">team_name</span>: <span style="color:#e6db74">&#34;team-one&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">container_name</span>: <span style="color:#ae81ff">api</span>
+</span></span></code></pre></div><h2 id="organisation-conventions-two">Organisation Conventions Two</h2>
+<p>Now that we have a shared way to build docker containers with low configuration, the next logical step was figuring out if we could do the same for deployment.  It turns out a lot of the conventions used to build the container can be applied to deployment: docker registry, container path, container name, and container version are all the same between the two.  In addition, we need to add a few more: the name of the environment being deployed to and the path to your deployment definition file (for example, a Nomad job).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">steps</span>:
+</span></span><span style="display:flex;"><span>- <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">org/nomad-docker@v1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">with</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">team_name</span>: <span style="color:#e6db74">&#34;team-one&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">container_name</span>: <span style="color:#ae81ff">api</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">environment</span>: <span style="color:#ae81ff">live</span>
+</span></span></code></pre></div><h2 id="the-pit-of-success">The Pit of Success</h2>
+<p>We also like to leverage The Pit of Success, which seems to originate from <a href="https://learn.microsoft.com/en-us/archive/blogs/brada/the-pit-of-success">Rico Mariani</a>; we want to make doing the easiest thing to be the correct thing.</p>
+<p>To that end, we provide a library to populate an app&rsquo;s secrets.  This library handles multiple forms of authentication for different runtime locations (developer machine, nomad cluster, lambda, etc.), and handles where the secrets themselves are located.</p>
+<p>The library&rsquo;s usage boils down to two things.  A single <code>struct</code> to represent their secrets:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">Secrets</span> <span style="color:#66d9ef">struct</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">ClientID</span> <span style="color:#66d9ef">string</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">ClientSecret</span> <span style="color:#66d9ef">string</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">ApiToken</span> <span style="color:#66d9ef">string</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// etc
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>}
+</span></span></code></pre></div><p>And a single function call to populate it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">org</span>.<span style="color:#a6e22e">ReadSecrets</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#e6db74">&#34;management-api&#34;</span>, <span style="color:#a6e22e">secrets</span>)
+</span></span></code></pre></div><p>This function call does a lot behind the scenes:</p>
+<p><strong>Authentication.</strong> This varies based on where the app is running: on a developer machine, it uses the local cached secret manager credentials and triggers authentication flows if needed.  When deployed, it uses the relevant secret authentication system for that environment (e.g. Nomad&rsquo;s Vault integration or AWS Secret Manager in Lambda).</p>
+<p><strong>Secret Location.</strong> It reads all the secrets for from a conventional path: <code>/teams/$team_name/apps/$app_name/$env/*</code>, where the values come from different places:</p>
+<ul>
+<li><code>team_name</code> comes from a common environment variable, and <code>ReadSecrets</code> errors if its not populated</li>
+<li><code>env</code> comes from either an environment variable when the app is deployed somewhere or is set to <code>local</code> on a developer&rsquo;s machine.</li>
+<li><code>app_name</code> is supplied in code (<code>management-api</code> in this case)</li>
+</ul>
+<p>While teams can roll their own secret management integration, our library is so easy to use that almost no teams choose to do anything different.</p>
+<h2 id="the-golden-path">The Golden Path</h2>
+<p>Our tools form what we call our Golden Path, a term which seems to originate from <a href="https://engineering.atspotify.com/2020/08/how-we-use-golden-paths-to-solve-fragmentation-in-our-software-ecosystem/#:~:text=The%20Golden%20Path%20%E2%80%94%20as%20we,this%20opinionated%20and%20supported%20path.">spotify</a>.  We use it to define a way to develop and deploy software in a tried and tested manner.  Teams are always free to choose their own path by changing what parts of the system they see fit.</p>
+<p>The trade off teams are making is between maintenance burden and configuration;  choose our tools, and you don&rsquo;t need to worry about them working, but you need to follow our conventions and opinions.</p>
+<h2 id="how-do-you-design-software">How Do You Design Software?</h2>
+<p>While this is working really well for me and my teams, there has to be other opinions too; I&rsquo;d be interested in hearing how people do this for their teams and projects.</p>
+]]></content:encoded></item><item><title>Too Much Configuration</title><link>https://andydote.co.uk/2024/10/31/too-much-configuration/</link><pubDate>Thu, 31 Oct 2024 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2024/10/31/too-much-configuration/</guid><description>When writing software, you will come across many questions which don&amp;rsquo;t always have a clear answer, and its tempting to not answer the question, and provide it as a configuration option to the user of your software. You might go as far as setting a default value though. This seems good for everyone; you don&amp;rsquo;t have to make a decision, users can change their minds whenever they want.
 However, too much configuration is a bad thing in general.</description><content:encoded><![CDATA[<p>When writing software, you will come across many questions which don&rsquo;t always have a clear answer, and its tempting to not answer the question, and provide it as a configuration option to the user of your software.  You might go as far as setting a default value though.  This seems good for everyone; you don&rsquo;t have to make a decision, users can change their minds whenever they want.</p>
 <p>However, too much configuration is a bad thing in general.  There are two ways I want to view configuration: internally, from the developer of the software&rsquo;s perspective, and externally, from the user of the software&rsquo;s persepective (who might also be writing software.)</p>
 <p>Most of the categories I will cover exist in both internal and external sections, as the effects they have are bi-directional.</p>
