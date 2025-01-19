@@ -1,4 +1,121 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Posts on Andy Dote</title><link>https://andydote.co.uk/post/</link><description>Recent content in Posts on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sat, 11 Jan 2025 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/post/rss.xml" rel="self" type="application/rss+xml"/><item><title>Debugging GDI Handle Leaks</title><link>https://andydote.co.uk/2025/01/11/debugging-gdi-handles/</link><pubDate>Sat, 11 Jan 2025 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2025/01/11/debugging-gdi-handles/</guid><description>Many years ago, I was working on a dotnet Windows Forms application. The application had many issues overall: memory leaks, random crashes, data loss, and in this case, the &amp;ldquo;red x&amp;rdquo; problem.
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Posts on Andy Dote</title><link>https://andydote.co.uk/post/</link><description>Recent content in Posts on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Sun, 19 Jan 2025 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/post/rss.xml" rel="self" type="application/rss+xml"/><item><title>Explicit vs Implicit code</title><link>https://andydote.co.uk/2025/01/19/explicit-vs-implicit-code/</link><pubDate>Sun, 19 Jan 2025 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2025/01/19/explicit-vs-implicit-code/</guid><description>A system I am working on at the moment started giving errors occasionally, say 5 times out of 10,000 messages or so. The error was pretty straightforward:
+json: cannot unmarshal array into Go struct field Thing.Parts of type Parts The data structure it is referring to looks like this:
+type Thing struct { Parts Parts } type Parts struct { Part []Part } Which represents the (slightly weird) json structure we receive in a message:</description><content:encoded><![CDATA[<p>A system I am working on at the moment started giving errors occasionally, say 5 times out of 10,000 messages or so.  The error was pretty straightforward:</p>
+<pre tabindex="0"><code>json: cannot unmarshal array into Go struct field Thing.Parts of type Parts
+</code></pre><p>The data structure it is referring to looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">Thing</span> <span style="color:#66d9ef">struct</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">Parts</span> <span style="color:#a6e22e">Parts</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">Parts</span> <span style="color:#66d9ef">struct</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">Part</span> []<span style="color:#a6e22e">Part</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Which represents the (slightly weird) json structure we receive in a message:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#f92672">&#34;thing&#34;</span>: {
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&#34;parts&#34;</span>: {
+</span></span><span style="display:flex;"><span>			<span style="color:#f92672">&#34;part&#34;</span>: [
+</span></span><span style="display:flex;"><span>				{ <span style="color:#960050;background-color:#1e0010">name:</span> <span style="color:#f92672">&#34;one&#34;</span> },
+</span></span><span style="display:flex;"><span>				{ <span style="color:#960050;background-color:#1e0010">name:</span> <span style="color:#f92672">&#34;two&#34;</span> }
+</span></span><span style="display:flex;"><span>			]
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>However, rarely, we receive a json document which looks like this instead, where the <code>parts</code> struct has instead become an array, with one object containing the <code>part</code> array:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#f92672">&#34;thing&#34;</span>: {
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&#34;parts&#34;</span>: {
+</span></span><span style="display:flex;"><span>			<span style="color:#f92672">&#34;part&#34;</span>: [
+</span></span><span style="display:flex;"><span>				{ <span style="color:#960050;background-color:#1e0010">name:</span> <span style="color:#f92672">&#34;one&#34;</span> },
+</span></span><span style="display:flex;"><span>				{ <span style="color:#960050;background-color:#1e0010">name:</span> <span style="color:#f92672">&#34;two&#34;</span> }
+</span></span><span style="display:flex;"><span>			]
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>In the interest of keeping the software running while digging through for the root cause of this, I added an implementation of the <code>json.Unmarshaler</code> interface to the <code>Parts</code> struct to allow it to handle both forms of json:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">// duplicate of the Parts type, to prevent recursive calls to the UnmarshalJSON method
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">dto</span> <span style="color:#66d9ef">struct</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">Part</span> []<span style="color:#a6e22e">Part</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">i</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Parts</span>) <span style="color:#a6e22e">UnmarshalJSON</span>(<span style="color:#a6e22e">b</span> []<span style="color:#66d9ef">byte</span>) <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// this is the standard format that json arrives in.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#a6e22e">normal</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">dto</span>{}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">json</span>.<span style="color:#a6e22e">Unmarshal</span>(<span style="color:#a6e22e">b</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">normal</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">==</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Part</span> = <span style="color:#a6e22e">normal</span>.<span style="color:#a6e22e">Part</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// sometimes, we get json with an extra array, so if we get an error about that,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#75715e">// try the alternative structure
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">jsonErr</span>, <span style="color:#a6e22e">ok</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">err</span>.(<span style="color:#f92672">*</span><span style="color:#a6e22e">json</span>.<span style="color:#a6e22e">UnmarshalTypeError</span>); <span style="color:#a6e22e">ok</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">jsonErr</span>.<span style="color:#a6e22e">Value</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;array&#34;</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">weird</span> <span style="color:#f92672">:=</span> []<span style="color:#a6e22e">dto</span>{}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">json</span>.<span style="color:#a6e22e">Unmarshal</span>(<span style="color:#a6e22e">b</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">weird</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> len(<span style="color:#a6e22e">weird</span>) &gt; <span style="color:#ae81ff">0</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Part</span> = <span style="color:#a6e22e">weird</span>[<span style="color:#ae81ff">0</span>].<span style="color:#a6e22e">Part</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>When I opened a pullrequest about this, one of my colleagues approved it, but also noted:</p>
+<blockquote>
+<p>for once typescript would solve something more cleanly in my opinion</p>
+</blockquote>
+<p>And I agree, after deserialising, doing something like this is much less code, and basically has the same result.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">thing</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">JSON</span>.<span style="color:#a6e22e">parse</span>(<span style="color:#a6e22e">message</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (Array.<span style="color:#a6e22e">isArray</span>(<span style="color:#a6e22e">thing</span>.<span style="color:#a6e22e">parts</span>)) {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">thing</span>.<span style="color:#a6e22e">parts</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">thing</span>.<span style="color:#a6e22e">parts</span>[<span style="color:#ae81ff">0</span>]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="down-the-rabbit-hole">Down the Rabbit Hole</h2>
+<p>Tracing back through the system to figure out where the message came from lead me back to a system which parses an XML document and, after doing some work on the result, emits the json message we handle.  The XML itself has a pretty reasonable structure (and far larger than I am showing here, with tens, if not hundreds of nodes):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-xml" data-lang="xml"><span style="display:flex;"><span><span style="color:#f92672">&lt;Thing&gt;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#f92672">&lt;Parts&gt;</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&lt;Part</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;one&#34;</span> <span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&lt;Part</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;two&#34;</span> <span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#f92672">&lt;/Parts&gt;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">&lt;/Thing&gt;</span>
+</span></span></code></pre></div><p>Which it mangles into that weird json structure.  It does, however, do some sanitisation to the <code>Thing</code> before writing it out, and I found one for dealing with the <code>Parts</code> property:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#75715e">// if there is only one part, the parser doesn&#39;t emit an array, so force an array.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>Array.<span style="color:#a6e22e">isArray</span>(<span style="color:#a6e22e">thing</span>.<span style="color:#a6e22e">parts</span>.<span style="color:#a6e22e">part</span>)) {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">thing</span>.<span style="color:#a6e22e">parts</span>.<span style="color:#a6e22e">part</span> <span style="color:#f92672">=</span> [ <span style="color:#a6e22e">part</span> ]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Interesting!  but this is a different bug to the one we&rsquo;ve just seen; in our case the <code>Parts</code> became an array&hellip;</p>
+<p>Checking the original XML file which was processed, it looked entirely normal until I noticed that it has two <code>Parts</code> nodes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-xml" data-lang="xml"><span style="display:flex;"><span><span style="color:#f92672">&lt;Thing&gt;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#f92672">&lt;Parts&gt;</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&lt;Part</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;one&#34;</span> <span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&lt;Part</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;two&#34;</span> <span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#f92672">&lt;/Parts&gt;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">&lt;!-- many nodes later --&gt;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#f92672">&lt;Parts&gt;</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&lt;Part</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;three&#34;</span> <span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&lt;Part</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;four&#34;</span> <span style="color:#f92672">/&gt;</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#f92672">&lt;/Parts&gt;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">&lt;/Thing&gt;</span>
+</span></span></code></pre></div><p>So the fix is to add another sanitisation to our parser:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-ts" data-lang="ts"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (Array.<span style="color:#a6e22e">isArray</span>(<span style="color:#a6e22e">thing</span>.<span style="color:#a6e22e">parts</span>)) {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">thing</span>.<span style="color:#a6e22e">parts</span> <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">part</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">flatMap</span>(<span style="color:#a6e22e">thing</span>.<span style="color:#a6e22e">parts</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This fixes the data as soon as it appears in our system; however, searching our codebase revealed that, up until this fix, many places had been missing data, or incorrectly handling the data.</p>
+<p>While the TypeScript types written for the <code>Thing</code> are correct, that doesn&rsquo;t help when the data is supplied at runtime and apparently can have varying shapes.</p>
+<h2 id="the-tradeoff">The Tradeoff</h2>
+<p>The tradeoff between typescript/javascript and Go feels like this to me:</p>
+<p>Go causes me to notice when something isn&rsquo;t working, as errors start being returned about data not matching the shape it was expected to be in.  Fixing the issues in general, require more code than the same fix in typescript would.</p>
+<p>Typescript has short code, but as its only a compile-time type checking system, when weird data starts arriving, you don&rsquo;t get any errors (directly, things later on can break however.)</p>
+<p>For me, I would rather have slightly longer code which is more explicit, and tells me when something goes wrong, rather than silently continuing.  The likelihood of a silent error in serialisation leading to data loss or corruption is just too high.</p>
+]]></content:encoded></item><item><title>Debugging GDI Handle Leaks</title><link>https://andydote.co.uk/2025/01/11/debugging-gdi-handles/</link><pubDate>Sat, 11 Jan 2025 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2025/01/11/debugging-gdi-handles/</guid><description>Many years ago, I was working on a dotnet Windows Forms application. The application had many issues overall: memory leaks, random crashes, data loss, and in this case, the &amp;ldquo;red x&amp;rdquo; problem.
 The problem showed up at random, and instead of a window, dialogue, or control being rendered, it would be replaced with a white box with a red outline and red diagonal cross, and I think some error text in one corner, saying something about GDI handles.</description><content:encoded><![CDATA[<p>Many years ago, I was working on a dotnet Windows Forms application.  The application had many issues overall: memory leaks, random crashes, data loss, and in this case, the &ldquo;red x&rdquo; problem.</p>
 <p>The problem showed up at random, and instead of a window, dialogue, or control being rendered, it would be replaced with a white box with a red outline and red diagonal cross, and I <em>think</em> some error text in one corner, saying something about GDI handles.  The issue itself didn&rsquo;t seem to be related to either time or memory usage; when the app crashed, we got an error report (usually), and that never suggested that the application had been open particularly long or that it was using an excessive amount of memory.</p>
 <p>I had been given the job of fixing this problem (and others), so armed with a memory profiler (RedGate&rsquo;s, if I recall correctly), I went to work.  With no given reproduction, it was hard.  Some searching had shown that GDI handles were created when doing custom control painting; usually, this would be a fairly strong indicator of where to look, but in the case of this application, nearly all controls were custom-drawn, and there were many.</p>
