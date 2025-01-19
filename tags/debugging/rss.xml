@@ -15,8 +15,8 @@ type Thing struct { Parts Parts } type Parts struct { Part []Part } Which repres
 </span></span><span style="display:flex;"><span>	<span style="color:#f92672">&#34;thing&#34;</span>: {
 </span></span><span style="display:flex;"><span>		<span style="color:#f92672">&#34;parts&#34;</span>: {
 </span></span><span style="display:flex;"><span>			<span style="color:#f92672">&#34;part&#34;</span>: [
-</span></span><span style="display:flex;"><span>				{ <span style="color:#960050;background-color:#1e0010">name:</span> <span style="color:#f92672">&#34;one&#34;</span> },
-</span></span><span style="display:flex;"><span>				{ <span style="color:#960050;background-color:#1e0010">name:</span> <span style="color:#f92672">&#34;two&#34;</span> }
+</span></span><span style="display:flex;"><span>				{ <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;one&#34;</span> },
+</span></span><span style="display:flex;"><span>				{ <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;two&#34;</span> }
 </span></span><span style="display:flex;"><span>			]
 </span></span><span style="display:flex;"><span>		}
 </span></span><span style="display:flex;"><span>	}
@@ -26,8 +26,8 @@ type Thing struct { Parts Parts } type Parts struct { Part []Part } Which repres
 </span></span><span style="display:flex;"><span>	<span style="color:#f92672">&#34;thing&#34;</span>: {
 </span></span><span style="display:flex;"><span>		<span style="color:#f92672">&#34;parts&#34;</span>: {
 </span></span><span style="display:flex;"><span>			<span style="color:#f92672">&#34;part&#34;</span>: [
-</span></span><span style="display:flex;"><span>				{ <span style="color:#960050;background-color:#1e0010">name:</span> <span style="color:#f92672">&#34;one&#34;</span> },
-</span></span><span style="display:flex;"><span>				{ <span style="color:#960050;background-color:#1e0010">name:</span> <span style="color:#f92672">&#34;two&#34;</span> }
+</span></span><span style="display:flex;"><span>				{ <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;one&#34;</span> },
+</span></span><span style="display:flex;"><span>				{ <span style="color:#f92672">&#34;name&#34;</span>: <span style="color:#e6db74">&#34;two&#34;</span> }
 </span></span><span style="display:flex;"><span>			]
 </span></span><span style="display:flex;"><span>		}
 </span></span><span style="display:flex;"><span>	}
