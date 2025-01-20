@@ -41,12 +41,14 @@ However, rarely, we receive a json document which looks like this instead, where
 ```json
 {
 	"thing": {
-		"parts": {
-			"part": [
-				{ "name": "one" },
-				{ "name": "two" }
-			]
-		}
+		"parts": [	
+			{
+				"part": [
+					{ "name": "one" },
+					{ "name": "two" }
+				]
+			}
+		]
 	}
 }
 ```
