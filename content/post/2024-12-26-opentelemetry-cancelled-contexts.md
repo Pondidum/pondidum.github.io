@@ -20,6 +20,7 @@ func main() {
 
   if err := runMain(ctx, os.Args[:]); err != nil {
     fmt.Fprintf(os.Stderr, err.Error())
+    tracerProvider.Shutdown(ctx)
     os.Exit(1)
   }
 }
@@ -56,6 +57,14 @@ handleSignals(cancel)
 tracerProvider := configureTelemetry(ctx)
 - defer tracerProvider.Shutdown(ctx)
 + defer tracerProvider.Shutdown(context.Background())
+
+  tr = traceProvider.Tracer("cli")
+
+  if err := runMain(ctx, os.Args[:]); err != nil {
+    fmt.Fprintf(os.Stderr, err.Error())
+-    tracerProvider.Shutdown(ctx)
++    tracerProvider.Shutdown(context.Background())
+    os.Exit(1)
 ```
 
 The problem is that when the context has been cancelled, the tracerProvider skips doing any work, so never sends through the last spans!
