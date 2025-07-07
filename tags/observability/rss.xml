@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>observability on Andy Dote</title><link>https://andydote.co.uk/tags/observability/</link><description>Recent content in observability on Andy Dote</description><generator>Hugo -- gohugo.io</generator><language>en-gb</language><lastBuildDate>Thu, 26 Dec 2024 00:00:00 +0000</lastBuildDate><atom:link href="https://andydote.co.uk/tags/observability/rss.xml" rel="self" type="application/rss+xml"/><item><title>Telemetry and Cancelled Contexts</title><link>https://andydote.co.uk/2024/12/26/opentelemetry-cancelled-contexts/</link><pubDate>Thu, 26 Dec 2024 00:00:00 +0000</pubDate><guid>https://andydote.co.uk/2024/12/26/opentelemetry-cancelled-contexts/</guid><description>I use opentelemetry extensively to trace my applications, and one thing I keep running into is when writing a long running process, I want to handle OS signals and still send the telemetry on shutdown.
 Typically, my application startup looks something like this:
-func main() { ctx, cancel := context.WithCancel(context.Background()) handleSignals(cancel) tracerProvider := configureTelemetry(ctx) defer tracerProvider.Shutdown(ctx) tr = traceProvider.Tracer(&amp;#34;cli&amp;#34;) if err := runMain(ctx, os.Args[:]); err != nil { fmt.Fprintf(os.Stderr, err.Error()) os.</description><content:encoded><![CDATA[<p>I use opentelemetry extensively to trace my applications, and one thing I keep running into is when writing a long running process, I want to handle OS signals and still send the telemetry on shutdown.</p>
+func main() { ctx, cancel := context.WithCancel(context.Background()) handleSignals(cancel) tracerProvider := configureTelemetry(ctx) defer tracerProvider.Shutdown(ctx) tr = traceProvider.Tracer(&amp;#34;cli&amp;#34;) if err := runMain(ctx, os.Args[:]); err != nil { fmt.Fprintf(os.Stderr, err.Error()) tracerProvider.</description><content:encoded><![CDATA[<p>I use opentelemetry extensively to trace my applications, and one thing I keep running into is when writing a long running process, I want to handle OS signals and still send the telemetry on shutdown.</p>
 <p>Typically, my application startup looks something like this:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
 </span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">cancel</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">WithCancel</span>(<span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Background</span>())
@@ -13,6 +13,7 @@ func main() { ctx, cancel := context.WithCancel(context.Background()) handleSign
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">runMain</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Args</span>[:]); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Fprintf</span>(<span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Stderr</span>, <span style="color:#a6e22e">err</span>.<span style="color:#a6e22e">Error</span>())
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">tracerProvider</span>.<span style="color:#a6e22e">Shutdown</span>(<span style="color:#a6e22e">ctx</span>)
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Exit</span>(<span style="color:#ae81ff">1</span>)
 </span></span><span style="display:flex;"><span>  }
 </span></span><span style="display:flex;"><span>}
@@ -43,7 +44,15 @@ func main() { ctx, cancel := context.WithCancel(context.Background()) handleSign
 </span></span><span style="display:flex;"><span>tracerProvider := configureTelemetry(ctx)
 </span></span><span style="display:flex;"><span><span style="color:#f92672">- defer tracerProvider.Shutdown(ctx)
 </span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+ defer tracerProvider.Shutdown(context.Background())
-</span></span></span></code></pre></div><p>The problem is that when the context has been cancelled, the tracerProvider skips doing any work, so never sends through the last spans!</p>
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>
+</span></span><span style="display:flex;"><span>  tr = traceProvider.Tracer(&#34;cli&#34;)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  if err := runMain(ctx, os.Args[:]); err != nil {
+</span></span><span style="display:flex;"><span>    fmt.Fprintf(os.Stderr, err.Error())
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-    tracerProvider.Shutdown(ctx)
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+    tracerProvider.Shutdown(context.Background())
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span>    os.Exit(1)
+</span></span></code></pre></div><p>The problem is that when the context has been cancelled, the tracerProvider skips doing any work, so never sends through the last spans!</p>
 <p>This issue would have been more noticable if:</p>
 <ul>
 <li>I checked the <code>err</code> value from <code>Shutdown()</code>, which is easily missed in a <code>defer</code> call</li>
